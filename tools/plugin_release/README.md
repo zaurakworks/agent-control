@@ -1,14 +1,24 @@
 # plugin_release
 
-回答一个问题：**这台机器上的三个运行端此刻装的，是不是 `agent-plugins` 源仓当前的内容。**
+回答两个问题，**两者严重性不同**：
 
-## 为什么需要它
+1. **本机 Plugin 源仓工作树是不是 `origin/main` 的干净检出？**（会改变行为）
+2. **版本缓存与工作树是否一致？**（安装账目）
 
-Plugin 的版本声明分散在六处（两端 `plugin.json`、两份 Marketplace、符合性声明、README 版本总览）。这六处是否互相自洽，`agent-plugins` 仓的 CI 已经能判定——`tests/workflow-routing.test.ts` 全部断言过。
+## 为什么第 1 条才是要紧的
 
-CI 判定不了的是**本机安装态**：它看不见这台电脑。而运行端读的是安装副本，不是源仓。于是存在一种沉默故障——源仓合并了新版本，没人执行安装，三个运行端继续按旧内容干活，而所有远端检查都是绿的。
+2026-08-15 实测：**两个运行端都把 Skill 解析到工作树本身**，不是 `plugins/cache/<插件>/<版本>/`。
 
-最危险的一种是 `modified`：**版本号相同、内容不同**。任何按版本号做的核对都会放行它。本工具按整树 SHA-256 比较，因此看得见。
+- Claude：改工作树 `SKILL.md` 后**不重装**，`claude plugin details` 报的 on-invoke 成本立刻从 ~7.8k 变 ~14.3k，还原即回落；
+- Codex：`codex plugin list` 的 `PATH` 列直接就是 `…/workspace/agent-plugins/plugins/<插件>`。
+
+所以工作树停在特性分支、有未提交改动或落后远端时，**新 Session 会实时读到未经合并的正文**。这正是 `agent-control#11` 登记的剩余风险。`check --hook` 的告警对象因此是工作树来源，不是缓存。
+
+版本缓存则是安装账目：旧了说明某次发布没落地，值得知道，但**没人读它**。最危险的一档 `modified`（版本号相同、内容不同）仍然只有整树摘要看得见。
+
+## Plugin 的版本声明分散在六处
+
+两端 `plugin.json`、两份 Marketplace、符合性声明、README 版本总览。它们是否互相自洽，由 `agent-plugins` 仓的 CI 判定——`tests/workflow-routing.test.ts` 全部断言过。本工具不重复那一层。
 
 ## 用法
 

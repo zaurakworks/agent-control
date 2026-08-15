@@ -4,12 +4,16 @@
 版本化来源自洽（两端 manifest、两份 Marketplace、符合性声明、README 版本总览）由
 agent-plugins 仓的 CI 负责，见该仓 `.github/workflows/plugin-checks.yml`。
 
-本工具只回答 CI 无法回答、也无法从任何远端回答的那半个问题：
-**这台机器上的三个运行端此刻装的，是不是源仓当前检出的内容。**
+本工具只回答 CI 无法回答、也无法从任何远端回答的那半个问题：**这台机器此刻的
+Plugin 状态。** 它分两层，两层的严重性不同：
 
-三个运行端的 `agent-plugins` Marketplace 都注册为本机目录源，直接指向工作树，因此
-「源」是工作树的当前检出，不是 `origin/main`；切分支会改变运行端下次安装到的东西。
-check 因此同时报告分支、干净度与相对 `origin/main` 的位置。
+1. **工作树来源（会改变行为）。** 2026-08-15 实测：两个运行端都把 Skill 解析到
+   工作树本身，不是 `plugins/cache/<插件>/<版本>/`。Claude 端改工作树后不重装，
+   `claude plugin details` 的 on-invoke 估算立刻从 ~7.8k 变 ~14.3k；Codex 端
+   `codex plugin list` 的 PATH 列直接就是工作树路径。因此工作树停在特性分支、
+   有未提交改动或落后远端时，**新 Session 会实时读到未经合并的正文**。
+2. **版本缓存（安装账目）。** 缓存旧了说明某次发布没落地，值得知道，但没人读它。
+   最危险的一档 `modified`（版本号相同、内容不同）仍然只有整树摘要看得见。
 """
 
 from __future__ import annotations
@@ -386,7 +390,7 @@ def format_report(report: Report) -> str:
     ]
     if facts.branch != "main" or facts.dirty:
         lines.append(
-            "  注意：三端 Marketplace 直接指向这个工作树，因此运行端下次安装到的是上面这份检出，不是 origin/main。"
+            "  注意：两个运行端把 Skill 解析到这个工作树本身（不是版本缓存），因此本次读到的就是上面这份检出。"
         )
     lines.append("")
 
@@ -456,24 +460,36 @@ def format_report(report: Report) -> str:
 def format_hook(report: Report, tool_path: Path) -> str | None:
     """Session 启动钩子用的紧凑提醒；没有值得说的事就返回 None。
 
-    只有源仓处于 `main` 且干净时才报警。在特性分支上或有未提交改动时，「装的和源仓
-    不一样」正是进行中的工作应有的样子，报出来是噪音——钩子每次会话都跑，噪音会让
-    真正的漂移被无视。
+    **告警对象是工作树来源，不是版本缓存。** 2026-08-15 实测：两个运行端都把 Skill
+    解析到工作树本身，不是 `plugins/cache/<插件>/<版本>/`——
 
-    永远不返回非零、也不阻断会话：装旧了值得知道，不值得让人开不了工。
+    - Claude：改工作树 `SKILL.md` 后不重装，`claude plugin details` 报的 on-invoke
+      成本立刻从 ~7.8k 变 ~14.3k，还原即回落；
+    - Codex：`codex plugin list` 的 PATH 列直接就是 `…/workspace/agent-plugins/plugins/<插件>`。
+
+    因此真正会改变行为的事实是「工作树是不是 origin/main 的干净检出」：停在特性
+    分支、有未提交改动或落后于远端时，**新 Session 会实时读到未经合并的正文**。这
+    正是 agent-control#11 登记的剩余风险。
+
+    版本缓存则是安装账目：它旧了说明某次发布没落地，值得知道，但没人读它。
+
+    永远不返回非零、也不阻断会话。
     """
     facts = report.source
-    if facts.branch != "main" or facts.dirty or not report.failures:
+    problems: list[str] = []
+    if facts.branch != "main":
+        problems.append(f"停在分支 `{facts.branch}`（不是 main）")
+    if facts.dirty:
+        problems.append("有未提交改动")
+    if facts.behind:
+        problems.append(f"落后 {facts.upstream} {facts.behind} 个提交")
+    if not problems:
         return None
-    grouped: dict[str, list[str]] = {}
-    for plugin, runtime_id, state in report.failures:
-        grouped.setdefault(plugin, []).append(f"{runtime_id}={state}")
-    items = "；".join(f"{plugin} {'、'.join(states)}" for plugin, states in grouped.items())
     return (
-        f"[plugin_release] 本机运行端与 Plugin 源仓不一致：{items}\n"
-        f"源仓 {facts.root} 在 main 且工作树干净，因此这是没人执行安装造成的漂移，"
-        f"不是进行中的工作。运行端此刻读到的 Skill 正文不是源仓当前的版本。\n"
-        f"修复：python {tool_path} release <插件> --apply"
+        f"[plugin_release] Plugin 源仓工作树不是 origin/main 的干净检出：{'；'.join(problems)}。\n"
+        f"两个运行端都把 Skill 解析到工作树本身（{facts.root}），不是版本缓存，"
+        f"因此本次会话读到的 Skill 正文就是上面这份检出——未经合并的内容会实时生效。\n"
+        f"确认这是有意为之；否则回到 main 再开工。现状：python {tool_path} check"
     )
 
 
