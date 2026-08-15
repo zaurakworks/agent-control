@@ -29,7 +29,7 @@ REQUIRED_SECTIONS = (
     "范围",
     "验收条件",
 )
-DEFAULT_REPOSITORY = "Eridanus117/agent-control"
+DEFAULT_REPOSITORY = "zaurakworks/agent-control"
 DEFAULT_PROJECT_ID = "PVT_kwHOEua8Pc4BgZbR"
 SKILL_RELATIVE_PATH = Path(
     "plugins/github-collaboration/skills/objective-to-issues/SKILL.md"
