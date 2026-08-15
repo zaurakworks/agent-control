@@ -44,6 +44,7 @@ Session 的职责由当前 Issue 合同和写入所有权决定，不由 Provide
 - `work/current.md`：恢复指针壳，只保存主线入口、各来源 observedAt 水位和未解决冲突标志；它不是状态权威，目标、授权、决定与验收一律以 GitHub Issue／PR 为准；
 - `work/records/`：保存非权威、可追溯的研发过程；默认不读取，只在当前任务明确链接时按需读取；
 - `work/history/`：首次归档已完成任务时再创建；历史记录不是当前指令；
+- `work/` 根目录下的其余 Markdown（`configuration-inventory.md`、`current-monitoring-directive.md`、`knowledge-mvp-proposal.md`、`knowledge-mvp-boundary-candidate.md`、`knowledge-mvp-decision.md`、`permission-strategy-research.md`、`system-capability-backlog.md`）与 `work/knowledge-trial/`：具名的调研、清单与候选，非权威；默认不读取，只在当前任务明确链接时按需读取。新增同类内容优先进 `work/records/<日期>-<主题>/`，不再往根目录堆放；
 - `entrypoints/agent-system.md`：Windows 用户级 Agent 系统提示词的版本化来源；实际入口副本不是新的权威来源；
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
 - `CLAUDE.md`：Claude Code 导入同一份入口规则。

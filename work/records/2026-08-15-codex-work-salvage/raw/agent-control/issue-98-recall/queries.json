@@ -1,0 +1,156 @@
+[
+  {
+    "id": "Q01",
+    "type": "词面重合",
+    "gold": "K1",
+    "query": "Codex 和 Claude Code 分别读取什么项目指令文件？",
+    "origin": "K1“回答的问题与价值门”"
+  },
+  {
+    "id": "Q02",
+    "type": "改述",
+    "gold": "K1",
+    "query": "一个仓库怎样让两种编码助手共用同一套持久规则，又尽量不复制正文？",
+    "origin": "K1 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q03",
+    "type": "词面重合",
+    "gold": "K2",
+    "query": "Orca worker-start 返回 input_accepted 是否等于任务已经提交执行？",
+    "origin": "K2“回答的问题与价值门”"
+  },
+  {
+    "id": "Q04",
+    "type": "改述",
+    "gold": "K2",
+    "query": "派发后文字还停在输入框，怎样确认执行者真正开工，并在结束后安全收尾？",
+    "origin": "K2 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q05",
+    "type": "词面重合",
+    "gold": "K3",
+    "query": "在 PR 正文里用否定式关闭关键词引用父 Issue 安全吗？",
+    "origin": "K3“回答的问题与价值门”"
+  },
+  {
+    "id": "Q06",
+    "type": "改述",
+    "gold": "K3",
+    "query": "怎样在合并请求中提到父任务，又避免平台把父任务自动标成已办结？",
+    "origin": "K3 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q07",
+    "type": "词面重合",
+    "gold": "K4",
+    "query": "Claude Code plugin 已安装时直接 plugin install 能升级吗？",
+    "origin": "K4“回答的问题与价值门”"
+  },
+  {
+    "id": "Q08",
+    "type": "改述",
+    "gold": "K4",
+    "query": "为什么扩展显示安装成功，运行端仍加载旧内容？多端发布后应该怎样核验缓存副本？",
+    "origin": "K4 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q09",
+    "type": "词面重合",
+    "gold": "K5",
+    "query": "修改 entrypoints/agent-system.md 后如何用 entry_sync 同步全部拷贝？",
+    "origin": "K5“回答的问题与价值门”"
+  },
+  {
+    "id": "Q10",
+    "type": "改述",
+    "gold": "K5",
+    "query": "系统入口母本改完后，怎样生成各目标、安装到用户目录并检查六份正文一致？",
+    "origin": "K5 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q11",
+    "type": "词面重合",
+    "gold": "K6",
+    "query": "Windows 下可以直接用原始 SHA-256 比较 CRLF 和 LF 文件吗？",
+    "origin": "K6“回答的问题与价值门”"
+  },
+  {
+    "id": "Q12",
+    "type": "改述",
+    "gold": "K6",
+    "query": "版本化来源与安装副本看起来一样，哈希却不同，验收时应先消除哪种文本差异？",
+    "origin": "K6 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q13",
+    "type": "词面重合",
+    "gold": "K7",
+    "query": "updateProjectV2Field 的 singleSelectOptions 是增量补丁还是全量替换？",
+    "origin": "K7“回答的问题与价值门”"
+  },
+  {
+    "id": "Q14",
+    "type": "改述",
+    "gold": "K7",
+    "query": "给项目单选栏新增一项时，怎样避免原有选项身份消失并让四十个条目变成空值？",
+    "origin": "K7 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q15",
+    "type": "词面重合",
+    "gold": "K8",
+    "query": "Codex resume --last 与 Claude --continue 能否精确恢复目标会话？",
+    "origin": "K8“回答的问题与价值门”"
+  },
+  {
+    "id": "Q16",
+    "type": "改述",
+    "gold": "K8",
+    "query": "同一目录同时跑着多个编码助手，如何接回指定对话而不误入最近启动的另一个任务？",
+    "origin": "K8 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q17",
+    "type": "词面重合",
+    "gold": "K9",
+    "query": "账户已用百分比、Session 累计 Token 和当前 context window 能否互相换算？",
+    "origin": "K9“回答的问题与价值门”"
+  },
+  {
+    "id": "Q18",
+    "type": "改述",
+    "gold": "K9",
+    "query": "为什么四百万累计处理量不代表当前窗口快满，也不能据此推算订阅账单？",
+    "origin": "K9 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q19",
+    "type": "词面重合",
+    "gold": "K10",
+    "query": "共享 SKILL.md 是否能证明 Codex 与 Claude Code 的 Plugin 行为等价？",
+    "origin": "K10“回答的问题与价值门”"
+  },
+  {
+    "id": "Q20",
+    "type": "改述",
+    "gold": "K10",
+    "query": "外部能力在两个编码助手里都能安装，怎样逐端验收，并保留可恢复退场路径？",
+    "origin": "K10 真实任务问题的语义等价改述"
+  },
+  {
+    "id": "Q21",
+    "type": "词面重合",
+    "gold": "K11",
+    "query": "GraphQL mutation 报错后，重复相同 clientMutationId 能否保证 exactly-once？",
+    "origin": "K11“回答的问题与价值门”"
+  },
+  {
+    "id": "Q22",
+    "type": "改述",
+    "gold": "K11",
+    "query": "远端写入可能部分成功，重试前应该依据什么对象身份和目标状态判断缺了哪一步？",
+    "origin": "K11 真实任务问题的语义等价改述"
+  }
+]

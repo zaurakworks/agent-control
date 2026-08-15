@@ -89,6 +89,7 @@
 - 大小／SHA-256：`15985`／`811563D6A954B0F954F89F1B4764816784B4816873DD181A9DF84686216C2126`；`9172`／`110EE3C22D984DE220BC157C2544B44F71308E78EC46DDCF9C98A33290B86071`；
 - 保存状态：仅当前主机可用，目录被 Git 忽略；
 - 限制：不能跨 Host 恢复；内容是调研与候选，不是当前权威。
+- **2026-08-15 更新**：上述「仅当前主机可用」已不再成立。该文件已迁入 [`work/records/2026-08-15-codex-work-salvage/raw/agent-control/research/adaptive-problem-solving-definition/`](../../2026-08-15-codex-work-salvage/raw/agent-control/research/adaptive-problem-solving-definition/) 并纳入版本控制；上面两个 SHA-256 经 CRLF→LF 归一化后与迁入副本逐字节一致。原始 `codex-work/` 目录已随本地工作副本重建而不存在。本行只更新位置与保存状态，不修改 08-09 当时的判断记录。
 
 ## S05｜首个 K1 知识包
 
