@@ -583,7 +583,7 @@ test_contains_all(
     current,
     [
         "本文件是恢复指针，不是状态权威",
-        "github.com/Eridanus117/agent-control/issues/44",
+        "github.com/zaurakworks/agent-control/issues/22",  # 迁仓后：老 #44 → 新 #22
         "observedAt",
     ],
     "current 声明指针壳定位、主线入口与来源水位",
