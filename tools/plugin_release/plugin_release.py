@@ -619,6 +619,7 @@ def release(
     part: str,
     apply: bool,
     allow_dirty: bool,
+    no_bump: bool = False,
     out=sys.stdout,
 ) -> int:
     source_root = Path(data["source"]["repository"])
@@ -628,21 +629,28 @@ def release(
     if plugin not in versions:
         raise ReleaseError(f"未知插件 {plugin!r}；已声明：{'、'.join(sorted(versions))}")
     old = versions[plugin]
-    new = bump_version(old, part)
+    # --no-bump：上一次发布在第 3 步（符合性测试）中止时，六处声明已经改成新版本了。
+    # 直接重跑会再递增一次，把一个已经写进声明的版本跳过去。恢复路径必须不再递增。
+    new = old if no_bump else bump_version(old, part)
 
     print(f"[1/5] 前置检查", file=out)
     if facts.dirty and not allow_dirty:
         raise ReleaseError("源仓工作树不干净；先提交或传 --allow-dirty（发布会与你的改动混在一起）")
     print(f"      源仓 {source_root}｜分支 {facts.branch}｜{'脏' if facts.dirty else '干净'}", file=out)
-    print(f"      {plugin}  {old} -> {new}", file=out)
+    if no_bump:
+        print(f"      {plugin}  {new}（--no-bump：声明已是目标版本，不再递增）", file=out)
+    else:
+        print(f"      {plugin}  {old} -> {new}", file=out)
     if not apply:
         print("      演练模式：不写任何文件、不装任何运行端。加 --apply 才真正执行。", file=out)
         return 0
 
-    print(f"[2/5] 同步六处版本声明", file=out)
-    touched = _sync_version(source_root, plugin, old, new)
-    for relative in touched:
-        print(f"      改 {relative}", file=out)
+    if no_bump:
+        print("[2/5] 跳过：声明已是目标版本", file=out)
+    else:
+        print(f"[2/5] 同步六处版本声明", file=out)
+        for relative in _sync_version(source_root, plugin, old, new):
+            print(f"      改 {relative}", file=out)
 
     print(f"[3/5] 跑符合性测试", file=out)
     for relative in data["source"]["conformance_tests"]:
@@ -664,6 +672,9 @@ def release(
             key: value.format(cache_home=str(runtime.cache_home or ""))
             for key, value in (spec.get("env") or {}).items()
         }
+        if spec.get("preinstall"):
+            # 失败不中止：首次安装时本来就没有可卸载的东西。
+            _run(_format_command(spec["preinstall"], plugin, marketplace, runtime), env=env)
         if spec.get("refresh"):
             refresh = _format_command(spec["refresh"], plugin, marketplace, runtime)
             result = _run(refresh, env=env)
@@ -874,6 +885,11 @@ def build_parser() -> argparse.ArgumentParser:
     release_parser.add_argument("--part", choices=("patch", "minor", "major"), default="patch")
     release_parser.add_argument("--apply", action="store_true", help="真正执行；默认只演练")
     release_parser.add_argument("--allow-dirty", action="store_true")
+    release_parser.add_argument(
+        "--no-bump",
+        action="store_true",
+        help="不递增：上次发布在符合性测试处中止、六处声明已是目标版本时的恢复路径",
+    )
 
     retire_parser = sub.add_parser("retire", help="退役：源仓、两份 Marketplace、每份物理缓存，并回读确认")
     retire_parser.add_argument("plugin")
@@ -893,7 +909,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return retire(data, runtimes, args.plugin, args.apply, args.allow_dirty)
         if command == "release":
             return release(
-                data, runtimes, args.plugin, args.part, args.apply, args.allow_dirty
+                data, runtimes, args.plugin, args.part, args.apply, args.allow_dirty, args.no_bump
             )
         report = check(data, runtimes)
         if getattr(args, "hook", False):
