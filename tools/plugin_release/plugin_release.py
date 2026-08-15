@@ -877,6 +877,114 @@ def retire(
     return 0
 
 
+def behaviour_changes(source_root: Path, before: str, after: str) -> list[str]:
+    """What actually changes for the runtimes between two commits of the production checkout.
+
+    运行端实时读工作树，因此这不是「将会安装什么」，而是**这次拉取之后新 Session
+    立刻读到的差异**。只看 plugins/ 下的内容：仓库其他改动不进 Agent 上下文。
+    """
+    if before == after:
+        return []
+    raw = _git(source_root, "diff", "--name-status", before, after, "--", "plugins")
+    changes: list[str] = []
+    versions: dict[str, tuple[str, str]] = {}
+    for line in raw.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        status, path = parts[0], parts[-1]
+        pieces = path.split("/")
+        if len(pieces) < 2:
+            continue
+        plugin = pieces[1]
+        if path.endswith("plugin.json") and plugin not in versions:
+            def read_at(ref: str) -> str:
+                try:
+                    return json.loads(_git(source_root, "show", f"{ref}:{path}")).get("version", "?")
+                except ReleaseError:
+                    return "（无）"
+            versions[plugin] = (read_at(before), read_at(after))
+        elif path.endswith(".md"):
+            changes.append(f"{status}  {path}")
+    lines = [f"{p}  {old} → {new}" for p, (old, new) in sorted(versions.items()) if old != new]
+    return lines + sorted(changes)
+
+
+def sync(
+    data: dict[str, Any],
+    runtimes: Sequence[Runtime],
+    apply: bool,
+    out=sys.stdout,
+) -> int:
+    """Bring the production checkout to origin/main, report what that changes, refresh bookkeeping.
+
+    「源码即生产」下这才是真正的发布动作：运行端实时读这份工作树，`git pull` 落地的
+    那一刻新 Session 就读到新正文。安装只是让 `plugin list` 的版本账目不说谎。
+    """
+    source_root = Path(data["source"]["repository"])
+    marketplace = data["source"]["marketplace_name"]
+    facts = source_facts(source_root)
+
+    print("[1/4] 生产检出前置", file=out)
+    if facts.branch != "main":
+        raise ReleaseError(
+            f"生产检出停在 `{facts.branch}`，不是 main。开发请用 "
+            f"agent-plugins-work/<分支> 的 worktree；生产检出只做快进。"
+        )
+    if facts.dirty:
+        raise ReleaseError("生产检出有未提交改动——它是运行端实时读的那份，不接受就地编辑")
+    print(f"      {source_root}｜main｜干净", file=out)
+
+    before = _git(source_root, "rev-parse", "HEAD")
+    if not apply:
+        _git(source_root, "fetch", "origin", "main")
+        target = _git(source_root, "rev-parse", "origin/main")
+        print(f"[2/4] 演练：{before[:7]} → {target[:7]}", file=out)
+        for line in behaviour_changes(source_root, before, target) or ["（无 plugins/ 变化）"]:
+            print(f"      {line}", file=out)
+        print("      加 --apply 才真正拉取。", file=out)
+        return 0
+
+    _git(source_root, "fetch", "origin", "main")
+    _git(source_root, "merge", "--ff-only", "origin/main")
+    after = _git(source_root, "rev-parse", "HEAD")
+    print(f"[2/4] git pull --ff-only   {before[:7]} → {after[:7]}", file=out)
+    changes = behaviour_changes(source_root, before, after)
+    if changes:
+        print("      本次生效的行为变化：", file=out)
+        for line in changes:
+            print(f"        {line}", file=out)
+    else:
+        print("      plugins/ 无变化，本次不改变任何 Session 的行为。", file=out)
+
+    aliases = cache_aliases(runtimes)
+    print(f"[3/4] 刷新缓存账目（{len(runtimes) - len(aliases)} 份物理缓存）", file=out)
+    versions = declared_versions(source_root, data)
+    for runtime in runtimes:
+        if runtime.id in aliases:
+            continue
+        spec = runtime.install
+        env = {
+            key: value.format(cache_home=str(runtime.cache_home or ""))
+            for key, value in (spec.get("env") or {}).items()
+        }
+        if spec.get("refresh"):
+            _run(_format_command(spec["refresh"], marketplace, marketplace, runtime), env=env)
+        for plugin in sorted(versions):
+            if spec.get("preinstall"):
+                _run(_format_command(spec["preinstall"], plugin, marketplace, runtime), env=env)
+            _run(_format_command(spec["command"], plugin, marketplace, runtime), env=env)
+        print(f"      {runtime.label} 已刷新", file=out)
+
+    print("[4/4] 指纹验收", file=out)
+    report = check(data, runtimes)
+    if report.failures:
+        bad = "；".join(f"{p}@{r}={s}" for p, r, s in report.failures)
+        raise ReleaseError(f"缓存账目仍不一致：{bad}——行为已按新正文生效，但账目在说谎")
+    print(f"      {len(report.plugins)} 插件 × {report.distinct_caches} 份物理缓存逐字节一致", file=out)
+    return 0
+
+
 # ---------------------------------------------------------------- 入口
 
 
@@ -907,6 +1015,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="不递增：上次发布在符合性测试处中止、六处声明已是目标版本时的恢复路径",
     )
 
+    sync_parser = sub.add_parser(
+        "sync", help="把生产检出快进到 origin/main，报告本次生效的行为变化，并刷新缓存账目"
+    )
+    sync_parser.add_argument("--apply", action="store_true", help="真正拉取；默认只演练")
+
     retire_parser = sub.add_parser("retire", help="退役：源仓、两份 Marketplace、每份物理缓存，并回读确认")
     retire_parser.add_argument("plugin")
     retire_parser.add_argument("--apply", action="store_true", help="真正执行；默认只演练")
@@ -921,6 +1034,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         data = load_targets()
         runtimes = load_runtimes(data)
+        if command == "sync":
+            return sync(data, runtimes, args.apply)
         if command == "retire":
             return retire(data, runtimes, args.plugin, args.apply, args.allow_dirty)
         if command == "release":
