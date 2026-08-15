@@ -7,15 +7,14 @@
 - 事项清单：[#33](https://github.com/zaurakworks/agent-control/issues/33)
 - 外生任务子树：[#24](https://github.com/zaurakworks/agent-control/issues/24)
 - 协调层方向→实施：[#30](https://github.com/zaurakworks/agent-control/issues/30) → [#34](https://github.com/zaurakworks/agent-control/issues/34)
-- Skill 方法论：[#20](https://github.com/zaurakworks/agent-control/issues/20)
 - 运行面 Run `run_65a73145f0e2`
 
 ## 各来源 observedAt 水位
 
 | 来源 | observedAt |
 | --- | --- |
-| GitHub | 2026-08-15T01:00Z |
-| Orca | 2026-08-15T01:00Z |
+| GitHub | 2026-08-15T09:50Z |
+| Orca | 2026-08-15T09:50Z |
 | `authority/` | 2026-08-14T11:43Z |
 
 ## unresolved-conflict
