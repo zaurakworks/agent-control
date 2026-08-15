@@ -28,7 +28,9 @@
       "cache": { "base": "home", "path": ".claude/plugins/cache/agent-plugins" },
       "install": {
         "command": ["claude", "plugin", "install", "{plugin}@{marketplace}", "--scope", "user", "--yes"],
-        "refresh": ["claude", "plugin", "marketplace", "update", "{marketplace}"]
+        "refresh": ["claude", "plugin", "marketplace", "update", "{marketplace}"],
+        "comment": "preinstall 实测必需：claude plugin install 对已安装插件只回「already installed」并退出 0，不升级到新版本。不先卸载，安装会静默成功而内容不变——这正是本工具第 5 步指纹验收要抓的形状。preinstall 失败不中止（首次安装时本就无可卸载）。",
+        "preinstall": ["claude", "plugin", "uninstall", "{plugin}@{marketplace}"]
       },
       "uninstall": ["claude", "plugin", "uninstall", "{plugin}@{marketplace}"]
     },
