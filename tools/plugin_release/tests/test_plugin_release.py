@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
@@ -326,6 +327,109 @@ class SyncVersionTest(unittest.TestCase):
         pr._sync_version(self.source, "alpha", "1.2.3", "1.2.4")
         with self.assertRaises(pr.ReleaseError):
             pr._sync_version(self.source, "alpha", "1.2.3", "1.2.4")
+
+
+class RetireTest(unittest.TestCase):
+    """退役的重点不是删仓库文件，是确认已安装端也没了。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.source = root / "src"
+        self.cache = root / "cache"
+        build_source(self.source)
+        install_all(self.source, self.cache)
+        self.data = make_data(self.source)
+        self.noop = [sys.executable, "-c", "pass"]
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def add_edge(self) -> None:
+        path = self.source / "tests" / "workflow-routing.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["skills"] = {
+            "alpha-main": {"plugin": "alpha"},
+            "beta-main": {"plugin": "beta", "drive": ["alpha-main"]},
+        }
+        write(path, json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+
+    def test_inbound_routing_edge_blocks_retirement(self) -> None:
+        self.add_edge()
+        edges = pr.routing_inbound_edges(self.source, self.data, "alpha")
+        self.assertEqual(edges, ["beta-main --drive--> alpha-main"])
+        runtimes = [pr.Runtime("r1", "运行端一", self.cache, {}, None, self.noop)]
+        with self.assertRaises(pr.ReleaseError) as caught:
+            pr.retire(self.data, runtimes, "alpha", apply=True, allow_dirty=True, out=io.StringIO())
+        self.assertIn("路由边", str(caught.exception))
+
+    def test_source_removal_covers_every_declaration(self) -> None:
+        pr._remove_from_source(self.source, "alpha", "1.2.3")
+        self.assertFalse((self.source / "plugins" / "alpha").exists())
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            document = json.loads((self.source / relative).read_text(encoding="utf-8"))
+            self.assertEqual([e["name"] for e in document["plugins"]], ["beta"], relative)
+        fixture = json.loads((self.source / "tests" / "workflow-routing.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(fixture["pluginVersions"]), ["beta"])
+        lines = (self.source / "README.md").read_text(encoding="utf-8").splitlines()
+        overview = next(line for line in lines if line.startswith("仓库目前包含"))
+        self.assertNotIn("alpha", overview)
+        self.assertIn("`beta` `0.4.0`", overview)
+        # 历史叙述段落照旧不碰
+        self.assertTrue(any("`alpha` `1.2.2`" in line for line in lines))
+
+    def test_retirement_fails_when_the_installed_copy_survives(self) -> None:
+        # 卸载命令什么都不做——这正是「从 Marketplace 移除不等于卸载」的形状。
+        runtimes = [pr.Runtime("r1", "运行端一", self.cache, {}, None, self.noop)]
+        with self.assertRaises(pr.ReleaseError) as caught:
+            pr.retire(self.data, runtimes, "alpha", apply=True, allow_dirty=True, out=io.StringIO())
+        message = str(caught.exception)
+        self.assertIn("退役未完成", message)
+        self.assertIn("仍装着 1.2.3", message)
+
+    def test_retirement_succeeds_once_the_cache_is_actually_gone(self) -> None:
+        import shutil
+
+        shutil.rmtree(self.cache / "alpha")
+        runtimes = [pr.Runtime("r1", "运行端一", self.cache, {}, None, self.noop)]
+        out = io.StringIO()
+        self.assertEqual(
+            pr.retire(self.data, runtimes, "alpha", apply=True, allow_dirty=True, out=out), 0
+        )
+        self.assertIn("退役完成", out.getvalue())
+
+    def test_missing_uninstall_command_is_refused(self) -> None:
+        runtimes = [pr.Runtime("r1", "运行端一", self.cache, {}, None, [])]
+        with self.assertRaises(pr.ReleaseError) as caught:
+            pr.retire(self.data, runtimes, "alpha", apply=True, allow_dirty=True, out=io.StringIO())
+        self.assertIn("未声明卸载命令", str(caught.exception))
+
+    def test_dry_run_changes_nothing(self) -> None:
+        runtimes = [pr.Runtime("r1", "运行端一", self.cache, {}, None, self.noop)]
+        before = pr.tree_digest(self.source / "plugins" / "alpha")
+        pr.retire(self.data, runtimes, "alpha", apply=False, allow_dirty=True, out=io.StringIO())
+        self.assertEqual(pr.tree_digest(self.source / "plugins" / "alpha"), before)
+
+
+class LifecycleReadTest(unittest.TestCase):
+    def test_absent_declaration_is_empty_not_an_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "src"
+            build_source(source)
+            self.assertEqual(pr.skill_lifecycle(source, make_data(source)), {})
+
+    def test_entries_are_read_through(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "src"
+            build_source(source)
+            path = source / "tests" / "workflow-routing.json"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["skillLifecycle"] = {
+                "entries": {"a": {"lastVerified": None, "suspect": True}, "b": {"lastVerified": "2026-08-15"}}
+            }
+            write(path, json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+            entries = pr.skill_lifecycle(source, make_data(source))
+            self.assertEqual(sorted(entries), ["a", "b"])
 
 
 class RealTargetsTest(unittest.TestCase):

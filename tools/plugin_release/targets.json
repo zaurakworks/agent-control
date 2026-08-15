@@ -29,13 +29,15 @@
       "install": {
         "command": ["claude", "plugin", "install", "{plugin}@{marketplace}", "--scope", "user", "--yes"],
         "refresh": ["claude", "plugin", "marketplace", "update", "{marketplace}"]
-      }
+      },
+      "uninstall": ["claude", "plugin", "uninstall", "{plugin}@{marketplace}"]
     },
     {
       "id": "codex",
       "label": "Codex CLI",
       "cache": { "base": "home", "path": ".codex/plugins/cache/agent-plugins" },
-      "install": { "command": ["codex", "plugin", "add", "{plugin}@{marketplace}"] }
+      "install": { "command": ["codex", "plugin", "add", "{plugin}@{marketplace}"] },
+      "uninstall": ["codex", "plugin", "remove", "{plugin}@{marketplace}"]
     },
     {
       "id": "orca-codex",
@@ -49,6 +51,7 @@
         "command": ["codex", "plugin", "add", "{plugin}@{marketplace}"],
         "env": { "CODEX_HOME": "{cache_home}" }
       },
+      "uninstall": ["codex", "plugin", "remove", "{plugin}@{marketplace}"],
       "cache_home": {
         "base": "environment",
         "variable": "APPDATA",
