@@ -41,6 +41,10 @@ jobs:
       - name: Test report formats
         run: python -m unittest discover -s tools/report_formats/tests -v
 
+      # 只跑纯逻辑与合成夹具；三端安装态的实测项按 os.name 跳过——那是本机事实。
+      - name: Test plugin release
+        run: python -m unittest discover -s tools/plugin_release/tests -v
+
       # Installed targets use machine-specific absolute paths that do not exist
       # on GitHub-hosted runners. Validate them locally instead with:
       # python -m scripts.entry_sync check --scope installed
