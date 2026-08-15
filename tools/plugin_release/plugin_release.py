@@ -128,6 +128,7 @@ class Runtime:
     cache: Path
     install: dict[str, Any]
     cache_home: Path | None
+    uninstall: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -155,6 +156,7 @@ class Report:
     runtimes: list[Runtime]
     plugins: list[PluginCheck]
     aliases: dict[str, str] = field(default_factory=dict)
+    lifecycle: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def distinct_caches(self) -> int:
@@ -207,9 +209,24 @@ def load_runtimes(
                 cache=resolve_base(entry["cache"], environ, home),
                 install=entry["install"],
                 cache_home=resolve_base(cache_home, environ, home) if cache_home else None,
+                uninstall=list(entry.get("uninstall") or []),
             )
         )
     return runtimes
+
+
+def skill_lifecycle(source_root: Path, data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Read the per-Skill invalidation/recheck declarations from the source repo.
+
+    结构完整性由源仓 CI 把关（`docs/lifecycle.md`）；这里只消费，缺失即当作空表，
+    不重复实现校验——两处各判一次会产生两套判据。
+    """
+    path = source_root / data["source"]["declaration"]
+    if not path.is_file():
+        return {}
+    declaration = json.loads(path.read_text(encoding="utf-8"))
+    entries = (declaration.get("skillLifecycle") or {}).get("entries")
+    return dict(entries) if isinstance(entries, dict) else {}
 
 
 def declared_versions(source_root: Path, data: dict[str, Any]) -> dict[str, str]:
@@ -334,7 +351,13 @@ def check(data: dict[str, Any], runtimes: Sequence[Runtime]) -> Report:
                 installed = tree_digest(runtime.cache / plugin / declared)
                 entry.states[runtime.id] = STATE_OK if installed == digest else STATE_MODIFIED
         checks.append(entry)
-    return Report(source=facts, runtimes=list(runtimes), plugins=checks, aliases=aliases)
+    return Report(
+        source=facts,
+        runtimes=list(runtimes),
+        plugins=checks,
+        aliases=aliases,
+        lifecycle=skill_lifecycle(source_root, data),
+    )
 
 
 # ---------------------------------------------------------------- 输出
@@ -405,6 +428,21 @@ def format_report(report: Report) -> str:
                 f"装一次即两端生效，比两次也只是同一次验证。"
             )
 
+    if report.lifecycle:
+        never = sorted(
+            name for name, entry in report.lifecycle.items() if not entry.get("lastVerified")
+        )
+        suspect = sorted(name for name, entry in report.lifecycle.items() if entry.get("suspect"))
+        lines.append("")
+        lines.append(
+            f"生命周期：{len(report.lifecycle)} 个 Skill 已声明失效条件与最少复核步骤；"
+            f"其中 {len(never)} 个自制度建立以来从未复核。"
+        )
+        if suspect:
+            lines.append(f"  已标记存疑（不得再作判据）：{'、'.join(suspect)}")
+        if never:
+            lines.append(f"  从未复核：{'、'.join(never)}")
+
     extras = report.extra_versions
     if extras:
         total = sum(len(versions) for _, _, versions in extras)
@@ -453,6 +491,15 @@ def report_to_json(report: Report) -> dict[str, Any]:
         },
         "runtimes": [runtime.id for runtime in report.runtimes],
         "aliases": report.aliases,
+        "lifecycle": {
+            "declared": len(report.lifecycle),
+            "neverVerified": sorted(
+                name for name, entry in report.lifecycle.items() if not entry.get("lastVerified")
+            ),
+            "suspect": sorted(
+                name for name, entry in report.lifecycle.items() if entry.get("suspect")
+            ),
+        },
         "distinctCaches": report.distinct_caches,
         "plugins": [
             {
@@ -648,6 +695,161 @@ def release(
     return 0
 
 
+def routing_inbound_edges(source_root: Path, data: dict[str, Any], plugin: str) -> list[str]:
+    """Skills in OTHER plugins whose declared edges point into this plugin's skills."""
+    path = source_root / data["source"]["declaration"]
+    declaration = json.loads(path.read_text(encoding="utf-8"))
+    skills = declaration.get("skills") or {}
+    owned = {name for name, spec in skills.items() if spec.get("plugin") == plugin}
+    inbound = []
+    for name, spec in skills.items():
+        if name in owned:
+            continue
+        for kind in ("drive", "return", "reference"):
+            for target in spec.get(kind) or []:
+                if target in owned:
+                    inbound.append(f"{name} --{kind}--> {target}")
+    return sorted(inbound)
+
+
+def _remove_from_source(source_root: Path, plugin: str, version: str) -> list[str]:
+    """Delete the plugin directory and drop it from all six version declarations."""
+    import shutil
+
+    touched: list[str] = []
+    target = source_root / "plugins" / plugin
+    if target.is_dir():
+        shutil.rmtree(target)
+        touched.append(f"plugins/{plugin}/（整个目录）")
+
+    for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+        path = source_root / relative
+        document = json.loads(path.read_text(encoding="utf-8"))
+        before = len(document["plugins"])
+        document["plugins"] = [e for e in document["plugins"] if e.get("name") != plugin]
+        if len(document["plugins"]) == before:
+            raise ReleaseError(f"{relative}：找不到 {plugin} 的条目，退役中止")
+        path.write_text(
+            json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline=""
+        )
+        touched.append(relative)
+
+    relative = "tests/workflow-routing.json"
+    path = source_root / relative
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document.get("pluginVersions", {}).pop(plugin, None)
+    for name in [
+        name
+        for name, spec in (document.get("skills") or {}).items()
+        if spec.get("plugin") == plugin
+    ]:
+        document["skills"].pop(name, None)
+        (document.get("skillLifecycle") or {}).get("entries", {}).pop(name, None)
+    path.write_text(
+        json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline=""
+    )
+    touched.append(relative)
+
+    relative = "README.md"
+    path = source_root / relative
+    text = path.read_text(encoding="utf-8")
+    # 只动总览那一句；历史叙述段落照旧不碰。前后的顿号一并吃掉，避免留下空档。
+    pattern = re.compile(
+        r"(?P<head>" + re.escape(OVERVIEW_MARKER) + r"[^\n]*?)"
+        r"(?:、`" + re.escape(plugin) + r"` `" + re.escape(version) + r"`"
+        r"|`" + re.escape(plugin) + r"` `" + re.escape(version) + r"`、)"
+    )
+    path.write_text(
+        replace_once(text, pattern, r"\g<head>", f"{relative} 版本总览"),
+        encoding="utf-8",
+        newline="",
+    )
+    touched.append(relative)
+    return touched
+
+
+def retire(
+    data: dict[str, Any],
+    runtimes: Sequence[Runtime],
+    plugin: str,
+    apply: bool,
+    allow_dirty: bool,
+    out=sys.stdout,
+) -> int:
+    """Retire a plugin: source, marketplaces and every physical cache, then confirm all are clean.
+
+    重点是最后一步。从 Marketplace 移除**不会**卸载任何运行端上已安装的副本——运行端
+    从不主动清理旧版本缓存。因此「从仓库删掉」等于留下一份不再被维护、却仍会被加载的
+    正文，比不删更危险。不回读确认卸载，就不算退役完成。
+    """
+    source_root = Path(data["source"]["repository"])
+    marketplace = data["source"]["marketplace_name"]
+    facts = source_facts(source_root)
+    versions = declared_versions(source_root, data)
+    if plugin not in versions:
+        raise ReleaseError(f"未知插件 {plugin!r}；已声明：{'、'.join(sorted(versions))}")
+    version = versions[plugin]
+
+    print("[1/4] 前置检查", file=out)
+    if facts.dirty and not allow_dirty:
+        raise ReleaseError("源仓工作树不干净；先提交或传 --allow-dirty")
+    inbound = routing_inbound_edges(source_root, data, plugin)
+    if inbound:
+        raise ReleaseError(
+            "仍有其他 Skill 的路由边指向它，先改路由再退役：\n      " + "\n      ".join(inbound)
+        )
+    print(f"      {plugin} {version}｜无路由入边｜分支 {facts.branch}", file=out)
+    print("      提醒：退役是产品取舍，不在预授权谓词内，需负责人批准。", file=out)
+    if not apply:
+        print("      演练模式：不删任何文件、不卸载任何运行端。加 --apply 才执行。", file=out)
+        return 0
+
+    print("[2/4] 从源仓移除", file=out)
+    for relative in _remove_from_source(source_root, plugin, version):
+        print(f"      删 {relative}", file=out)
+
+    aliases = cache_aliases(runtimes)
+    print(f"[3/4] 从 {len(runtimes) - len(aliases)} 份物理缓存卸载", file=out)
+    for runtime in runtimes:
+        if runtime.id in aliases:
+            print(f"      跳过 {runtime.label}：与 {aliases[runtime.id]} 共用同一缓存", file=out)
+            continue
+        command = runtime.uninstall
+        if not command:
+            raise ReleaseError(f"{runtime.id} 未声明卸载命令，无法完成退役")
+        env = {
+            key: value.format(cache_home=str(runtime.cache_home or ""))
+            for key, value in (runtime.install.get("env") or {}).items()
+        }
+        result = _run(_format_command(command, plugin, marketplace, runtime), env=env)
+        if result.returncode != 0:
+            print(f"      {runtime.label} 卸载命令返回非零，转为核对实际状态", file=out)
+        print(f"      已卸载 {runtime.label}", file=out)
+
+    print("[4/4] 回读确认三处都不存在", file=out)
+    remaining: list[str] = []
+    if (source_root / "plugins" / plugin).exists():
+        remaining.append("源仓目录仍在")
+    for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+        document = json.loads((source_root / relative).read_text(encoding="utf-8"))
+        if any(entry.get("name") == plugin for entry in document["plugins"]):
+            remaining.append(f"{relative} 仍有条目")
+    for runtime in runtimes:
+        if runtime.id in aliases:
+            continue
+        left = installed_versions(runtime, plugin)
+        if left:
+            remaining.append(f"{runtime.id} 仍装着 {'、'.join(left)}")
+    if remaining:
+        raise ReleaseError(
+            "退役未完成，以下位置仍存在：" + "；".join(remaining) + "——留着的正文仍会被加载"
+        )
+    print(f"      源仓、两份 Marketplace 与全部物理缓存均已无 {plugin}", file=out)
+    print("", file=out)
+    print("退役完成。源仓有未提交改动，提交与 PR 仍归你。", file=out)
+    return 0
+
+
 # ---------------------------------------------------------------- 入口
 
 
@@ -672,6 +874,11 @@ def build_parser() -> argparse.ArgumentParser:
     release_parser.add_argument("--part", choices=("patch", "minor", "major"), default="patch")
     release_parser.add_argument("--apply", action="store_true", help="真正执行；默认只演练")
     release_parser.add_argument("--allow-dirty", action="store_true")
+
+    retire_parser = sub.add_parser("retire", help="退役：源仓、两份 Marketplace、每份物理缓存，并回读确认")
+    retire_parser.add_argument("plugin")
+    retire_parser.add_argument("--apply", action="store_true", help="真正执行；默认只演练")
+    retire_parser.add_argument("--allow-dirty", action="store_true")
     return parser
 
 
@@ -682,6 +889,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         data = load_targets()
         runtimes = load_runtimes(data)
+        if command == "retire":
+            return retire(data, runtimes, args.plugin, args.apply, args.allow_dirty)
         if command == "release":
             return release(
                 data, runtimes, args.plugin, args.part, args.apply, args.allow_dirty
