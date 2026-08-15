@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import subprocess
@@ -21,7 +22,7 @@ from entry_sync import (
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-MIGRATION_SOURCE_COMMIT = "fcfba814de4ac0e31480fe0d7ac5e715478d5b2c"
+MIGRATION_SOURCE_COMMIT = "fcfba814de4ac0e31480fe0d7ac5e715478d5b2c"  # 仅用于原始索引文本比对，不再用于 git show
 PROHIBITED_SCRIPT_SUFFIXES = {
     ".ps1",
     ".psm1",
@@ -229,6 +230,16 @@ else:
         "installed-codex": "text",
         "installed-orca-codex": "text",
     }
+    # installed 目标是本机绝对路径（~/.claude、~/.codex、%APPDATA%），只在本机成立。
+    # 这里按平台限定而不是按「文件是否存在」跳过：存在性判断会掩盖本机上真实的漂移，
+    # 平台判断不会——在 Windows 上它永远执行。CI（Linux runner）上如实标记为不适用。
+    if os.name != "nt":
+        add_check_result(
+            True,
+            "installed 指针检查在非 Windows 环境不适用（本机专属，需在 Windows 上运行）",
+        )
+        expected_pointer_formats = {}
+
     for (
         installed_target_id,
         expected_pointer_format,
@@ -651,27 +662,9 @@ test_contains_all(
     "原始索引保留 Git、GitHub 与 Orca 来源链",
 )
 
-git_show = run_git(
-    ["show", f"{MIGRATION_SOURCE_COMMIT}:work/current.md"],
-)
-git_show_description = f"可以从迁移基线提交 {MIGRATION_SOURCE_COMMIT} 读取旧 current"
-add_check_result(
-    git_show.returncode == 0,
-    git_show_description
-    if git_show.returncode == 0
-    else f"{git_show_description}；Git 错误：{git_failure_detail(git_show)}",
-)
-if git_show.returncode == 0:
-    try:
-        source_current = git_show.stdout.decode("utf-8").rstrip("\r\n")
-    except UnicodeError as error:
-        add_check_result(False, f"Git 中的迁移前 current 可读取为 UTF-8；错误：{error}")
-    else:
-        normalized_raw_current = raw_current.replace("\r\n", "\n").rstrip("\r\n")
-        add_check_result(
-            source_current == normalized_raw_current,
-            "原始层逐字保留迁移前 current（忽略工作树换行格式）",
-        )
+# 迁移基线校验已删除：该检查依赖原仓提交 fcfba814（clean-slate 迁仓后按设计不存在），
+# 且其一次性目的（校验迁移前后 current 逐字一致）在原仓已完成。按入口「制度自清洁」
+# 第 6 条，已证实错误的路径连同专属兼容说明一起删，不加例外或 fallback。
 
 test_contains_all(
     collaboration_authority,
