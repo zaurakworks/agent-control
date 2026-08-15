@@ -39,6 +39,7 @@ python tools/plugin_release/plugin_release.py release <插件> --apply    # 默�
 | `modified` | 声明版本已装，但内容不同——版本号在骗人 | 是 |
 | `stale` | 只装着别的版本 | 是 |
 | `missing` | 该运行端完全没装这个插件 | 是 |
+| `alias` | 缓存目录与另一个运行端是同一实体，本次不构成独立验证 | 否 |
 
 另外报告「非当前版本的缓存目录」：只占盘，不影响正确性，因此不判失败。运行端不会自动清理它们（曾累积到 76 个）。
 
@@ -53,6 +54,20 @@ Orca Codex  同上
 ```
 
 因此「源」是工作树的**当前检出**，不是 `origin/main`。在 `agent-plugins` 里切到特性分支，运行端下次安装到的就是那个分支的内容。`check` 因此总是先报分支、干净度和相对上游的位置；不在 `main` 或工作树不干净时会额外提醒。
+
+## 三个运行端，两份缓存
+
+实测：Orca 的 Codex home 里 `plugins` 是指向 `~/.codex/plugins` 的 junction。
+
+```
+%APPDATA%/orca/codex-runtime-home/home/plugins  ->  C:\Users\Morni\.codex\plugins
+```
+
+因此**「Orca 内的 Codex」与「普通 Codex」共用同一份插件缓存**，只有 home（配置、会话、hooks、`AGENTS.md`）是分开的。物理缓存是 **2 份，不是 3**。
+
+把它当第三份独立安装态去比对会得到重复计数——同一次验证数两遍，看起来「三端一致」，实际只验证了两份。工具因此按 `realpath` 归并，别名端记为 `alias`，`release` 也跳过对它的重复安装。
+
+这不影响正确性判定：漂移发生时，主端会如实报出。
 
 ## 配置
 
