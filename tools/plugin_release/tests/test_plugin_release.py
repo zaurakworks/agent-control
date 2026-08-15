@@ -266,25 +266,30 @@ class HookGateTest(unittest.TestCase):
             "被改过\n", encoding="utf-8", newline=""
         )
 
-    def test_silent_when_everything_matches(self) -> None:
+    # 这四条曾经写反。原先的模型是「运行端读版本缓存」，于是把「缓存与工作树不一致」
+    # 当告警，把「停在特性分支」当正常的进行中工作而静默。2026-08-15 实测推翻了这个
+    # 模型：两个运行端都把 Skill 解析到工作树本身。因此告警对象正好对调——停在分支
+    # 或工作树脏，意味着新 Session 实时读到未合并正文，那才是要说的；缓存旧了没人读。
+
+    def test_silent_on_a_clean_main_checkout(self) -> None:
         self.assertIsNone(self.message())
 
-    def test_speaks_up_on_real_drift_from_a_clean_main(self) -> None:
+    def test_still_silent_on_clean_main_even_when_the_version_cache_is_stale(self) -> None:
+        # 缓存是安装账目，不是加载路径。它旧了不改变任何会话的行为。
         self.break_install()
+        self.assertIsNone(self.message())
+
+    def test_speaks_up_on_a_feature_branch_because_runtimes_read_it_live(self) -> None:
+        subprocess.run(["git", "checkout", "-qb", "feature"], cwd=self.source, check=True, capture_output=True)
         message = self.message()
         self.assertIsNotNone(message)
-        self.assertIn("alpha", message)
-        self.assertIn("modified", message)
+        self.assertIn("feature", message)
 
-    def test_silent_on_a_feature_branch_because_that_is_work_in_progress(self) -> None:
-        self.break_install()
-        subprocess.run(["git", "checkout", "-qb", "feature"], cwd=self.source, check=True, capture_output=True)
-        self.assertIsNone(self.message())
-
-    def test_silent_when_the_working_tree_is_dirty(self) -> None:
-        self.break_install()
+    def test_speaks_up_when_the_working_tree_is_dirty(self) -> None:
         write(self.source / "README.md", "编辑中\n")
-        self.assertIsNone(self.message())
+        message = self.message()
+        self.assertIsNotNone(message)
+        self.assertIn("未提交", message)
 
 
 class SyncVersionTest(unittest.TestCase):
