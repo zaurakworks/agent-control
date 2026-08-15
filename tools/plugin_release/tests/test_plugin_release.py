@@ -274,10 +274,15 @@ class HookGateTest(unittest.TestCase):
     def test_silent_on_a_clean_main_checkout(self) -> None:
         self.assertIsNone(self.message())
 
-    def test_still_silent_on_clean_main_even_when_the_version_cache_is_stale(self) -> None:
-        # 缓存是安装账目，不是加载路径。它旧了不改变任何会话的行为。
+    def test_speaks_up_on_cache_drift_too_because_the_load_path_is_undecided(self) -> None:
+        # 这条改过两次。最初判缓存漂移是唯一告警（模型：运行端读缓存）；实测
+        # claude plugin details 随工作树变化后改判它「没人读」而静默；随后一次真实
+        # 的新 Codex 会话又报出缓存里的旧 description。三次证据互相不一致，加载路径
+        # 尚未定论——这种时候把任何一边判成「没人读」都是猜，两边都报才是诚实的。
         self.break_install()
-        self.assertIsNone(self.message())
+        message = self.message()
+        self.assertIsNotNone(message)
+        self.assertIn("缓存", message)
 
     def test_speaks_up_on_a_feature_branch_because_runtimes_read_it_live(self) -> None:
         subprocess.run(["git", "checkout", "-qb", "feature"], cwd=self.source, check=True, capture_output=True)

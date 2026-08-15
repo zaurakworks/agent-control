@@ -7,13 +7,16 @@ agent-plugins 仓的 CI 负责，见该仓 `.github/workflows/plugin-checks.yml`
 本工具只回答 CI 无法回答、也无法从任何远端回答的那半个问题：**这台机器此刻的
 Plugin 状态。** 它分两层，两层的严重性不同：
 
-1. **工作树来源（会改变行为）。** 2026-08-15 实测：两个运行端都把 Skill 解析到
-   工作树本身，不是 `plugins/cache/<插件>/<版本>/`。Claude 端改工作树后不重装，
-   `claude plugin details` 的 on-invoke 估算立刻从 ~7.8k 变 ~14.3k；Codex 端
-   `codex plugin list` 的 PATH 列直接就是工作树路径。因此工作树停在特性分支、
-   有未提交改动或落后远端时，**新 Session 会实时读到未经合并的正文**。
-2. **版本缓存（安装账目）。** 缓存旧了说明某次发布没落地，值得知道，但没人读它。
-   最危险的一档 `modified`（版本号相同、内容不同）仍然只有整树摘要看得见。
+1. **工作树来源。** 工作树停在特性分支、有未提交改动或落后远端时，若加载路径是
+   工作树，未合并内容立即对新 Session 生效。
+2. **版本缓存。** 缓存与工作树不一致时，若加载路径是缓存，运行端就在按旧正文干活。
+   最危险的一档 `modified`（版本号相同、内容不同）只有整树摘要看得见。
+
+**两者都报，因为加载路径究竟是哪一个尚未定论。** 2026-08-15 三次实测互相不一致：
+`claude plugin details` 的 on-invoke 估算随工作树 `SKILL.md` 变化而变，但同一命令
+显示的 `description` 来自缓存；一次真实的新 Codex 会话报出的 description 同样来自
+缓存。Codex 会话的元数据来自缓存是直接证据；Claude 会话读哪一份尚未直接测过。
+证据不足以断定时，把任何一边判成「没人读」都是猜。见 agent-control#11。
 """
 
 from __future__ import annotations
@@ -460,37 +463,51 @@ def format_report(report: Report) -> str:
 def format_hook(report: Report, tool_path: Path) -> str | None:
     """Session 启动钩子用的紧凑提醒；没有值得说的事就返回 None。
 
-    **告警对象是工作树来源，不是版本缓存。** 2026-08-15 实测：两个运行端都把 Skill
-    解析到工作树本身，不是 `plugins/cache/<插件>/<版本>/`——
+    **两边都守，因为加载路径究竟是哪一个，现有证据不足以断定。** 2026-08-15 的三次
+    实测互相不一致：
 
-    - Claude：改工作树 `SKILL.md` 后不重装，`claude plugin details` 报的 on-invoke
-      成本立刻从 ~7.8k 变 ~14.3k，还原即回落；
-    - Codex：`codex plugin list` 的 PATH 列直接就是 `…/workspace/agent-plugins/plugins/<插件>`。
+    - `claude plugin details` 的 on-invoke 估算随**工作树** `SKILL.md` 变化而变（~7.8k
+      ↔ ~14.3k），说明它按工作树算正文体积；
+    - 同一命令显示的 `description` 却是**缓存**里的旧值，工作树里的未提交改动看不见；
+    - 一次真实的新 Codex 会话报出的 skill description 同样是**缓存**里的旧值。
 
-    因此真正会改变行为的事实是「工作树是不是 origin/main 的干净检出」：停在特性
-    分支、有未提交改动或落后于远端时，**新 Session 会实时读到未经合并的正文**。这
-    正是 agent-control#11 登记的剩余风险。
+    也就是说：Codex 会话的元数据来自缓存（直接证据）；Claude 会话读哪一份**尚未直接
+    测过**，CLI 的两个字段还各来自不同地方。在这种情况下把任何一边判成「没人读」都
+    是猜。因此两类事实都报：
 
-    版本缓存则是安装账目：它旧了说明某次发布没落地，值得知道，但没人读它。
+    1. 工作树不是 origin/main 的干净检出——若加载路径是工作树，未合并内容立即生效；
+    2. 缓存与工作树不一致——若加载路径是缓存，运行端就在按旧正文干活。
 
     永远不返回非零、也不阻断会话。
     """
     facts = report.source
-    problems: list[str] = []
+    provenance: list[str] = []
     if facts.branch != "main":
-        problems.append(f"停在分支 `{facts.branch}`（不是 main）")
+        provenance.append(f"停在分支 `{facts.branch}`（不是 main）")
     if facts.dirty:
-        problems.append("有未提交改动")
+        provenance.append("有未提交改动")
     if facts.behind:
-        problems.append(f"落后 {facts.upstream} {facts.behind} 个提交")
-    if not problems:
+        provenance.append(f"落后 {facts.upstream} {facts.behind} 个提交")
+
+    grouped: dict[str, list[str]] = {}
+    for plugin, runtime_id, state in report.failures:
+        grouped.setdefault(plugin, []).append(f"{runtime_id}={state}")
+    drift = "；".join(f"{plugin} {'、'.join(states)}" for plugin, states in grouped.items())
+
+    if not provenance and not drift:
         return None
-    return (
-        f"[plugin_release] Plugin 源仓工作树不是 origin/main 的干净检出：{'；'.join(problems)}。\n"
-        f"两个运行端都把 Skill 解析到工作树本身（{facts.root}），不是版本缓存，"
-        f"因此本次会话读到的 Skill 正文就是上面这份检出——未经合并的内容会实时生效。\n"
-        f"确认这是有意为之；否则回到 main 再开工。现状：python {tool_path} check"
+
+    lines = ["[plugin_release] Plugin 加载来源存疑，本次会话开工前先看一眼："]
+    if provenance:
+        lines.append(f"  · 工作树不是 origin/main 的干净检出：{'；'.join(provenance)}")
+    if drift:
+        lines.append(f"  · 版本缓存与工作树不一致：{drift}")
+    lines.append(
+        f"运行端读工作树还是读缓存，现有证据不足以断定（Codex 会话的元数据实测来自缓存；"
+        f"Claude 会话未直接测过）。因此两边任一不干净都值得先确认。"
     )
+    lines.append(f"源仓 {facts.root}｜现状：python {tool_path} check")
+    return "\n".join(lines)
 
 
 def report_to_json(report: Report) -> dict[str, Any]:
