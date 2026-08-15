@@ -1,24 +1,27 @@
 # plugin_release
 
-回答两个问题，**两者严重性不同**：
+**会话从版本缓存加载 Skill。工作树只是 Marketplace 源。** 本工具守的是这条线。
 
-1. **本机 Plugin 源仓工作树是不是 `origin/main` 的干净检出？**（会改变行为）
-2. **版本缓存与工作树是否一致？**（安装账目）
+## 这条结论是实测出来的，而且推翻了两轮推断
 
-## 为什么第 1 条才是要紧的
+2026-08-15 对两个运行端各做一次直接测试：在工作树里给一个插件的 manifest `description` 植入未提交标记，然后起一个**真实的新会话**问它这个 skill 的 description。
 
-2026-08-15 实测：**两个运行端都把 Skill 解析到工作树本身**，不是 `plugins/cache/<插件>/<版本>/`。
+```
+工作树（含未提交标记）  PROBE-MARKER-8F2A …
+新 Claude 会话报出       仅在用户直接要求 grilling／盘问…   ← 缓存里的旧值
+新 Codex 会话报出        仅在用户直接要求 grilling／盘问…   ← 缓存里的旧值
+```
 
-- Claude：改工作树 `SKILL.md` 后**不重装**，`claude plugin details` 报的 on-invoke 成本立刻从 ~7.8k 变 ~14.3k，还原即回落；
-- Codex：`codex plugin list` 的 `PATH` 列直接就是 `…/workspace/agent-plugins/plugins/<插件>`。
+在此之前本工具曾据 `claude plugin details` 的 on-invoke 估算随工作树变化，判定「会话读工作树、缓存没人读」，并把告警逻辑整个对调。那是**拿 CLI 检视命令的显示去推断会话行为**——CLI 算的是「装了会是多大」，与会话加载是两条代码路径。来回三轮的完整证据见 [`agent-control#11`](https://github.com/zaurakworks/agent-control/issues/11)。
 
-所以工作树停在特性分支、有未提交改动或落后远端时，**新 Session 会实时读到未经合并的正文**。这正是 `agent-control#11` 登记的剩余风险。`check --hook` 的告警对象因此是工作树来源，不是缓存。
+**边界**：以上是 manifest 层的直接实测。`SKILL.md` 正文没有单独测——插件作为一个整体装进同一个缓存目录（含 manifest 与 `skills/` 全部文件），正文同源是推断，不是实测。
 
-版本缓存则是安装账目：旧了说明某次发布没落地，值得知道，但**没人读它**。最危险的一档 `modified`（版本号相同、内容不同）仍然只有整树摘要看得见。
+## 由此得到两条判据
 
-## Plugin 的版本声明分散在六处
+1. **缓存与应有内容不一致 = 运行端正在按错的正文干活。** 唯一会改变行为的事实。最危险的一档 `modified`（版本号相同、内容不同）只有整树摘要看得见。
+2. **「应有内容」是 `origin/main`，不是工作树当前检出。** 工作树停在特性分支或有未提交改动时，缓存与它不同是正常的，此时判不出缓存对不对——`check --hook` 会如实说「判不出来」，而不是假装没事。
 
-两端 `plugin.json`、两份 Marketplace、符合性声明、README 版本总览。它们是否互相自洽，由 `agent-plugins` 仓的 CI 判定——`tests/workflow-routing.test.ts` 全部断言过。本工具不重复那一层。
+`agent-plugins` 的版本声明分散在六处（两端 `plugin.json`、两份 Marketplace、符合性声明、README 版本总览），它们是否互相自洽由该仓 CI 判定。本工具不重复那一层。
 
 ## 用法
 

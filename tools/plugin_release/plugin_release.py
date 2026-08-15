@@ -7,16 +7,25 @@ agent-plugins 仓的 CI 负责，见该仓 `.github/workflows/plugin-checks.yml`
 本工具只回答 CI 无法回答、也无法从任何远端回答的那半个问题：**这台机器此刻的
 Plugin 状态。** 它分两层，两层的严重性不同：
 
-1. **工作树来源。** 工作树停在特性分支、有未提交改动或落后远端时，若加载路径是
-   工作树，未合并内容立即对新 Session 生效。
-2. **版本缓存。** 缓存与工作树不一致时，若加载路径是缓存，运行端就在按旧正文干活。
-   最危险的一档 `modified`（版本号相同、内容不同）只有整树摘要看得见。
+**会话读版本缓存 `plugins/cache/<插件>/<版本>/`，不读工作树。** 2026-08-15 对两个
+运行端各做了一次直接测试：在工作树里给一个插件的 manifest `description` 植入未提交
+标记，然后起一个真实的新会话问它这个 skill 的 description——Claude 与 Codex 报出的
+都是缓存里的旧值，标记没有出现。
 
-**两者都报，因为加载路径究竟是哪一个尚未定论。** 2026-08-15 三次实测互相不一致：
-`claude plugin details` 的 on-invoke 估算随工作树 `SKILL.md` 变化而变，但同一命令
-显示的 `description` 来自缓存；一次真实的新 Codex 会话报出的 description 同样来自
-缓存。Codex 会话的元数据来自缓存是直接证据；Claude 会话读哪一份尚未直接测过。
-证据不足以断定时，把任何一边判成「没人读」都是猜。见 agent-control#11。
+因此工作树只是 Marketplace 源：装的时候被拷贝进缓存，**装之前改它不改变任何会话的
+行为**。`claude plugin details` 的 on-invoke 估算确实随工作树变化，但那是 CLI 检视
+命令在算「装了会是多大」，与会话加载是两条不同的代码路径——本工具此前用它推断会话
+行为，推错了两轮，见 agent-control#11。
+
+由此：
+
+1. **缓存与应有内容不一致 = 运行端正在按错的正文干活。** 这是唯一会改变行为的事实。
+   最危险的一档 `modified`（版本号相同、内容不同）只有整树摘要看得见。
+2. **「应有内容」是 `origin/main`，不是工作树当前检出。** 工作树停在特性分支或有未
+   提交改动时，缓存与它不同是正常的，此时无法据工作树判断缓存对不对。
+
+边界：以上是 manifest 层的直接实测。`SKILL.md` 正文没有单独测——插件是作为一个整体
+装进同一个缓存目录的（含 manifest 与 skills/ 全部文件），正文同源是推断，不是实测。
 """
 
 from __future__ import annotations
@@ -463,51 +472,52 @@ def format_report(report: Report) -> str:
 def format_hook(report: Report, tool_path: Path) -> str | None:
     """Session 启动钩子用的紧凑提醒；没有值得说的事就返回 None。
 
-    **两边都守，因为加载路径究竟是哪一个，现有证据不足以断定。** 2026-08-15 的三次
-    实测互相不一致：
+    告警对象是**缓存**：实测两个运行端的会话都从版本缓存加载，工作树只是 Marketplace
+    源。缓存装错了，这个会话就在按错的正文干活。
 
-    - `claude plugin details` 的 on-invoke 估算随**工作树** `SKILL.md` 变化而变（~7.8k
-      ↔ ~14.3k），说明它按工作树算正文体积；
-    - 同一命令显示的 `description` 却是**缓存**里的旧值，工作树里的未提交改动看不见；
-    - 一次真实的新 Codex 会话报出的 skill description 同样是**缓存**里的旧值。
+    但缓存对不对，只有在工作树是 `origin/main` 的干净检出时才判得出来——比对基准是
+    「应该装的内容」，而工作树停在特性分支时它不代表那个内容。因此分两种情形：
 
-    也就是说：Codex 会话的元数据来自缓存（直接证据）；Claude 会话读哪一份**尚未直接
-    测过**，CLI 的两个字段还各来自不同地方。在这种情况下把任何一边判成「没人读」都
-    是猜。因此两类事实都报：
+    - 工作树是干净的 main 检出 → 缓存不一致就报，这是真漂移；
+    - 工作树不是 → 不报漂移（判不出来），只用一行说明为什么判不出来。
 
-    1. 工作树不是 origin/main 的干净检出——若加载路径是工作树，未合并内容立即生效；
-    2. 缓存与工作树不一致——若加载路径是缓存，运行端就在按旧正文干活。
+    这条判断改过三轮，前两轮都是拿 CLI 显示推断会话行为推错的。历史保留在
+    agent-control#11 与对应测试的注释里，不抹掉。
 
     永远不返回非零、也不阻断会话。
     """
     facts = report.source
-    provenance: list[str] = []
-    if facts.branch != "main":
-        provenance.append(f"停在分支 `{facts.branch}`（不是 main）")
-    if facts.dirty:
-        provenance.append("有未提交改动")
-    if facts.behind:
-        provenance.append(f"落后 {facts.upstream} {facts.behind} 个提交")
+    comparable = facts.branch == "main" and not facts.dirty and not facts.behind
 
     grouped: dict[str, list[str]] = {}
     for plugin, runtime_id, state in report.failures:
         grouped.setdefault(plugin, []).append(f"{runtime_id}={state}")
-    drift = "；".join(f"{plugin} {'、'.join(states)}" for plugin, states in grouped.items())
 
-    if not provenance and not drift:
+    if not comparable:
+        # 判不出来也要说一声：把一份特性分支长期留在生产检出里，会让漂移检测持续失明。
+        why = []
+        if facts.branch != "main":
+            why.append(f"停在分支 `{facts.branch}`")
+        if facts.dirty:
+            why.append("有未提交改动")
+        if facts.behind:
+            why.append(f"落后 {facts.upstream} {facts.behind} 个提交")
+        return (
+            f"[plugin_release] 暂时判不出运行端装的对不对：Plugin 源仓工作树"
+            f"{'、'.join(why)}，不代表 origin/main 应有的内容。\n"
+            f"会话本身读的是版本缓存，不受工作树影响；但在把工作树恢复成干净的 main "
+            f"检出之前，缓存漂移检测是失明的。\n"
+            f"源仓 {facts.root}｜现状：python {tool_path} check"
+        )
+
+    if not grouped:
         return None
-
-    lines = ["[plugin_release] Plugin 加载来源存疑，本次会话开工前先看一眼："]
-    if provenance:
-        lines.append(f"  · 工作树不是 origin/main 的干净检出：{'；'.join(provenance)}")
-    if drift:
-        lines.append(f"  · 版本缓存与工作树不一致：{drift}")
-    lines.append(
-        f"运行端读工作树还是读缓存，现有证据不足以断定（Codex 会话的元数据实测来自缓存；"
-        f"Claude 会话未直接测过）。因此两边任一不干净都值得先确认。"
+    items = "；".join(f"{plugin} {'、'.join(states)}" for plugin, states in grouped.items())
+    return (
+        f"[plugin_release] 运行端装的不是 origin/main 的内容：{items}\n"
+        f"会话从版本缓存加载 Skill，所以本次会话正在按上面这些插件的错误版本干活。\n"
+        f"修复：python {tool_path} sync --apply"
     )
-    lines.append(f"源仓 {facts.root}｜现状：python {tool_path} check")
-    return "\n".join(lines)
 
 
 def report_to_json(report: Report) -> dict[str, Any]:
