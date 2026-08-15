@@ -194,6 +194,52 @@ class CheckStateTest(unittest.TestCase):
         self.assertTrue(pr.check(self.data, [self.runtime]).source.dirty)
 
 
+class CacheAliasTest(unittest.TestCase):
+    """两个运行端指向同一份缓存时，比两次不是两次验证，是同一次。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.source = root / "src"
+        self.cache = root / "cache"
+        build_source(self.source)
+        install_all(self.source, self.cache)
+        self.data = make_data(self.source)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_identical_paths_collapse_to_one(self) -> None:
+        first = pr.Runtime("codex", "Codex", self.cache, {}, None)
+        second = pr.Runtime("orca-codex", "Orca 内的 Codex", self.cache, {}, None)
+        third = pr.Runtime("claude", "Claude", self.cache.parent / "other", {}, None)
+        aliases = pr.cache_aliases([first, second, third])
+        self.assertEqual(aliases, {"orca-codex": "codex"})
+
+    def test_aliased_runtime_is_not_counted_as_independent_verification(self) -> None:
+        runtimes = [
+            pr.Runtime("codex", "Codex", self.cache, {}, None),
+            pr.Runtime("orca-codex", "Orca 内的 Codex", self.cache, {}, None),
+        ]
+        report = pr.check(self.data, runtimes)
+        self.assertEqual(report.distinct_caches, 1)
+        for entry in report.plugins:
+            self.assertEqual(entry.states["codex"], pr.STATE_OK)
+            self.assertEqual(entry.states["orca-codex"], pr.STATE_ALIAS)
+        self.assertFalse(report.failures)
+
+    def test_alias_does_not_mask_real_drift_on_the_primary(self) -> None:
+        runtimes = [
+            pr.Runtime("codex", "Codex", self.cache, {}, None),
+            pr.Runtime("orca-codex", "Orca 内的 Codex", self.cache, {}, None),
+        ]
+        (self.cache / "alpha" / "1.2.3" / "skills" / "main" / "SKILL.md").write_text(
+            "改过\n", encoding="utf-8", newline=""
+        )
+        report = pr.check(self.data, runtimes)
+        self.assertEqual([f for f in report.failures], [("alpha", "codex", pr.STATE_MODIFIED)])
+
+
 class HookGateTest(unittest.TestCase):
     """钩子每次会话都跑；它必须只在真漂移时说话，否则噪音会淹掉真信号。"""
 

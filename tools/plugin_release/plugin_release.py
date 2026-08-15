@@ -37,6 +37,7 @@ STATE_OK = "ok"
 STATE_MODIFIED = "modified"  # 版本号相同但内容不同——最危险：版本号骗人
 STATE_STALE = "stale"  # 只装着别的版本
 STATE_MISSING = "missing"  # 该插件在这个运行端完全没装
+STATE_ALIAS = "alias"  # 缓存目录与另一个运行端是同一实体，不构成独立验证
 FAILING_STATES = (STATE_MODIFIED, STATE_STALE, STATE_MISSING)
 
 
@@ -153,6 +154,11 @@ class Report:
     source: SourceFacts
     runtimes: list[Runtime]
     plugins: list[PluginCheck]
+    aliases: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def distinct_caches(self) -> int:
+        return len(self.runtimes) - len(self.aliases)
 
     @property
     def failures(self) -> list[tuple[str, str, str]]:
@@ -258,6 +264,28 @@ def source_facts(source_root: Path) -> SourceFacts:
 # ---------------------------------------------------------------- 检测
 
 
+def cache_aliases(runtimes: Sequence[Runtime]) -> dict[str, str]:
+    """Map each runtime whose cache is *the same directory* as an earlier one to that earlier id.
+
+    实测：Orca 的 Codex home 里 `plugins` 是指向 `~/.codex/plugins` 的 junction，因此
+    「Orca 内的 Codex」与「普通 Codex」共用同一份插件缓存，只有 home（配置、会话、
+    hooks）是分开的。把它当成第三份独立安装态去比对，得到的是重复计数——同一次验证
+    数了两遍，看起来是 3/3 一致，实际只有 2 份物理缓存被验证过。
+    """
+    seen: dict[str, str] = {}
+    aliases: dict[str, str] = {}
+    for runtime in runtimes:
+        try:
+            key = str(runtime.cache.resolve()).lower()
+        except OSError:
+            key = str(runtime.cache).lower()
+        if key in seen:
+            aliases[runtime.id] = seen[key]
+        else:
+            seen[key] = runtime.id
+    return aliases
+
+
 def installed_versions(runtime: Runtime, plugin: str) -> list[str]:
     root = runtime.cache / plugin
     if not root.is_dir():
@@ -281,6 +309,8 @@ def check(data: dict[str, Any], runtimes: Sequence[Runtime]) -> Report:
             + "——这是版本化来源的问题，应由 agent-plugins 的 CI 拦截"
         )
 
+    aliases = cache_aliases(runtimes)
+
     checks: list[PluginCheck] = []
     for plugin, path in plugins.items():
         declared = versions[plugin]
@@ -289,6 +319,11 @@ def check(data: dict[str, Any], runtimes: Sequence[Runtime]) -> Report:
             raise ReleaseError(f"源插件目录读不到：{path}")
         entry = PluginCheck(plugin=plugin, declared=declared, source_digest=digest)
         for runtime in runtimes:
+            if runtime.id in aliases:
+                # 缓存目录与另一个运行端是同一实体：再比一次不是第二次验证，是同一次。
+                entry.states[runtime.id] = STATE_ALIAS
+                entry.installed_versions[runtime.id] = []
+                continue
             present = installed_versions(runtime, plugin)
             entry.installed_versions[runtime.id] = present
             if not present:
@@ -299,7 +334,7 @@ def check(data: dict[str, Any], runtimes: Sequence[Runtime]) -> Report:
                 installed = tree_digest(runtime.cache / plugin / declared)
                 entry.states[runtime.id] = STATE_OK if installed == digest else STATE_MODIFIED
         checks.append(entry)
-    return Report(source=facts, runtimes=list(runtimes), plugins=checks)
+    return Report(source=facts, runtimes=list(runtimes), plugins=checks, aliases=aliases)
 
 
 # ---------------------------------------------------------------- 输出
@@ -359,7 +394,16 @@ def format_report(report: Report) -> str:
             }[state]
             lines.append(f"  {plugin} @ {runtime_id}：{state}——{explanation}")
     else:
-        lines.append(f"三端与源仓一致（{len(report.plugins)} 插件 × {len(ids)} 端）。")
+        lines.append(
+            f"与源仓一致（{len(report.plugins)} 插件 × {report.distinct_caches} 份物理缓存）。"
+        )
+    if report.aliases:
+        lines.append("")
+        for alias, primary in report.aliases.items():
+            lines.append(
+                f"{alias} 与 {primary} 是同一份缓存目录（junction），不是独立安装态："
+                f"装一次即两端生效，比两次也只是同一次验证。"
+            )
 
     extras = report.extra_versions
     if extras:
@@ -408,6 +452,8 @@ def report_to_json(report: Report) -> dict[str, Any]:
             "behind": report.source.behind,
         },
         "runtimes": [runtime.id for runtime in report.runtimes],
+        "aliases": report.aliases,
+        "distinctCaches": report.distinct_caches,
         "plugins": [
             {
                 "plugin": check_entry.plugin,
@@ -560,8 +606,12 @@ def release(
             print((result.stdout or "") + (result.stderr or ""), file=out)
             raise ReleaseError(f"符合性测试失败：{relative}——版本声明已改，请先修复再重跑")
 
-    print(f"[4/5] 安装到三个运行端", file=out)
+    aliases = cache_aliases(runtimes)
+    print(f"[4/5] 安装到 {len(runtimes) - len(aliases)} 份物理缓存", file=out)
     for runtime in runtimes:
+        if runtime.id in aliases:
+            print(f"      跳过 {runtime.label}：与 {aliases[runtime.id]} 共用同一缓存，已随之生效", file=out)
+            continue
         spec = runtime.install
         env = {
             key: value.format(cache_home=str(runtime.cache_home or ""))
@@ -585,10 +635,14 @@ def release(
     print(f"[5/5] 指纹验收", file=out)
     report = check(data, runtimes)
     entry = next(item for item in report.plugins if item.plugin == plugin)
-    bad = [f"{runtime_id}={state}" for runtime_id, state in entry.states.items() if state != STATE_OK]
+    bad = [
+        f"{runtime_id}={state}"
+        for runtime_id, state in entry.states.items()
+        if state not in (STATE_OK, STATE_ALIAS)
+    ]
     if bad:
         raise ReleaseError(f"装完仍不一致：{'、'.join(bad)}——安装报成功但内容对不上，不要相信安装回执")
-    print(f"      {plugin} {new} 三端逐字节一致", file=out)
+    print(f"      {plugin} {new} 在 {report.distinct_caches} 份物理缓存上逐字节一致", file=out)
     print("", file=out)
     print(f"发布完成。源仓有未提交改动（六处版本声明），提交与 PR 仍归你。", file=out)
     return 0
