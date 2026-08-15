@@ -266,34 +266,41 @@ class HookGateTest(unittest.TestCase):
             "被改过\n", encoding="utf-8", newline=""
         )
 
-    # 这四条曾经写反。原先的模型是「运行端读版本缓存」，于是把「缓存与工作树不一致」
-    # 当告警，把「停在特性分支」当正常的进行中工作而静默。2026-08-15 实测推翻了这个
-    # 模型：两个运行端都把 Skill 解析到工作树本身。因此告警对象正好对调——停在分支
-    # 或工作树脏，意味着新 Session 实时读到未合并正文，那才是要说的；缓存旧了没人读。
+    # 这组判断改过三轮，注释保留全部来回，不抹掉错的那两轮：
+    #
+    # 一轮：模型「会话读版本缓存」→ 缓存漂移是告警，特性分支静默（当作进行中的工作）。
+    # 二轮：`claude plugin details` 的 on-invoke 估算随工作树变化 → 改判「会话读工作树、
+    #       缓存没人读」，告警对象整个对调。
+    # 三轮：两次真实的新会话测试（Claude 与 Codex 各一次）报出的都是**缓存**里的旧
+    #       description → 一轮的模型是对的；二轮是拿 CLI 检视命令的显示去推断会话行为，
+    #       推错了。CLI 算的是「装了会是多大」，与会话加载是两条代码路径。
+    #
+    # 现在的判据：告警对象是缓存；但缓存对不对只有在工作树是 origin/main 的干净检出时
+    # 才判得出来，否则如实说「判不出来」而不是假装没事。
 
-    def test_silent_on_a_clean_main_checkout(self) -> None:
+    def test_silent_on_a_clean_main_checkout_with_no_drift(self) -> None:
         self.assertIsNone(self.message())
 
-    def test_speaks_up_on_cache_drift_too_because_the_load_path_is_undecided(self) -> None:
-        # 这条改过两次。最初判缓存漂移是唯一告警（模型：运行端读缓存）；实测
-        # claude plugin details 随工作树变化后改判它「没人读」而静默；随后一次真实
-        # 的新 Codex 会话又报出缓存里的旧 description。三次证据互相不一致，加载路径
-        # 尚未定论——这种时候把任何一边判成「没人读」都是猜，两边都报才是诚实的。
+    def test_speaks_up_on_cache_drift_because_that_is_what_sessions_load(self) -> None:
         self.break_install()
         message = self.message()
         self.assertIsNotNone(message)
-        self.assertIn("缓存", message)
+        self.assertIn("运行端装的不是", message)
+        self.assertIn("alpha", message)
 
-    def test_speaks_up_on_a_feature_branch_because_runtimes_read_it_live(self) -> None:
+    def test_says_it_cannot_judge_on_a_feature_branch_instead_of_going_quiet(self) -> None:
+        # 静默会让「有人把特性分支长期留在生产检出里」变成漂移检测的持续失明。
         subprocess.run(["git", "checkout", "-qb", "feature"], cwd=self.source, check=True, capture_output=True)
         message = self.message()
         self.assertIsNotNone(message)
+        self.assertIn("判不出", message)
         self.assertIn("feature", message)
 
-    def test_speaks_up_when_the_working_tree_is_dirty(self) -> None:
+    def test_says_it_cannot_judge_when_the_working_tree_is_dirty(self) -> None:
         write(self.source / "README.md", "编辑中\n")
         message = self.message()
         self.assertIsNotNone(message)
+        self.assertIn("判不出", message)
         self.assertIn("未提交", message)
 
 
