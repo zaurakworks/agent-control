@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+# post-checkout hook 样例(双层同步点之二):切分支/新建 worktree 后自动 kb sync——
+# 幂等补建 *.kb.md 软链,并按方法签名锚点把 [KB] 注释显式注回热点文件(贴膜)。
+# 安装:拷到 <目标仓>/.git/hooks/post-checkout 并 chmod +x;
+# kb.py 路径按你的实际安装位置修改(也可直接调 PATH 里的 kb 包装)。
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "tools/kb/kb.py", "sync"], check=False)

@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# pre-commit 样例(嵌入轨的提交时同步点+兜底保险丝):
+#   1) 自动 kb harvest:把热点文件里的 [KB] 注释收割进中央库(双层同步点之一;
+#      收割失败只打印不阻塞——保险丝在第 2 步)。
+#   2) [KB] 兜底 grep:暂存(索引)内容仍含 [KB] 标记即拒绝提交——clean 过滤器
+#      未装/失效时的最后防线。
+# 安装:拷到 <目标仓>/.git/hooks/pre-commit 并 chmod +x;kb.py 路径按实际位置改。
+import subprocess
+import sys
+
+KB_PY = "tools/kb/kb.py"  # 按实际安装位置修改;也可换成 PATH 里的 kb 包装
+MARKER = "[KB" "]"  # 拆写避免本文件自身触发标记检查
+
+subprocess.run([sys.executable, KB_PY, "harvest"], check=False)
+
+p = subprocess.run(["git", "grep", "--cached", "-n", "-F", MARKER],
+                   capture_output=True, text=True)
+if p.stdout.strip():
+    sys.stderr.write(
+        f"拒绝提交:暂存内容含 {MARKER} 标记(clean 过滤器未装配或失效):\n"
+        + p.stdout
+        + f"处理:python3 {KB_PY} filter-install <该文件> 后重新 git add;\n"
+        "      或确认该行确实该入库时,去掉标记再暂存。\n"
+    )
+    sys.exit(1)

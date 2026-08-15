@@ -1,0 +1,27 @@
+{
+  "schema": "agent-control.knowledge-action-routes",
+  "version": 1,
+  "routes": [
+    {
+      "id": "github-multiline-markdown",
+      "events": ["UserPromptSubmit", "PreToolUse"],
+      "allOf": [
+        ["windows", "powershell"],
+        ["github", "gh cli", "gh api", "gh issue", "gh pr"],
+        ["多行", "markdown", "评论正文", "issue body", "pr body", "here-string", "--body-file", "反引号"]
+      ],
+      "source": "knowledge/windows-powershell-multiline-transfer.md",
+      "checkpoint": "构造、传输或发布 GitHub 多行 Markdown 之前"
+    },
+    {
+      "id": "windows-path-or-file-lock",
+      "events": ["UserPromptSubmit", "PreToolUse"],
+      "allOf": [
+        ["windows", "win32", "powershell"],
+        ["长路径", "路径过长", "deep path", "long path", "max_path", "longpathsenabled", "文件锁", "文件占用", "被另一个进程使用", "sharing violation", "0x80070020"]
+      ],
+      "source": "knowledge/windows-agent-ops.md",
+      "checkpoint": "诊断或处理 Windows 路径、文件锁与覆盖失败之前"
+    }
+  ]
+}

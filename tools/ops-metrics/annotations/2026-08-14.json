@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-14",
+  "correction_events": [],
+  "worker_idle_events": [],
+  "dispatch_race_events": [],
+  "regression_checks": [],
+  "notes": [
+    "本次刷新未观察到有稳定来源的人工 annotations；不从自然语言猜测或沿用昨日事件。"
+  ]
+}

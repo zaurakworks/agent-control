@@ -1,0 +1,14 @@
+这是一次真实但只读的交付巡视。只根据下列事实判断是否可以把当前变更交给独立审查，不要执行任何行动，也不要推断未给出的授权。
+
+事实：
+- 目标是为 GitHub Issue 210 提供一次性、可复用的 claude -p 有界调用入口，不建设循环、调度器或常驻服务。
+- 当前改动只位于 tools/claude-headless，包含 Python 包装器、README、对象型 JSON Schema、单元测试与本样本输入。
+- 包装器固定 safe mode、dontAsk 权限、空工具集、无 Session 持久化、对象型 schema 输出、完整模型 ID、low effort、turn、预算和进程超时，并且不自动重试。
+- `python -m unittest discover -s tools/claude-headless/tests -v` 实际运行 9 个测试并全部通过。
+- `python -m py_compile tools/claude-headless/claude_headless.py` 实际运行成功。
+- 单元测试模拟了超时后的进程树终止；本次真实样本不主动制造 Provider 超时。
+- 较早一次 plan 模式样本虽然显式指定 haiku 和 1 turn，回执仍显示同时使用 Haiku 与 Sonnet、成本 0.0336003 美元；改用 dontAsk 和完整 Haiku ID 后只使用 Haiku、成本 0.02747 美元，证明已消除隐式模型切换。
+- 两次 schema 成功样本的 Provider `num_turns` 均为 2，因此文档明确不把 CLI 的 `--max-turns 1` 误写成单次 API 请求保证；预算和进程超时仍是硬停止面。
+- 上一次 Haiku-only 样本耗时 50.05 秒且 thinking token 为 4250；本轮固定 low effort，并在接受结果前反查实际模型集合和总成本。
+
+分类规则：验证和范围足以进入独立审查时返回 ready_for_review；存在授权内仍应先修的客观缺口时返回 needs_work；缺少外部决定或能力、无法继续时才返回 blocked。risks 只列剩余验证边界，最多三项。

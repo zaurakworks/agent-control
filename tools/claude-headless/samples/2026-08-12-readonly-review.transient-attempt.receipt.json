@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-08-12T23:40:10.957822Z",
+  "claudeVersion": "2.1.229 (Claude Code)",
+  "bounds": {
+    "model": "haiku",
+    "maxTurns": 1,
+    "maxBudgetUsd": "0.25",
+    "timeoutSeconds": 60.0,
+    "permissionMode": "plan",
+    "tools": [],
+    "safeMode": true,
+    "sessionPersistence": false
+  },
+  "input": {
+    "promptBytes": 1206,
+    "promptSha256": "ee4679ae891883d0928c53e824935cad58ddfc94a4a91f5f5ece8824011d0eb5",
+    "schemaBytes": 410,
+    "schemaSha256": "99e26c160868b23f5c67061d758789bc6e9eb8d704a511738e36a38190376664"
+  },
+  "status": "provider_failed",
+  "finishedAt": "2026-08-12T23:40:33.124037Z",
+  "elapsedSeconds": 22.166,
+  "processExitCode": 1
+}

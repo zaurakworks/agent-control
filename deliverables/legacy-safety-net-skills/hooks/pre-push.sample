@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# pre-push 安检样例(最后一道保险丝,历史污染即泄漏):
+#   1) 旁车轨:任何 *.kb.md 已被 git 跟踪即拒绝(真本在中央库,worktree 内只留软链;
+#      第一道防线是 .git/info/exclude 的单条 `**/*.kb.md`,本钩子只兜底)。
+#   2) 嵌入轨:将推的每个提交的树里都不得含 [KB] 标记(clean 过滤器失效的兜底)。
+# 安装:拷到 <目标仓>/.git/hooks/pre-push 并 chmod +x。
+# 注意:若把本 skill 包目录整个 commit 进了挂本安检的仓,包内文档含 [KB] 字样会被
+# 拦下——包应放仓外挂载,或加进 .git/info/exclude(见安装说明)。
+import subprocess
+import sys
+
+MARKER = "[KB" "]"  # 拆写避免本文件自身触发标记检查
+
+
+def sh(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(list(args), capture_output=True, text=True)
+
+
+failures: list[str] = []
+
+tracked = sh("git", "ls-files", "--", "*.kb.md").stdout.strip()
+if tracked:
+    failures.append(
+        "以下 *.kb.md 已被 git 跟踪(应走中央库软链,不入库):\n" + tracked
+        + "\n处理:git rm --cached <文件>;确认 .git/info/exclude 含单条 **/*.kb.md"
+    )
+
+for line in sys.stdin.read().splitlines():
+    parts = line.split()
+    if len(parts) != 4:
+        continue
+    _local_ref, local_sha, _remote_ref, remote_sha = parts
+    if set(local_sha) == {"0"}:  # 删除远端分支,无内容可查
+        continue
+    if set(remote_sha) == {"0"}:  # 远端新分支:只查远端任何分支都没有的提交
+        rev_args = [local_sha, "--not", "--remotes"]
+    else:
+        rev_args = [f"{remote_sha}..{local_sha}"]
+    for commit in sh("git", "rev-list", *rev_args).stdout.split():
+        hits = sh("git", "grep", "-l", "-F", MARKER, commit).stdout.strip()
+        if hits:
+            failures.append(
+                f"将推提交 {commit[:12]} 的树中含 {MARKER} 标记(clean 过滤器失效?):\n{hits}\n"
+                f"处理:kb filter-install 装好过滤器后重写含标记的历史(rebase)再推"
+            )
+            break
+
+if failures:
+    sys.stderr.write("拒绝 push:\n" + "\n\n".join(failures) + "\n")
+    sys.exit(1)

@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-12",
+  "sampleBoundary": "现有 K 包与仓内既有工作流场景的固定回放；不是独立在线自然样本，也不证明产品采用。",
+  "samples": [
+    {
+      "id": "dispatch-mutation-reconcile",
+      "checkpoint": "派发",
+      "provenance": "knowledge/orca-supervised-dispatch.md：结论 1、4",
+      "stage": "post-dispatch",
+      "object": "orca.supervised-worker-dispatch",
+      "signals": "worker-start input_accepted mutation error effectsApplied=false dispatch-show retry",
+      "phrasing": "lexical",
+      "expectedCard": "A",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "install-copy-fingerprint",
+      "checkpoint": "装端",
+      "provenance": "knowledge/claude-plugin-maintenance.md：结论 3；knowledge/newline-normalized-acceptance.md",
+      "stage": "pre-acceptance",
+      "object": "agent-plugin.installed-copy",
+      "signals": "三端目标版本 版本化缓存 旧缓存 CRLF LF SHA-256",
+      "phrasing": "lexical",
+      "expectedCard": "B",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "capacity-snapshot-delta",
+      "checkpoint": "决定",
+      "provenance": "knowledge/orca-account-snapshot-freshness.md：结论 3",
+      "stage": "pre-capacity-decision",
+      "object": "orca.codex-account-snapshot",
+      "signals": "账户快照 updatedAt resetsAt windowMinutes usedPercent 同一窗口 消耗差值",
+      "phrasing": "lexical",
+      "expectedCard": "C",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "github-safe-reference",
+      "checkpoint": "发布",
+      "provenance": "knowledge/github-closing-keywords.md：可直接复用的结论",
+      "stage": "pre-github-publication",
+      "object": "github.issue-reference",
+      "signals": "PR 正文 父 Issue 关联 #N closingIssuesReferences 关闭关键词 误关",
+      "phrasing": "lexical",
+      "expectedCard": "D",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "entry-generate-check",
+      "checkpoint": "装端",
+      "provenance": "knowledge/entry-sync.md：三步执行",
+      "stage": "post-entry-source-change",
+      "object": "agent-system.entry-copy-set",
+      "signals": "entry_sync 入口母本 generate --write-repository 三端安装 check --scope repository",
+      "phrasing": "lexical",
+      "expectedCard": "E",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "session-exact-resume",
+      "checkpoint": "恢复",
+      "provenance": "knowledge/session-resumption-identity.md：结论 1、2",
+      "stage": "pre-session-resume",
+      "object": "coding-agent.session",
+      "signals": "并发终端 resume --last --continue Session ID Session name 恢复错对象",
+      "phrasing": "lexical",
+      "expectedCard": "F",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "graphql-read-after-error",
+      "checkpoint": "写后恢复",
+      "provenance": "knowledge/github-graphql-mutation-recovery.md：结论 3",
+      "stage": "post-remote-write-error",
+      "object": "github.graphql-mutation",
+      "signals": "GraphQL mutation 超时 部分成功 远端回读 目标状态 重试 Project item PR head",
+      "phrasing": "lexical",
+      "expectedCard": "G",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "review-runtime-mapping",
+      "checkpoint": "决定",
+      "provenance": "knowledge/multi-session-review-identity.md：结论 1、2",
+      "stage": "pre-review-consumption",
+      "object": "multi-session.review-evidence",
+      "signals": "seat_kind run_id consumer_generation task_id dispatch_id comment_url 联合身份 两轮回读",
+      "phrasing": "lexical",
+      "expectedCard": "H",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "three-party-authority-gate",
+      "checkpoint": "决定",
+      "provenance": "knowledge/three-party-review-consensus.md：进入 CF-6 的四项门",
+      "stage": "pre-decision-routing",
+      "object": "agent-system.three-party-review",
+      "signals": "负责人明确替代授权 三方审阅 三席一致 低风险可逆 实施取舍 承载位置",
+      "phrasing": "lexical",
+      "expectedCard": "I",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "token-daily-burn",
+      "checkpoint": "决定",
+      "provenance": "knowledge/autonomous-ops-measurement-and-cleanup.md：结论 1",
+      "stage": "pre-capacity-decision",
+      "object": "codex.token-burn",
+      "signals": "ccusage codex daily totalTokens outputTokens inputTokens cacheReadTokens Token 日聚合 燃烧 增量",
+      "phrasing": "lexical",
+      "expectedCard": "J",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "worktree-terminal-exclusion",
+      "checkpoint": "清理",
+      "provenance": "knowledge/retrieval-cards.md：现有卡 K 的原语义回归样本",
+      "stage": "pre-worktree-delete",
+      "object": "orca.worktree",
+      "signals": "terminal list worktreePath 活跃排除集 worker_done 远端 head git status clean",
+      "phrasing": "lexical",
+      "expectedCard": "K",
+      "cardGeneration": "A-K"
+    },
+    {
+      "id": "dispatch-input-stalled",
+      "checkpoint": "派发",
+      "provenance": "knowledge/orca-supervised-dispatch.md：结论 2、3",
+      "stage": "post-dispatch",
+      "object": "orca.supervised-worker-dispatch",
+      "signals": "派活以后对面一直没开工，先看是不是还卡在输入框，必要时敲回车",
+      "phrasing": "paraphrase",
+      "expectedCard": "L",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "install-success-stale-copy",
+      "checkpoint": "装端",
+      "provenance": "knowledge/claude-plugin-maintenance.md：结论 1、4",
+      "stage": "pre-acceptance",
+      "object": "agent-plugin.installed-copy",
+      "signals": "工具显示安装成功，运行端副本内容没变，需要卸载重装",
+      "phrasing": "paraphrase",
+      "expectedCard": "M",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "capacity-unchanged-reading",
+      "checkpoint": "决定",
+      "provenance": "knowledge/orca-account-snapshot-freshness.md：结论 1、2",
+      "stage": "pre-capacity-decision",
+      "object": "orca.codex-account-snapshot",
+      "signals": "配额读数没变还能否加开工作者",
+      "phrasing": "paraphrase",
+      "expectedCard": "N",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "github-negation-audit",
+      "checkpoint": "发布",
+      "provenance": "knowledge/github-closing-keywords.md：否定语境实测",
+      "stage": "pre-github-publication",
+      "object": "github.issue-reference",
+      "signals": "提交前正文里出现 does not close #155，扫描否定语境与 closingIssuesReferences",
+      "phrasing": "lexical",
+      "expectedCard": "O",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "entry-undeclared-target",
+      "checkpoint": "装端",
+      "provenance": "knowledge/entry-sync.md：目标范围与安装授权边界",
+      "stage": "post-entry-source-change",
+      "object": "agent-system.entry-copy-set",
+      "signals": "新增入口副本但 targets.json 没声明，generate 只到暂存目录，用户目录安装另要授权",
+      "phrasing": "lexical",
+      "expectedCard": "P",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "session-post-resume-state",
+      "checkpoint": "恢复",
+      "provenance": "knowledge/session-resumption-identity.md：结论 3",
+      "stage": "pre-session-resume",
+      "object": "coding-agent.session",
+      "signals": "精确 Session ID 恢复后 settings 与权限模式可能变化，重读合同、工作树和启动参数",
+      "phrasing": "lexical",
+      "expectedCard": "Q",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "graphql-operation-locator",
+      "checkpoint": "写后恢复",
+      "provenance": "knowledge/github-graphql-mutation-recovery.md：结论 1、3",
+      "stage": "post-remote-write-error",
+      "object": "github.graphql-mutation",
+      "signals": "clientMutationId 只是客户端关联字段，不是幂等键；记录稳定操作身份、对象 node ID、字段 ID 和目标值",
+      "phrasing": "lexical",
+      "expectedCard": "R",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "review-seal-before-publish",
+      "checkpoint": "决定",
+      "provenance": "knowledge/multi-session-review-identity.md：结论 3",
+      "stage": "pre-review-consumption",
+      "object": "multi-session.review-evidence",
+      "signals": "三封齐前不公开，协调者占席要在读取其他 Delivery 前密封，公开后比对判定哈希",
+      "phrasing": "lexical",
+      "expectedCard": "S",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "decision-versus-acceptance",
+      "checkpoint": "决定",
+      "provenance": "knowledge/three-party-review-consensus.md：决定与常规验收分流",
+      "stage": "pre-decision-routing",
+      "object": "agent-system.three-party-review",
+      "signals": "这是既定成功条件验收还是产品取舍；前者按预授权谓词回收，后者需要已有替代授权且属于 C3=A",
+      "phrasing": "lexical",
+      "expectedCard": "T",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "token-partial-day-attribution",
+      "checkpoint": "决定",
+      "provenance": "knowledge/autonomous-ops-measurement-and-cleanup.md：部分日、费用与归因边界",
+      "stage": "pre-capacity-decision",
+      "object": "codex.token-burn",
+      "signals": "今天未结束先标部分日和采集时刻，costUSD 只是估算不是账单，单 Session 另要回执",
+      "phrasing": "lexical",
+      "expectedCard": "U",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "worktree-running-retention-set",
+      "checkpoint": "清理",
+      "provenance": "knowledge/autonomous-ops-measurement-and-cleanup.md：现行结论 2",
+      "stage": "pre-worktree-delete",
+      "object": "orca.worktree",
+      "signals": "删除前以 dispatched running 任务绑定、两仓 main 和保护对象组成保留集 R；Ready 终端不判活，再查零未提交零未推送",
+      "phrasing": "lexical",
+      "expectedCard": "V",
+      "cardGeneration": "L-V"
+    },
+    {
+      "id": "shared-write-ownership-outside",
+      "checkpoint": "派发",
+      "provenance": "当前检索卡明确覆盖外的共享写入所有权场景",
+      "stage": "pre-shared-write",
+      "object": "agent-system.shared-singleton",
+      "signals": "两个 Session 可能修改同一份用户级配置，先确认排他所有权",
+      "phrasing": "lexical",
+      "expectedCard": null,
+      "cardGeneration": "outside"
+    },
+    {
+      "id": "authority-change-outside",
+      "checkpoint": "决定",
+      "provenance": "当前检索卡明确覆盖外的权威变更场景",
+      "stage": "pre-authority-change",
+      "object": "agent-system.authority",
+      "signals": "候选结论准备进入 authority，需要负责人明确确认",
+      "phrasing": "lexical",
+      "expectedCard": null,
+      "cardGeneration": "outside"
+    }
+  ]
+}

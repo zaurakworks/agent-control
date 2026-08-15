@@ -1,0 +1,3603 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-12",
+  "timezone": "America/New_York",
+  "window_start": "2026-08-12T04:00:00+00:00",
+  "window_end": "2026-08-13T04:00:00+00:00",
+  "snapshot_at": "2026-08-13T03:26:32.853420+00:00",
+  "trigger": "manual",
+  "github": {
+    "issues_created_count": 32,
+    "prs_created_count": 51,
+    "prs_merged_count": 47,
+    "issue_pr_comments_count": 266,
+    "review_turnaround": {
+      "count": 30,
+      "median_seconds": 1685.0,
+      "p90_seconds": 16346.0,
+      "max_seconds": 18355.0
+    },
+    "review_rows": [
+      {
+        "number": 157,
+        "title": "docs(learning): 研究 Matt Pocock Skills",
+        "url": "https://github.com/Eridanus117/agent-control/pull/157",
+        "created_at": "2026-08-12T09:36:32Z",
+        "merged_at": "2026-08-12T14:28:53Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:08:58Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/157#issuecomment-5267937861"
+        },
+        "reviewed_at": "2026-08-12T14:08:58Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/157#issuecomment-5267937861",
+        "seconds": 16346.0
+      },
+      {
+        "number": 158,
+        "title": "docs(learning): 研究热门 Agent Skills 图景",
+        "url": "https://github.com/Eridanus117/agent-control/pull/158",
+        "created_at": "2026-08-12T09:38:13Z",
+        "merged_at": "2026-08-12T14:29:02Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:03Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/158#issuecomment-5267938888"
+        },
+        "reviewed_at": "2026-08-12T14:09:03Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/158#issuecomment-5267938888",
+        "seconds": 16250.0
+      },
+      {
+        "number": 159,
+        "title": "研究 Agent 记忆与评估生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/159",
+        "created_at": "2026-08-12T09:43:08Z",
+        "merged_at": "2026-08-12T14:29:10Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:07Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/159#issuecomment-5267939776"
+        },
+        "reviewed_at": "2026-08-12T14:09:07Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/159#issuecomment-5267939776",
+        "seconds": 15959.0
+      },
+      {
+        "number": 160,
+        "title": "docs: 研究 Kilo Code Agent 生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/160",
+        "created_at": "2026-08-12T09:44:50Z",
+        "merged_at": "2026-08-12T14:29:17Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:14Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/160#issuecomment-5267941017"
+        },
+        "reviewed_at": "2026-08-12T14:09:14Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/160#issuecomment-5267941017",
+        "seconds": 15864.0
+      },
+      {
+        "number": 162,
+        "title": "docs(learning): study coding agent landscape",
+        "url": "https://github.com/Eridanus117/agent-control/pull/162",
+        "created_at": "2026-08-12T09:49:51Z",
+        "merged_at": "2026-08-12T14:29:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:19Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/162#issuecomment-5267942049"
+        },
+        "reviewed_at": "2026-08-12T14:09:19Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/162#issuecomment-5267942049",
+        "seconds": 15568.0
+      },
+      {
+        "number": 167,
+        "title": "docs(learning): 整合 A 路线生态研究与能力候选",
+        "url": "https://github.com/Eridanus117/agent-control/pull/167",
+        "created_at": "2026-08-12T10:34:49Z",
+        "merged_at": "2026-08-12T13:00:14Z",
+        "first_review_signal": {
+          "at": "2026-08-12T12:51:51Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/167#issuecomment-5267050890"
+        },
+        "reviewed_at": "2026-08-12T12:51:51Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/167#issuecomment-5267050890",
+        "seconds": 8222.0
+      },
+      {
+        "number": 168,
+        "title": "docs(learning): 映射上下文工程与协调者过载",
+        "url": "https://github.com/Eridanus117/agent-control/pull/168",
+        "created_at": "2026-08-12T10:36:32Z",
+        "merged_at": "2026-08-12T13:43:56Z",
+        "first_review_signal": {
+          "at": "2026-08-12T12:52:33Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/168#issuecomment-5267058369"
+        },
+        "reviewed_at": "2026-08-12T12:52:33Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/168#issuecomment-5267058369",
+        "seconds": 8161.0
+      },
+      {
+        "number": 170,
+        "title": "学习：补充 vLLM 与推理 infra KB 单元",
+        "url": "https://github.com/Eridanus117/agent-control/pull/170",
+        "created_at": "2026-08-12T10:44:18Z",
+        "merged_at": "2026-08-12T15:54:06Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:13Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/170#pullrequestreview-4918470503"
+        },
+        "reviewed_at": "2026-08-12T15:50:13Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/170#pullrequestreview-4918470503",
+        "seconds": 18355.0
+      },
+      {
+        "number": 171,
+        "title": "研究：长程多 Agent 协调者操作模式",
+        "url": "https://github.com/Eridanus117/agent-control/pull/171",
+        "created_at": "2026-08-12T10:54:11Z",
+        "merged_at": "2026-08-12T15:54:14Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:27Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/171#pullrequestreview-4918472523"
+        },
+        "reviewed_at": "2026-08-12T15:50:27Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/171#pullrequestreview-4918472523",
+        "seconds": 17776.0
+      },
+      {
+        "number": 173,
+        "title": "docs(learning): 研究 Route B 教学系统设计",
+        "url": "https://github.com/Eridanus117/agent-control/pull/173",
+        "created_at": "2026-08-12T11:07:38Z",
+        "merged_at": "2026-08-12T15:54:21Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:41Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/173#pullrequestreview-4918474840"
+        },
+        "reviewed_at": "2026-08-12T15:50:41Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/173#pullrequestreview-4918474840",
+        "seconds": 16983.0
+      },
+      {
+        "number": 175,
+        "title": "docs(authority): Route B 教学系统六条规则落地（174-D2）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/175",
+        "created_at": "2026-08-12T12:44:48Z",
+        "merged_at": "2026-08-12T13:44:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T13:25:56Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/175#issuecomment-5267431197"
+        },
+        "reviewed_at": "2026-08-12T13:25:56Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/175#issuecomment-5267431197",
+        "seconds": 2468.0
+      },
+      {
+        "number": 176,
+        "title": "docs(knowledge): K12 增补调度器租约交割协议（D9 已批落地）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/176",
+        "created_at": "2026-08-12T12:53:05Z",
+        "merged_at": "2026-08-12T13:44:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T13:25:15Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/176#issuecomment-5267423585"
+        },
+        "reviewed_at": "2026-08-12T13:25:15Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/176#issuecomment-5267423585",
+        "seconds": 1930.0
+      },
+      {
+        "number": 179,
+        "title": "研究：多 Agent 编排生态与组件差距",
+        "url": "https://github.com/Eridanus117/agent-control/pull/179",
+        "created_at": "2026-08-12T14:09:59Z",
+        "merged_at": "2026-08-12T15:17:00Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:33:36Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/179#issuecomment-5268237190"
+        },
+        "reviewed_at": "2026-08-12T14:33:36Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/179#issuecomment-5268237190",
+        "seconds": 1417.0
+      },
+      {
+        "number": 180,
+        "title": "docs: 研究长程治理与自我改进环生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/180",
+        "created_at": "2026-08-12T14:10:04Z",
+        "merged_at": "2026-08-12T15:21:40Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:34:04Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/180#issuecomment-5268242879"
+        },
+        "reviewed_at": "2026-08-12T14:34:04Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/180#issuecomment-5268242879",
+        "seconds": 1440.0
+      },
+      {
+        "number": 185,
+        "title": "收敛常驻入口与权威总图的单一事实源",
+        "url": "https://github.com/Eridanus117/agent-control/pull/185",
+        "created_at": "2026-08-12T15:22:01Z",
+        "merged_at": "2026-08-12T15:44:46Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:42:02Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/185#issuecomment-5269046730"
+        },
+        "reviewed_at": "2026-08-12T15:42:02Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/185#issuecomment-5269046730",
+        "seconds": 1201.0
+      },
+      {
+        "number": 189,
+        "title": "docs(authority): 操作模式六原则落地（172-D2 选 A）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/189",
+        "created_at": "2026-08-12T16:01:16Z",
+        "merged_at": "2026-08-12T16:11:27Z",
+        "first_review_signal": {
+          "at": "2026-08-12T16:07:38Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/189#pullrequestreview-4918622608"
+        },
+        "reviewed_at": "2026-08-12T16:07:38Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/189#pullrequestreview-4918622608",
+        "seconds": 382.0
+      },
+      {
+        "number": 191,
+        "title": "docs(learning): 接通思维地图首轮消费闭环",
+        "url": "https://github.com/Eridanus117/agent-control/pull/191",
+        "created_at": "2026-08-12T17:01:45Z",
+        "merged_at": "2026-08-12T18:16:57Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:15:22Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/191#pullrequestreview-4919755983"
+        },
+        "reviewed_at": "2026-08-12T18:15:22Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/191#pullrequestreview-4919755983",
+        "seconds": 4417.0
+      },
+      {
+        "number": 192,
+        "title": "研究：A2A 与 MCP Tasks 的 Orca 互操作边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/192",
+        "created_at": "2026-08-12T17:02:47Z",
+        "merged_at": "2026-08-12T18:29:53Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:15:46Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/192#pullrequestreview-4919759689"
+        },
+        "reviewed_at": "2026-08-12T18:15:46Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/192#pullrequestreview-4919759689",
+        "seconds": 4379.0
+      },
+      {
+        "number": 194,
+        "title": "运营：将当日错误样本纳入可复跑回归清单",
+        "url": "https://github.com/Eridanus117/agent-control/pull/194",
+        "created_at": "2026-08-12T17:11:01Z",
+        "merged_at": "2026-08-12T17:28:35Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:21:32Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/194#pullrequestreview-4919250603"
+        },
+        "reviewed_at": "2026-08-12T17:21:32Z",
+        "review_kind": "formal_review",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/194#pullrequestreview-4919250603",
+        "seconds": 631.0
+      },
+      {
+        "number": 195,
+        "title": "工具：为 RFC 3339 原始标量增加陈旧比较守卫",
+        "url": "https://github.com/Eridanus117/agent-control/pull/195",
+        "created_at": "2026-08-12T17:15:52Z",
+        "merged_at": "2026-08-12T17:30:23Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:27:26Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/195#issuecomment-5270165956"
+        },
+        "reviewed_at": "2026-08-12T17:27:26Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/195#issuecomment-5270165956",
+        "seconds": 694.0
+      },
+      {
+        "number": 196,
+        "title": "docs(knowledge): 蒸馏 D9 易主与派发竞态自然样本",
+        "url": "https://github.com/Eridanus117/agent-control/pull/196",
+        "created_at": "2026-08-12T17:17:32Z",
+        "merged_at": "2026-08-12T17:30:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:28:47Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/196#issuecomment-5270179515"
+        },
+        "reviewed_at": "2026-08-12T17:28:47Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/196#issuecomment-5270179515",
+        "seconds": 675.0
+      },
+      {
+        "number": 197,
+        "title": "docs(knowledge): 补齐 K17 发现链",
+        "url": "https://github.com/Eridanus117/agent-control/pull/197",
+        "created_at": "2026-08-12T17:18:52Z",
+        "merged_at": "2026-08-12T17:43:07Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:42:15Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/197#issuecomment-5270327881"
+        },
+        "reviewed_at": "2026-08-12T17:42:15Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/197#issuecomment-5270327881",
+        "seconds": 1403.0
+      },
+      {
+        "number": 198,
+        "title": "研究：可复现 Agent 评测 Harness 与可靠性证据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/198",
+        "created_at": "2026-08-12T17:33:56Z",
+        "merged_at": "2026-08-12T17:59:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:43:42Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/198#issuecomment-5270350846"
+        },
+        "reviewed_at": "2026-08-12T17:43:42Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/198#issuecomment-5270350846",
+        "seconds": 586.0
+      },
+      {
+        "number": 199,
+        "title": "docs(learning): 补充 vLLM serving 请求生命周期单元",
+        "url": "https://github.com/Eridanus117/agent-control/pull/199",
+        "created_at": "2026-08-12T17:37:02Z",
+        "merged_at": "2026-08-12T18:13:02Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:12:14Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/199#issuecomment-5270823257"
+        },
+        "reviewed_at": "2026-08-12T18:12:14Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/199#issuecomment-5270823257",
+        "seconds": 2112.0
+      },
+      {
+        "number": 201,
+        "title": "研究：MCP 生态现状与工具安全边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/201",
+        "created_at": "2026-08-12T17:51:33Z",
+        "merged_at": "2026-08-12T18:23:34Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:06:42Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/201#issuecomment-5270729057"
+        },
+        "reviewed_at": "2026-08-12T18:06:42Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/201#issuecomment-5270729057",
+        "seconds": 909.0
+      },
+      {
+        "number": 206,
+        "title": "docs(knowledge): 增补派发验活与恢复边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/206",
+        "created_at": "2026-08-12T19:19:08Z",
+        "merged_at": "2026-08-12T19:27:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T19:26:17Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/206#issuecomment-5271785667"
+        },
+        "reviewed_at": "2026-08-12T19:26:17Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/206#issuecomment-5271785667",
+        "seconds": 429.0
+      },
+      {
+        "number": 212,
+        "title": "交付 L1 Claude Hook 正向回执桥",
+        "url": "https://github.com/Eridanus117/agent-control/pull/212",
+        "created_at": "2026-08-12T23:49:05Z",
+        "merged_at": "2026-08-13T00:02:00Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:00:41Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/212#issuecomment-5274205295"
+        },
+        "reviewed_at": "2026-08-13T00:00:41Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/212#issuecomment-5274205295",
+        "seconds": 696.0
+      },
+      {
+        "number": 213,
+        "title": "交付：Claude headless 有界战术调用",
+        "url": "https://github.com/Eridanus117/agent-control/pull/213",
+        "created_at": "2026-08-12T23:50:06Z",
+        "merged_at": "2026-08-13T00:15:07Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:08:58Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/213#issuecomment-5274259021"
+        },
+        "reviewed_at": "2026-08-13T00:08:58Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/213#issuecomment-5274259021",
+        "seconds": 1132.0
+      },
+      {
+        "number": 215,
+        "title": "feat: 增加 Codex JSONL 派发验活",
+        "url": "https://github.com/Eridanus117/agent-control/pull/215",
+        "created_at": "2026-08-12T23:52:22Z",
+        "merged_at": "2026-08-13T00:02:10Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:00:49Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/215#issuecomment-5274206177"
+        },
+        "reviewed_at": "2026-08-13T00:00:49Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/215#issuecomment-5274206177",
+        "seconds": 507.0
+      },
+      {
+        "number": 218,
+        "title": "docs(knowledge): 蒸馏 1.4.181 深夜编排证据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/218",
+        "created_at": "2026-08-13T01:22:57Z",
+        "merged_at": "2026-08-13T01:35:29Z",
+        "first_review_signal": {
+          "at": "2026-08-13T01:34:09Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/218#issuecomment-5274859650"
+        },
+        "reviewed_at": "2026-08-13T01:34:09Z",
+        "review_kind": "review_conversation_comment",
+        "review_url": "https://github.com/Eridanus117/agent-control/pull/218#issuecomment-5274859650",
+        "seconds": 672.0
+      }
+    ],
+    "merge_turnaround": {
+      "count": 47,
+      "median_seconds": 1230.0,
+      "p90_seconds": 17203.0,
+      "max_seconds": 18588.0
+    },
+    "merge_rows": [
+      {
+        "number": 141,
+        "title": "docs(knowledge): 登记结构化触发与 BM25 检索卡",
+        "url": "https://github.com/Eridanus117/agent-control/pull/141",
+        "created_at": "2026-08-12T04:27:30Z",
+        "merged_at": "2026-08-12T04:48:00Z",
+        "first_review_signal": null,
+        "seconds": 1230.0
+      },
+      {
+        "number": 142,
+        "title": "docs(knowledge): 刷新 K2/K5 新鲜度水位",
+        "url": "https://github.com/Eridanus117/agent-control/pull/142",
+        "created_at": "2026-08-12T04:39:04Z",
+        "merged_at": "2026-08-12T04:47:31Z",
+        "first_review_signal": null,
+        "seconds": 507.0
+      },
+      {
+        "number": 143,
+        "title": "docs(knowledge): 蒸馏 Windows 多行 Markdown 传输边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/143",
+        "created_at": "2026-08-12T04:49:08Z",
+        "merged_at": "2026-08-12T04:54:40Z",
+        "first_review_signal": null,
+        "seconds": 332.0
+      },
+      {
+        "number": 144,
+        "title": "docs(knowledge): 蒸馏三方审阅自然样本",
+        "url": "https://github.com/Eridanus117/agent-control/pull/144",
+        "created_at": "2026-08-12T05:02:36Z",
+        "merged_at": "2026-08-12T05:13:39Z",
+        "first_review_signal": null,
+        "seconds": 663.0
+      },
+      {
+        "number": 146,
+        "title": "docs(knowledge): 蒸馏自治运营测量与清理纪律",
+        "url": "https://github.com/Eridanus117/agent-control/pull/146",
+        "created_at": "2026-08-12T05:19:14Z",
+        "merged_at": "2026-08-12T05:24:26Z",
+        "first_review_signal": null,
+        "seconds": 312.0
+      },
+      {
+        "number": 148,
+        "title": "feat(kb): 构建结构化触发 BM25 检索器",
+        "url": "https://github.com/Eridanus117/agent-control/pull/148",
+        "created_at": "2026-08-12T05:26:02Z",
+        "merged_at": "2026-08-12T05:35:41Z",
+        "first_review_signal": null,
+        "seconds": 579.0
+      },
+      {
+        "number": 149,
+        "title": "docs(authority): 修复 P0-4 当前水位",
+        "url": "https://github.com/Eridanus117/agent-control/pull/149",
+        "created_at": "2026-08-12T05:51:45Z",
+        "merged_at": "2026-08-12T05:58:27Z",
+        "first_review_signal": null,
+        "seconds": 402.0
+      },
+      {
+        "number": 150,
+        "title": "docs(kb): 扩充高频检索卡语料",
+        "url": "https://github.com/Eridanus117/agent-control/pull/150",
+        "created_at": "2026-08-12T05:55:10Z",
+        "merged_at": "2026-08-12T05:58:49Z",
+        "first_review_signal": null,
+        "seconds": 219.0
+      },
+      {
+        "number": 151,
+        "title": "docs(knowledge): 沉淀自治协调三条纪律",
+        "url": "https://github.com/Eridanus117/agent-control/pull/151",
+        "created_at": "2026-08-12T06:13:24Z",
+        "merged_at": "2026-08-12T06:18:13Z",
+        "first_review_signal": null,
+        "seconds": 289.0
+      },
+      {
+        "number": 152,
+        "title": "docs(kb): 接入真实工作流检查点演示",
+        "url": "https://github.com/Eridanus117/agent-control/pull/152",
+        "created_at": "2026-08-12T06:15:00Z",
+        "merged_at": "2026-08-12T06:18:04Z",
+        "first_review_signal": null,
+        "seconds": 184.0
+      },
+      {
+        "number": 153,
+        "title": "docs(knowledge): 置换 K19 worktree 清理判据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/153",
+        "created_at": "2026-08-12T06:38:20Z",
+        "merged_at": "2026-08-12T06:43:55Z",
+        "first_review_signal": null,
+        "seconds": 335.0
+      },
+      {
+        "number": 154,
+        "title": "知识：补齐 K20 装端覆盖与版本纪律",
+        "url": "https://github.com/Eridanus117/agent-control/pull/154",
+        "created_at": "2026-08-12T07:28:32Z",
+        "merged_at": "2026-08-12T07:31:41Z",
+        "first_review_signal": null,
+        "seconds": 189.0
+      },
+      {
+        "number": 156,
+        "title": "docs(kb): 扩充检索卡覆盖与自然旁路证据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/156",
+        "created_at": "2026-08-12T08:49:00Z",
+        "merged_at": "2026-08-12T08:50:35Z",
+        "first_review_signal": null,
+        "seconds": 95.0
+      },
+      {
+        "number": 157,
+        "title": "docs(learning): 研究 Matt Pocock Skills",
+        "url": "https://github.com/Eridanus117/agent-control/pull/157",
+        "created_at": "2026-08-12T09:36:32Z",
+        "merged_at": "2026-08-12T14:28:53Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:08:58Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/157#issuecomment-5267937861"
+        },
+        "seconds": 17541.0
+      },
+      {
+        "number": 158,
+        "title": "docs(learning): 研究热门 Agent Skills 图景",
+        "url": "https://github.com/Eridanus117/agent-control/pull/158",
+        "created_at": "2026-08-12T09:38:13Z",
+        "merged_at": "2026-08-12T14:29:02Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:03Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/158#issuecomment-5267938888"
+        },
+        "seconds": 17449.0
+      },
+      {
+        "number": 159,
+        "title": "研究 Agent 记忆与评估生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/159",
+        "created_at": "2026-08-12T09:43:08Z",
+        "merged_at": "2026-08-12T14:29:10Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:07Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/159#issuecomment-5267939776"
+        },
+        "seconds": 17162.0
+      },
+      {
+        "number": 160,
+        "title": "docs: 研究 Kilo Code Agent 生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/160",
+        "created_at": "2026-08-12T09:44:50Z",
+        "merged_at": "2026-08-12T14:29:17Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:14Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/160#issuecomment-5267941017"
+        },
+        "seconds": 17067.0
+      },
+      {
+        "number": 162,
+        "title": "docs(learning): study coding agent landscape",
+        "url": "https://github.com/Eridanus117/agent-control/pull/162",
+        "created_at": "2026-08-12T09:49:51Z",
+        "merged_at": "2026-08-12T14:29:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:09:19Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/162#issuecomment-5267942049"
+        },
+        "seconds": 16773.0
+      },
+      {
+        "number": 167,
+        "title": "docs(learning): 整合 A 路线生态研究与能力候选",
+        "url": "https://github.com/Eridanus117/agent-control/pull/167",
+        "created_at": "2026-08-12T10:34:49Z",
+        "merged_at": "2026-08-12T13:00:14Z",
+        "first_review_signal": {
+          "at": "2026-08-12T12:51:51Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/167#issuecomment-5267050890"
+        },
+        "seconds": 8725.0
+      },
+      {
+        "number": 168,
+        "title": "docs(learning): 映射上下文工程与协调者过载",
+        "url": "https://github.com/Eridanus117/agent-control/pull/168",
+        "created_at": "2026-08-12T10:36:32Z",
+        "merged_at": "2026-08-12T13:43:56Z",
+        "first_review_signal": {
+          "at": "2026-08-12T12:52:33Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/168#issuecomment-5267058369"
+        },
+        "seconds": 11244.0
+      },
+      {
+        "number": 169,
+        "title": "docs(knowledge): 整合单一思考工具箱",
+        "url": "https://github.com/Eridanus117/agent-control/pull/169",
+        "created_at": "2026-08-12T10:38:37Z",
+        "merged_at": "2026-08-12T10:59:06Z",
+        "first_review_signal": null,
+        "seconds": 1229.0
+      },
+      {
+        "number": 170,
+        "title": "学习：补充 vLLM 与推理 infra KB 单元",
+        "url": "https://github.com/Eridanus117/agent-control/pull/170",
+        "created_at": "2026-08-12T10:44:18Z",
+        "merged_at": "2026-08-12T15:54:06Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:13Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/170#pullrequestreview-4918470503"
+        },
+        "seconds": 18588.0
+      },
+      {
+        "number": 171,
+        "title": "研究：长程多 Agent 协调者操作模式",
+        "url": "https://github.com/Eridanus117/agent-control/pull/171",
+        "created_at": "2026-08-12T10:54:11Z",
+        "merged_at": "2026-08-12T15:54:14Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:27Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/171#pullrequestreview-4918472523"
+        },
+        "seconds": 18003.0
+      },
+      {
+        "number": 173,
+        "title": "docs(learning): 研究 Route B 教学系统设计",
+        "url": "https://github.com/Eridanus117/agent-control/pull/173",
+        "created_at": "2026-08-12T11:07:38Z",
+        "merged_at": "2026-08-12T15:54:21Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:50:41Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/173#pullrequestreview-4918474840"
+        },
+        "seconds": 17203.0
+      },
+      {
+        "number": 175,
+        "title": "docs(authority): Route B 教学系统六条规则落地（174-D2）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/175",
+        "created_at": "2026-08-12T12:44:48Z",
+        "merged_at": "2026-08-12T13:44:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T13:25:56Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/175#issuecomment-5267431197"
+        },
+        "seconds": 3576.0
+      },
+      {
+        "number": 176,
+        "title": "docs(knowledge): K12 增补调度器租约交割协议（D9 已批落地）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/176",
+        "created_at": "2026-08-12T12:53:05Z",
+        "merged_at": "2026-08-12T13:44:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T13:25:15Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/176#issuecomment-5267423585"
+        },
+        "seconds": 3085.0
+      },
+      {
+        "number": 177,
+        "title": "docs(learning): Route B 试点路线（vLLM 概念 DAG）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/177",
+        "created_at": "2026-08-12T12:53:21Z",
+        "merged_at": "2026-08-12T14:14:48Z",
+        "first_review_signal": null,
+        "seconds": 4887.0
+      },
+      {
+        "number": 179,
+        "title": "研究：多 Agent 编排生态与组件差距",
+        "url": "https://github.com/Eridanus117/agent-control/pull/179",
+        "created_at": "2026-08-12T14:09:59Z",
+        "merged_at": "2026-08-12T15:17:00Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:33:36Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/179#issuecomment-5268237190"
+        },
+        "seconds": 4021.0
+      },
+      {
+        "number": 180,
+        "title": "docs: 研究长程治理与自我改进环生态",
+        "url": "https://github.com/Eridanus117/agent-control/pull/180",
+        "created_at": "2026-08-12T14:10:04Z",
+        "merged_at": "2026-08-12T15:21:40Z",
+        "first_review_signal": {
+          "at": "2026-08-12T14:34:04Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/180#issuecomment-5268242879"
+        },
+        "seconds": 4296.0
+      },
+      {
+        "number": 185,
+        "title": "收敛常驻入口与权威总图的单一事实源",
+        "url": "https://github.com/Eridanus117/agent-control/pull/185",
+        "created_at": "2026-08-12T15:22:01Z",
+        "merged_at": "2026-08-12T15:44:46Z",
+        "first_review_signal": {
+          "at": "2026-08-12T15:42:02Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/185#issuecomment-5269046730"
+        },
+        "seconds": 1365.0
+      },
+      {
+        "number": 188,
+        "title": "docs(knowledge): K12 修订版 5 增补 resume 查重与派发验活",
+        "url": "https://github.com/Eridanus117/agent-control/pull/188",
+        "created_at": "2026-08-12T15:56:10Z",
+        "merged_at": "2026-08-12T16:05:54Z",
+        "first_review_signal": null,
+        "seconds": 584.0
+      },
+      {
+        "number": 189,
+        "title": "docs(authority): 操作模式六原则落地（172-D2 选 A）",
+        "url": "https://github.com/Eridanus117/agent-control/pull/189",
+        "created_at": "2026-08-12T16:01:16Z",
+        "merged_at": "2026-08-12T16:11:27Z",
+        "first_review_signal": {
+          "at": "2026-08-12T16:07:38Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/189#pullrequestreview-4918622608"
+        },
+        "seconds": 611.0
+      },
+      {
+        "number": 190,
+        "title": "运营：新增可复算产能与交互质量仪表",
+        "url": "https://github.com/Eridanus117/agent-control/pull/190",
+        "created_at": "2026-08-12T16:07:22Z",
+        "merged_at": "2026-08-12T16:12:16Z",
+        "first_review_signal": null,
+        "seconds": 294.0
+      },
+      {
+        "number": 191,
+        "title": "docs(learning): 接通思维地图首轮消费闭环",
+        "url": "https://github.com/Eridanus117/agent-control/pull/191",
+        "created_at": "2026-08-12T17:01:45Z",
+        "merged_at": "2026-08-12T18:16:57Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:15:22Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/191#pullrequestreview-4919755983"
+        },
+        "seconds": 4512.0
+      },
+      {
+        "number": 192,
+        "title": "研究：A2A 与 MCP Tasks 的 Orca 互操作边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/192",
+        "created_at": "2026-08-12T17:02:47Z",
+        "merged_at": "2026-08-12T18:29:53Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:15:46Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/192#pullrequestreview-4919759689"
+        },
+        "seconds": 5226.0
+      },
+      {
+        "number": 194,
+        "title": "运营：将当日错误样本纳入可复跑回归清单",
+        "url": "https://github.com/Eridanus117/agent-control/pull/194",
+        "created_at": "2026-08-12T17:11:01Z",
+        "merged_at": "2026-08-12T17:28:35Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:21:32Z",
+          "kind": "formal_review",
+          "url": "https://github.com/Eridanus117/agent-control/pull/194#pullrequestreview-4919250603"
+        },
+        "seconds": 1054.0
+      },
+      {
+        "number": 195,
+        "title": "工具：为 RFC 3339 原始标量增加陈旧比较守卫",
+        "url": "https://github.com/Eridanus117/agent-control/pull/195",
+        "created_at": "2026-08-12T17:15:52Z",
+        "merged_at": "2026-08-12T17:30:23Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:27:26Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/195#issuecomment-5270165956"
+        },
+        "seconds": 871.0
+      },
+      {
+        "number": 196,
+        "title": "docs(knowledge): 蒸馏 D9 易主与派发竞态自然样本",
+        "url": "https://github.com/Eridanus117/agent-control/pull/196",
+        "created_at": "2026-08-12T17:17:32Z",
+        "merged_at": "2026-08-12T17:30:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:28:47Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/196#issuecomment-5270179515"
+        },
+        "seconds": 778.0
+      },
+      {
+        "number": 197,
+        "title": "docs(knowledge): 补齐 K17 发现链",
+        "url": "https://github.com/Eridanus117/agent-control/pull/197",
+        "created_at": "2026-08-12T17:18:52Z",
+        "merged_at": "2026-08-12T17:43:07Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:42:15Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/197#issuecomment-5270327881"
+        },
+        "seconds": 1455.0
+      },
+      {
+        "number": 198,
+        "title": "研究：可复现 Agent 评测 Harness 与可靠性证据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/198",
+        "created_at": "2026-08-12T17:33:56Z",
+        "merged_at": "2026-08-12T17:59:30Z",
+        "first_review_signal": {
+          "at": "2026-08-12T17:43:42Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/198#issuecomment-5270350846"
+        },
+        "seconds": 1534.0
+      },
+      {
+        "number": 199,
+        "title": "docs(learning): 补充 vLLM serving 请求生命周期单元",
+        "url": "https://github.com/Eridanus117/agent-control/pull/199",
+        "created_at": "2026-08-12T17:37:02Z",
+        "merged_at": "2026-08-12T18:13:02Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:12:14Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/199#issuecomment-5270823257"
+        },
+        "seconds": 2160.0
+      },
+      {
+        "number": 201,
+        "title": "研究：MCP 生态现状与工具安全边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/201",
+        "created_at": "2026-08-12T17:51:33Z",
+        "merged_at": "2026-08-12T18:23:34Z",
+        "first_review_signal": {
+          "at": "2026-08-12T18:06:42Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/201#issuecomment-5270729057"
+        },
+        "seconds": 1921.0
+      },
+      {
+        "number": 206,
+        "title": "docs(knowledge): 增补派发验活与恢复边界",
+        "url": "https://github.com/Eridanus117/agent-control/pull/206",
+        "created_at": "2026-08-12T19:19:08Z",
+        "merged_at": "2026-08-12T19:27:24Z",
+        "first_review_signal": {
+          "at": "2026-08-12T19:26:17Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/206#issuecomment-5271785667"
+        },
+        "seconds": 496.0
+      },
+      {
+        "number": 212,
+        "title": "交付 L1 Claude Hook 正向回执桥",
+        "url": "https://github.com/Eridanus117/agent-control/pull/212",
+        "created_at": "2026-08-12T23:49:05Z",
+        "merged_at": "2026-08-13T00:02:00Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:00:41Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/212#issuecomment-5274205295"
+        },
+        "seconds": 775.0
+      },
+      {
+        "number": 213,
+        "title": "交付：Claude headless 有界战术调用",
+        "url": "https://github.com/Eridanus117/agent-control/pull/213",
+        "created_at": "2026-08-12T23:50:06Z",
+        "merged_at": "2026-08-13T00:15:07Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:08:58Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/213#issuecomment-5274259021"
+        },
+        "seconds": 1501.0
+      },
+      {
+        "number": 215,
+        "title": "feat: 增加 Codex JSONL 派发验活",
+        "url": "https://github.com/Eridanus117/agent-control/pull/215",
+        "created_at": "2026-08-12T23:52:22Z",
+        "merged_at": "2026-08-13T00:02:10Z",
+        "first_review_signal": {
+          "at": "2026-08-13T00:00:49Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/215#issuecomment-5274206177"
+        },
+        "seconds": 588.0
+      },
+      {
+        "number": 218,
+        "title": "docs(knowledge): 蒸馏 1.4.181 深夜编排证据",
+        "url": "https://github.com/Eridanus117/agent-control/pull/218",
+        "created_at": "2026-08-13T01:22:57Z",
+        "merged_at": "2026-08-13T01:35:29Z",
+        "first_review_signal": {
+          "at": "2026-08-13T01:34:09Z",
+          "kind": "review_conversation_comment",
+          "url": "https://github.com/Eridanus117/agent-control/pull/218#issuecomment-5274859650"
+        },
+        "seconds": 752.0
+      }
+    ]
+  },
+  "orca": {
+    "run_coverage": [
+      {
+        "id": "run_65a73145f0e2",
+        "objective": "agent-control#172 Mode A/B 协调 Run：单临时协调者（D9 租约持有者）＋受监督派发为默认；worker 交付走 GitHub，生命周期信号走本 Run 信箱；Mode B 战术操作器试点挂本 Run。",
+        "created_at": "2026-08-12T14:24:01Z"
+      },
+      {
+        "id": "run_1dec590bc737",
+        "objective": "E1 tui-idle 竞态对照实验；关联 #211（tui-idle 竞态对照），由 task_da321564f27b 独占探针 Run、Task 与临时终端",
+        "created_at": "2026-08-12T23:36:03Z"
+      }
+    ],
+    "records": [
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d05f1cce6a10",
+        "task_title": "Mode B 战术操作器试点（本波次轮班）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:10:32",
+        "dispatch_id": "ctx_f52a0cacf8ec",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:49:56",
+        "dispatch_completed_at": "2026-08-12 16:10:32",
+        "worker_done_at": "2026-08-12T16:10:32.616Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_9129b0b6b4bc",
+        "task_title": "F3: F-A1-5-1 错配修复",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 14:39:10",
+        "dispatch_id": "ctx_fdcace3ab2eb",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:30:50",
+        "dispatch_completed_at": "2026-08-12 14:39:10",
+        "worker_done_at": "2026-08-12T14:39:10.505Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_886f3846ab36",
+        "task_title": "F4: plugins 发版与装端同步",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 14:40:33",
+        "dispatch_id": "ctx_c69e0faae83d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:31:03",
+        "dispatch_completed_at": "2026-08-12 14:40:33",
+        "worker_done_at": "2026-08-12T14:40:33.917Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_529d7d829a10",
+        "task_title": "F5: PR179/180 按审阅修复",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:21:20",
+        "dispatch_id": "ctx_a43a677096f5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:49:50",
+        "dispatch_completed_at": "2026-08-12 15:21:20",
+        "worker_done_at": "2026-08-12T15:21:20.785Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d0e3d291a881",
+        "task_title": "F1r: #181 常驻面收敛（重启续做）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:24:55",
+        "dispatch_id": "ctx_7b8371eb1696",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:50:02",
+        "dispatch_completed_at": "2026-08-12 15:24:55",
+        "worker_done_at": "2026-08-12T15:24:55.648Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_390249d1a5f7",
+        "task_title": "F2r: #182 Skill 拆层（重启续做）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:29:47",
+        "dispatch_id": "ctx_b0436859226a",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:50:08",
+        "dispatch_completed_at": "2026-08-12 15:29:47",
+        "worker_done_at": "2026-08-12T15:29:47.613Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a6cc728c24f1",
+        "task_title": "E4r: A1-1 触发实验（重启续做）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:04:15",
+        "dispatch_id": "ctx_7b9bba335dfe",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 14:50:15",
+        "dispatch_completed_at": "2026-08-12 16:04:15",
+        "worker_done_at": "2026-08-12T16:04:15.209Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_0caa64b4b874",
+        "task_title": "G1: 178-D1 实施批独立审阅（#185/#70/#71）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:43:19",
+        "dispatch_id": "ctx_657165843cb0",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:27:01",
+        "dispatch_completed_at": "2026-08-12 15:43:19",
+        "worker_done_at": "2026-08-12T15:43:19.359Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_249fcdd81b8d",
+        "task_title": "H1: 在途 Draft PR 终局清扫审阅",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:52:28",
+        "dispatch_id": "ctx_394ab608f161",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:40:30",
+        "dispatch_completed_at": "2026-08-12 15:52:28",
+        "worker_done_at": "2026-08-12T15:52:28.948Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_efa34ad40942",
+        "task_title": "H2: #172 Mode A 验收案卷汇编",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:56:41",
+        "dispatch_id": "ctx_2ffa8bccd515",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:40:42",
+        "dispatch_completed_at": "2026-08-12 15:56:41",
+        "worker_done_at": "2026-08-12T15:56:41.820Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_74c30c21292d",
+        "task_title": "H3: 观测仪表首版（#183/#184）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:08:16",
+        "dispatch_id": "ctx_d2eb1f2f1ec7",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:40:53",
+        "dispatch_completed_at": "2026-08-12 16:08:16",
+        "worker_done_at": "2026-08-12T16:08:16.724Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_76cbbdff5ee2",
+        "task_title": "H4: 今日知识蒸馏批＋K12 修订",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 15:58:17",
+        "dispatch_id": "ctx_dde686222766",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:41:02",
+        "dispatch_completed_at": "2026-08-12 15:58:17",
+        "worker_done_at": "2026-08-12T15:58:17.541Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_297a395f25c8",
+        "task_title": "I1: 思维模型全景地图（#187 首件）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:09:24",
+        "dispatch_id": "ctx_f5dd600220e8",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:50:25",
+        "dispatch_completed_at": "2026-08-12 16:09:24",
+        "worker_done_at": "2026-08-12T16:09:24.248Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_8a84af43f53c",
+        "task_title": "I2: 信息雷达首期简报（#186 首件）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:06:58",
+        "dispatch_id": "ctx_16dbfe155c9e",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:50:36",
+        "dispatch_completed_at": "2026-08-12 16:06:58",
+        "worker_done_at": "2026-08-12T16:06:58.186Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_8b9448a27dca",
+        "task_title": "J1: 发版批②（#68/#70/#71 装端）",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:01:41",
+        "dispatch_id": "ctx_c7aeaede3c78",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 15:53:02",
+        "dispatch_completed_at": "2026-08-12 16:01:41",
+        "worker_done_at": "2026-08-12T16:01:41.176Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_77f4ba57ded0",
+        "task_title": "K1: #189 权威补丁审阅",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:07:53",
+        "dispatch_id": "ctx_c9a94afb78b9",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:01:36",
+        "dispatch_completed_at": "2026-08-12 16:07:53",
+        "worker_done_at": "2026-08-12T16:07:53.123Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b506c16f73bd",
+        "task_title": "战术操作器（无决定权）第2班（继任协调者接管后新班次，交班样本班）。职责：①每约 10 分钟只读巡视——本 Run worker 终端健康（在跑/空闲/异...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 16:32:22",
+        "dispatch_id": "ctx_54bba59b302b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:26:12",
+        "dispatch_completed_at": "2026-08-12 16:32:22",
+        "worker_done_at": "2026-08-12T16:32:22.344Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_95dce7397b92",
+        "task_title": "W1|度量切片(关联 #183 持续发现高价值事项+关联 #184 运营度量能力)。在 tools/ops-metrics 基础上扩展两块可复算口径:交互...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:12:41",
+        "dispatch_id": "ctx_3c12e078e7f5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:50:37",
+        "dispatch_completed_at": "2026-08-12 17:12:41",
+        "worker_done_at": "2026-08-12T17:12:41.596Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_41a15aa2ddd4",
+        "task_title": "W2|生态情报下一件(关联 #165)。恢复 #165 远端合同,从其未满足成功条件中选当前价值最高的一个有界切片(如信息雷达第二期或合同点名的下一研究单...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:03:46",
+        "dispatch_id": "ctx_fa912951cb2f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:50:48",
+        "dispatch_completed_at": "2026-08-12 17:03:46",
+        "worker_done_at": "2026-08-12T17:03:46.059Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_7aacc63ec65e",
+        "task_title": "W3|个人学习下一件(关联 #166)。恢复 #166 远端合同,选当前价值最高的一个有界切片(如学习单元消费闭环或合同点名下一件)执行并交付(Draft...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:02:57",
+        "dispatch_id": "ctx_d9af286f2b90",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:51:29",
+        "dispatch_completed_at": "2026-08-12 17:02:57",
+        "worker_done_at": "2026-08-12T17:02:57.007Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_804646a3be47",
+        "task_title": "W4|资源决策首切片调研(关联 #10 用足够可靠的资源信息支持投入决策,当前未满足/尚无实现)。恢复 #10 远端合同+盘点现有 resource-ob...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:01:23",
+        "dispatch_id": "ctx_243cd2501cb3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:51:40",
+        "dispatch_completed_at": "2026-08-12 17:01:23",
+        "worker_done_at": "2026-08-12T17:01:23.231Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5cceed05ece9",
+        "task_title": "W5|独立审阅席A(关联 #145 P0-2 生命周期可重入收口/关联 #147 P1-1 行动前双门,均待三方审阅)。恢复两 Issue 远端合同,以未...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:00:48",
+        "dispatch_id": "ctx_2ac6cc659fff",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:51:49",
+        "dispatch_completed_at": "2026-08-12 17:00:48",
+        "worker_done_at": "2026-08-12T17:00:48.102Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_10f815cf4c94",
+        "task_title": "W6|独立审阅席B(同关联 #145/关联 #147)。与其他审阅席互不通信、不读对方评论后再形成判断(先写完自己的再看)。同样必答结构,各一条自足审阅评...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:03:14",
+        "dispatch_id": "ctx_f01d7a67f977",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:51:52",
+        "dispatch_completed_at": "2026-08-12 17:03:14",
+        "worker_done_at": "2026-08-12T17:03:14.815Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b04c17972848",
+        "task_title": "W7|摩擦四联核验(关联 #28 时间字段隐式转换/关联 #30 PowerShell 多行正文/关联 #31 Orca 生命周期断裂/关联 #32 未合...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:03:07",
+        "dispatch_id": "ctx_55d7270e33b0",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:52:02",
+        "dispatch_completed_at": "2026-08-12 17:03:07",
+        "worker_done_at": "2026-08-12T17:03:07.769Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_8ccba5c0275d",
+        "task_title": "战术操作器(无决定权)第3班。职责与边界同第2班(见 task_b506c16f73bd):每约10分钟只读巡视本 Run worker 终端健康/wor...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:17:04",
+        "dispatch_id": "ctx_08e42fe86755",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 16:52:06",
+        "dispatch_completed_at": "2026-08-12 17:17:04",
+        "worker_done_at": "2026-08-12T17:17:04.581Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4a0f96a021f4",
+        "task_title": "E1|常驻战术层调研(关联 #193)。按 #193 正文合同执行:一手核验 Orca automations 能力面(当前版本,只读,不改配置不试运行)...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:16:16",
+        "dispatch_id": "ctx_a0f60660111f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:06:52",
+        "dispatch_completed_at": "2026-08-12 17:16:16",
+        "worker_done_at": "2026-08-12T17:16:16.846Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_3dc68422abde",
+        "task_title": "Q1|攻防席甲(关联 #145/关联 #147,负责人已批攻防轮)。视角:状态机完备性攻击——构造两方案在并发/重入/部分失败/生命周期竞态下的失败路径、...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:18:16",
+        "dispatch_id": "ctx_859ea9358083",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:06:56",
+        "dispatch_completed_at": "2026-08-12 17:18:16",
+        "worker_done_at": "2026-08-12T17:18:16.011Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_58885c4306ee",
+        "task_title": "Q2|攻防席乙(关联 #145/关联 #147,负责人已批攻防轮)。视角:不自建/判断税/ROI 红队——站在'尽量不新增规则与状态机、降低协调判断税'立...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:19:23",
+        "dispatch_id": "ctx_e221ab3306f3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:06:58",
+        "dispatch_completed_at": "2026-08-12 17:19:23",
+        "worker_done_at": "2026-08-12T17:19:23.060Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_19750b0e1cc5",
+        "task_title": "K1|KB 重建专线(关联 #46 重建负责人知识库)。恢复 #46 远端合同与既有进展(含 关联 #187 已入库的思维地图),选当前最高价值的一个有界...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:14:54",
+        "dispatch_id": "ctx_a56a70c0256e",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:07:08",
+        "dispatch_completed_at": "2026-08-12 17:14:54",
+        "worker_done_at": "2026-08-12T17:14:54.698Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a962506330e9",
+        "task_title": "R1|#28 有界修复(关联 #28 时间字段隐式转换,W7 核验后建议有界修复,证据见该 Issue 当日评论)。按 #28 合同+W7 处置建议实施最...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:16:47",
+        "dispatch_id": "ctx_b8d00d31f369",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:07:12",
+        "dispatch_completed_at": "2026-08-12 17:16:47",
+        "worker_done_at": "2026-08-12T17:16:47.094Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_c760f5acdc2a",
+        "task_title": "R2|#30 发现链补充(关联 #30 PowerShell 多行正文,W7 核验为部分变化并建议补发现链)。按 W7 建议补齐发现链(自足证据评论或最小...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:21:18",
+        "dispatch_id": "ctx_1137c58dd55b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:07:26",
+        "dispatch_completed_at": "2026-08-12 17:21:18",
+        "worker_done_at": "2026-08-12T17:21:18.176Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_6e602464be36",
+        "task_title": "D1|知识蒸馏批(两候选,登记于 关联 #172 终收口决定回执):①D9 易主让位首个真实样本;②dispatch-race 第三/四例(本日新增 W5...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:18:48",
+        "dispatch_id": "ctx_64973cce9c35",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:07:30",
+        "dispatch_completed_at": "2026-08-12 17:18:48",
+        "worker_done_at": "2026-08-12T17:18:48.600Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d2b9ef6aa41d",
+        "task_title": "V1|交付独立验证席(负责人已批质量冗余)。对两件在途 Draft PR 做未参与者独立审阅:关联 #191(个人学习-思维地图消费闭环,head df2...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:16:16",
+        "dispatch_id": "ctx_6aedf6e3acf3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:10:12",
+        "dispatch_completed_at": "2026-08-12 18:16:16",
+        "worker_done_at": "2026-08-12T18:16:16.431Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a61b86f846c6",
+        "task_title": "V2|PR #194 独立核验席(质量冗余,负责人已批)。对关联 #194(度量差量:回归清单+快照冻结修正,head 4fa0213)做未参与者独立审阅...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:22:27",
+        "dispatch_id": "ctx_20fff657e57e",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:13:12",
+        "dispatch_completed_at": "2026-08-12 17:22:27",
+        "worker_done_at": "2026-08-12T17:22:27.779Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_0c0032fe4a48",
+        "task_title": "战术操作器(无决定权)第4班——轻量化班次。职责同前班(只读巡视/Delivery 首轮分类不消费/五类事件压缩转发/无事件每小时静默标记),但执行纪律更...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:20:00",
+        "dispatch_id": "ctx_ddd97a1add31",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:18:06",
+        "dispatch_completed_at": "2026-08-12 17:20:00",
+        "worker_done_at": "2026-08-12T17:20:00.259Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_33c2cecd7b47",
+        "task_title": "V3|交付独立验证席(质量冗余,负责人已批)。对两件新在途 Draft PR 做未参与者独立审阅:关联 #195(#28 RFC3339 时间守卫修复,h...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:29:43",
+        "dispatch_id": "ctx_b7c8b447d452",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:20:57",
+        "dispatch_completed_at": "2026-08-12 17:29:43",
+        "worker_done_at": "2026-08-12T17:29:43.022Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b8b990d9b099",
+        "task_title": "X1|生态情报 fan-out 单元2(关联 #165)。恢复 #165 合同,避开已交付的 A3 互操作(关联 #192),选下一个未覆盖研究单元执行,...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:34:32",
+        "dispatch_id": "ctx_41b8c45efaa6",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:22:28",
+        "dispatch_completed_at": "2026-08-12 17:34:32",
+        "worker_done_at": "2026-08-12T17:34:32.176Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_74a818e2b233",
+        "task_title": "X2|个人学习下一单元(关联 #166)。恢复 #166 合同,避开已交付的思维地图消费闭环(关联 #191),选下一学习单元执行,Draft PR(Pa...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:37:38",
+        "dispatch_id": "ctx_faad39a4f3de",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:22:38",
+        "dispatch_completed_at": "2026-08-12 17:37:38",
+        "worker_done_at": "2026-08-12T17:37:38.745Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_21df59d9cbc5",
+        "task_title": "X3|KB 重建切片2(关联 #46)。恢复 #46 合同与今日进展(private-kb PR #8 入口导航已交付在途),选下一有界切片(如首个内容域...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:37:45",
+        "dispatch_id": "ctx_4cf510a12f62",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:22:57",
+        "dispatch_completed_at": "2026-08-12 17:37:45",
+        "worker_done_at": "2026-08-12T17:37:45.333Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_e5ee9cf0dbdd",
+        "task_title": "X4|private-kb PR #8 独立验证席(质量冗余)。对 关联 private-kb#8(KB 入口导航,head 962f06a)做未参与者审...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:31:58",
+        "dispatch_id": "ctx_a1cec1c02276",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:23:01",
+        "dispatch_completed_at": "2026-08-12 17:31:58",
+        "worker_done_at": "2026-08-12T17:31:58.936Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_fe6aeff21644",
+        "task_title": "X5|KB 广度建材下一件(关联 #187)。恢复 #187 合同,避开已入库的思维模型全景地图,按合同优先级选下一建材件(新域地图或既有域深化)执行。放...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:37:06",
+        "dispatch_id": "ctx_cafec4e85905",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:23:05",
+        "dispatch_completed_at": "2026-08-12 17:37:06",
+        "worker_done_at": "2026-08-12T17:37:06.898Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b5315e844ee2",
+        "task_title": "Y1|生态情报单元3(关联 #165)。指定主题:MCP 生态现状与工具安全边界(2026 当前态,一手来源)。与 X1 席已认领单元不同向。交付 Dra...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:53:06",
+        "dispatch_id": "ctx_bcc2147e4b00",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:32:31",
+        "dispatch_completed_at": "2026-08-12 17:53:06",
+        "worker_done_at": "2026-08-12T17:53:06.280Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_57c627ccf3c5",
+        "task_title": "Y3|KB 域迁移切片-career(关联 #46)。恢复 #46 合同,执行 career 域的下一有界迁移/整理件;与 X3 席(切片2)和 PR #...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:49:53",
+        "dispatch_id": "ctx_ab5cdae13d28",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:32:51",
+        "dispatch_completed_at": "2026-08-12 17:49:53",
+        "worker_done_at": "2026-08-12T17:49:53.615Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_f61a200d70f3",
+        "task_title": "Y4|KB 域迁移切片-briefings(关联 #46)。恢复 #46 合同,执行 briefings 域的下一有界迁移/整理件;与 X3/Y3 范围不...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:43:50",
+        "dispatch_id": "ctx_a77d30b5a777",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:32:55",
+        "dispatch_completed_at": "2026-08-12 17:43:50",
+        "worker_done_at": "2026-08-12T17:43:50.436Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_25f11d425327",
+        "task_title": "Y2|生态情报单元4(关联 #165)。指定主题:多 Agent 编排框架横向对比(LangGraph/AutoGen/CrewAI 等当前版本,一手来源...",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12 17:36:23",
+        "dispatch_id": "ctx_a0e2322d06b9",
+        "dispatch_status": "failed",
+        "dispatched_at": "2026-08-12 17:32:42",
+        "dispatch_completed_at": "2026-08-12 17:36:23",
+        "worker_done_at": "2026-08-12T17:36:23.157Z",
+        "worker_state": "failed",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_09395696a733",
+        "task_title": "Y5|PR #197 独立验证席(质量冗余,条件式合并预授权已生效——你只判定,不合并)。对 关联 #197(K17 登记+卡W投影,head f9fc1...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:42:39",
+        "dispatch_id": "ctx_42c47a451409",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:32:59",
+        "dispatch_completed_at": "2026-08-12 17:42:39",
+        "worker_done_at": "2026-08-12T17:42:39.374Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_db9c549f25c9",
+        "task_title": "Y6|派发竞态×生命周期断裂合并分析(关联 #31)。汇总今日 4-5 例 input_accepted 空转样本(K12 rev6 已入 main)与...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:47:50",
+        "dispatch_id": "ctx_dca8759484b0",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:33:03",
+        "dispatch_completed_at": "2026-08-12 17:47:50",
+        "worker_done_at": "2026-08-12T17:47:50.489Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_8cbd3ebedcdf",
+        "task_title": "Y7|KB 建材深化件(关联 #187)。指定主题:决策域既有模型的深化卡片(每项:定义/适用条件/常见误用/一个例子),与 X5 席新建材件不同向。放置...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:40:33",
+        "dispatch_id": "ctx_1253c84971c8",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:33:07",
+        "dispatch_completed_at": "2026-08-12 17:40:33",
+        "worker_done_at": "2026-08-12T17:40:33.007Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_af10533c60cc",
+        "task_title": "V4|PR #198 独立验证席(质量冗余;条件式合并预授权生效——你只判定不合并)。对 关联 #198(A6 可复现 Agent 评测 harness...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:44:07",
+        "dispatch_id": "ctx_a39b3dd4fdda",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:35:07",
+        "dispatch_completed_at": "2026-08-12 17:44:07",
+        "worker_done_at": "2026-08-12T17:44:07.923Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_37d5c967d6b9",
+        "task_title": "V5|private-kb PR #9 独立验证席(质量冗余;只判定不合并)。对 关联 private-kb#9(LLM 推理与 Serving 全景地图...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:49:06",
+        "dispatch_id": "ctx_fcc0b2177cf0",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:37:33",
+        "dispatch_completed_at": "2026-08-12 17:49:06",
+        "worker_done_at": "2026-08-12T17:49:06.097Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_bacda0b965fe",
+        "task_title": "V6|PR #199 独立验证席(只判定不合并)。对 关联 #199(vLLM serving 学习单元,head 3b4809f)未参与者审阅:DAG/...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:12:35",
+        "dispatch_id": "ctx_1abdda3940cf",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:38:09",
+        "dispatch_completed_at": "2026-08-12 18:12:35",
+        "worker_done_at": "2026-08-12T18:12:35.197Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_94180f32a793",
+        "task_title": "V7|private-kb PR #10 独立验证席(只判定不合并)。对 关联 private-kb#10(kb-note-v1 转换器修复)当前 hea...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:33:16",
+        "dispatch_id": "ctx_95d8145bdf37",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:38:13",
+        "dispatch_completed_at": "2026-08-12 18:33:16",
+        "worker_done_at": "2026-08-12T18:33:16.774Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_20c6706e7bfa",
+        "task_title": "V8|private-kb PR #11 独立验证席(只判定不合并)。对 关联 private-kb#11(决策域 13 模型深化卡片 13×4)当前 h...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:47:29",
+        "dispatch_id": "ctx_0f8a59fbb7d8",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:40:48",
+        "dispatch_completed_at": "2026-08-12 17:47:29",
+        "worker_done_at": "2026-08-12T17:47:29.776Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_ced2777c3497",
+        "task_title": "V9|private-kb PR #12 独立验证席(只判定不合并)。对 关联 private-kb#12(briefings INDEX 纯索引整理,h...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:49:26",
+        "dispatch_id": "ctx_24ccf992c182",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:44:11",
+        "dispatch_completed_at": "2026-08-12 17:49:26",
+        "worker_done_at": "2026-08-12T17:49:26.149Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_41762c8e7c65",
+        "task_title": "F1|按审阅修复 PR #198(关联 #198 A6 评测 harness 研究)。按审阅评论(pull/198#issuecomment-527035...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:53:26",
+        "dispatch_id": "ctx_dce54a245e25",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:45:11",
+        "dispatch_completed_at": "2026-08-12 17:53:26",
+        "worker_done_at": "2026-08-12T17:53:26.129Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d32ce5f148f7",
+        "task_title": "G2|GitHub 平台能力面调研(关联 #200)。按 #200 正文合同执行:一手调研 Issues/PR/Projects v2/其他能力面,产出对...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:59:35",
+        "dispatch_id": "ctx_6e0597a9dbfe",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:50:19",
+        "dispatch_completed_at": "2026-08-12 17:59:35",
+        "worker_done_at": "2026-08-12T17:59:35.967Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_056bb6526876",
+        "task_title": "N1|收割回执厚度规范(负责人已批推荐)。目标:agent-plugins 的 github-collaboration issue-workflow r...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:55:52",
+        "dispatch_id": "ctx_aca43b72bd38",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:50:23",
+        "dispatch_completed_at": "2026-08-12 17:55:52",
+        "worker_done_at": "2026-08-12T17:55:52.878Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_7190f57498bd",
+        "task_title": "F2|按审阅修复 private-kb PR #9(关联 #187 LLM 推理地图)。按 V5 审阅评论(pull/9#issuecomment-527...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:58:00",
+        "dispatch_id": "ctx_c077378f7479",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:51:17",
+        "dispatch_completed_at": "2026-08-12 17:58:00",
+        "worker_done_at": "2026-08-12T17:58:00.797Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_9251e9816660",
+        "task_title": "V10|private-kb PR #13 独立验证席(只判定不合并)。对 关联 private-kb#13(career 域迁移三文+manifest,...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:59:39",
+        "dispatch_id": "ctx_3e32bc49c67f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:51:23",
+        "dispatch_completed_at": "2026-08-12 17:59:39",
+        "worker_done_at": "2026-08-12T17:59:39.599Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_ce79268f38ff",
+        "task_title": "V11|PR #201 独立验证席(只判定不合并)。对 关联 #201(MCP 2026 生态与工具安全研究,head f5c44a3)未参与者审阅:一手...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:08:44",
+        "dispatch_id": "ctx_d85a00753e3e",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:53:26",
+        "dispatch_completed_at": "2026-08-12 18:08:44",
+        "worker_done_at": "2026-08-12T18:08:44.432Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_1751cf31f048",
+        "task_title": "V12|PR #198 修复后窄复审(只判定不合并)。对 关联 #198 新 head 3b6ab30 只复核 V4 审阅点是否解决:①A1-1 实验证据...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 17:58:04",
+        "dispatch_id": "ctx_325a0ea2c053",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:53:57",
+        "dispatch_completed_at": "2026-08-12 17:58:04",
+        "worker_done_at": "2026-08-12T17:58:04.607Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_c181d98e93d2",
+        "task_title": "T1|PR #73 三方审阅席一(只判定不合并)。对 关联 agent-plugins#73(收割回执厚度规范,head c7c79a0)未参与者审阅,视...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:03:55",
+        "dispatch_id": "ctx_41e651fa6c7f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:56:22",
+        "dispatch_completed_at": "2026-08-12 18:03:55",
+        "worker_done_at": "2026-08-12T18:03:55.301Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_dd848ad517e9",
+        "task_title": "T2|PR #73 三方审阅席二(只判定不合并)。同对象,视角:简化与判断税红队——新增规范是否值得存在(能否用更薄的一句话替代)、是否增加协调者/wor...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:03:23",
+        "dispatch_id": "ctx_49b8bfbf808d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:56:28",
+        "dispatch_completed_at": "2026-08-12 18:03:23",
+        "worker_done_at": "2026-08-12T18:03:23.909Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d6a90d77184d",
+        "task_title": "V13|private-kb PR #9 修复后窄复核(只判定不合并)。对 关联 private-kb#9 新 head 89c4b8a 只核 V5 审阅...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:04:11",
+        "dispatch_id": "ctx_ab9a14f7b43f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 17:59:32",
+        "dispatch_completed_at": "2026-08-12 18:04:11",
+        "worker_done_at": "2026-08-12T18:04:11.654Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_287ead58c521",
+        "task_title": "CC1|Claude Code 本体能力面调研(关联 #203)。按 #203 正文合同执行,重点:hooks 能否承接巡检/验活、headless/SD...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:13:17",
+        "dispatch_id": "ctx_2d46219dd513",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:02:03",
+        "dispatch_completed_at": "2026-08-12 18:13:17",
+        "worker_done_at": "2026-08-12T18:13:17.676Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_afd75c0d506b",
+        "task_title": "CX1|Codex CLI 本体能力面调研(关联 #204)。按 #204 正文合同执行,重点:sandbox/exec 策略对照现行派发、resume...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:21:28",
+        "dispatch_id": "ctx_a40e015c8b3f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:02:07",
+        "dispatch_completed_at": "2026-08-12 18:21:28",
+        "worker_done_at": "2026-08-12T18:21:28.954Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_9441bdcb5009",
+        "task_title": "N2|摩擦登记钩子窄规范(负责人已批「全做」③)。目标:agent-plugins 的 github-collaboration operating-le...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:11:19",
+        "dispatch_id": "ctx_7ef4c1d852ef",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:02:11",
+        "dispatch_completed_at": "2026-08-12 18:11:19",
+        "worker_done_at": "2026-08-12T18:11:19.288Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_17e450f9c24f",
+        "task_title": "N1R|按三方审阅修订 PR #73(关联 agent-plugins#73 收割回执厚度规范)。综合两席审阅(席一 5270673128:夹具是 mus...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:14:52",
+        "dispatch_id": "ctx_16a4077482b2",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:05:45",
+        "dispatch_completed_at": "2026-08-12 18:14:52",
+        "worker_done_at": "2026-08-12T18:14:52.944Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_10935fce3b91",
+        "task_title": "F3|按审阅修复 PR #201(关联 #201 MCP 生态与工具安全研究)。按 V11 审阅评论(pull/201#issuecomment-5270...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:18:50",
+        "dispatch_id": "ctx_d67a41ff3bc1",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:09:10",
+        "dispatch_completed_at": "2026-08-12 18:18:50",
+        "worker_done_at": "2026-08-12T18:18:50.472Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_def91e4609fb",
+        "task_title": "T3|PR #74 三方审阅席一(只判定不合并)。对 关联 agent-plugins#74(摩擦登记反事实钩子,head 7f8d30f)未参与者审阅,...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:19:03",
+        "dispatch_id": "ctx_43154732b23b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:11:48",
+        "dispatch_completed_at": "2026-08-12 18:19:03",
+        "worker_done_at": "2026-08-12T18:19:03.125Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_83f83590a76a",
+        "task_title": "T4|PR #74 三方审阅席二(只判定不合并)。同对象,视角:简化与判断税红队——参考 关联 agent-plugins#73 审阅结论(逐行排版预算被...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:20:48",
+        "dispatch_id": "ctx_56e222c9e6d1",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:11:54",
+        "dispatch_completed_at": "2026-08-12 18:20:48",
+        "worker_done_at": "2026-08-12T18:20:48.278Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_45a3094b11d6",
+        "task_title": "V14|PR #73 修订后窄复审(只判定不合并)。对 关联 agent-plugins#73 新 head 60291d0 只核三方审阅点是否解决:①逐...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:18:43",
+        "dispatch_id": "ctx_6e39b4cc61f7",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:15:15",
+        "dispatch_completed_at": "2026-08-12 18:18:43",
+        "worker_done_at": "2026-08-12T18:18:43.639Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_fc23539af518",
+        "task_title": "F4|按审阅修复 PR #192(关联 #192 A2A 与 MCP Tasks 互操作边界研究)。按 V1 审阅评论(见 PR #192 最新 head...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:25:43",
+        "dispatch_id": "ctx_ab4c87769529",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:16:57",
+        "dispatch_completed_at": "2026-08-12 18:25:43",
+        "worker_done_at": "2026-08-12T18:25:43.322Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4c670b3aa6d0",
+        "task_title": "V15|PR #201 修复后窄复审(只判定不合并)。对 关联 #201 新 head a193789 只核 V11 审阅点:①'无自然样本'外推已纠正为...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:22:53",
+        "dispatch_id": "ctx_5920e3283fb3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:19:20",
+        "dispatch_completed_at": "2026-08-12 18:22:53",
+        "worker_done_at": "2026-08-12T18:22:53.673Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5e60560580c2",
+        "task_title": "N2R|按三方审阅修订 PR #74(关联 agent-plugins#74 摩擦登记反事实钩子)。两席意见收敛,协调者裁决取薄方案:①保留反事实提问(登...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:31:35",
+        "dispatch_id": "ctx_4b7980f253c6",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:21:21",
+        "dispatch_completed_at": "2026-08-12 18:31:35",
+        "worker_done_at": "2026-08-12T18:31:35.459Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4be379a226e9",
+        "task_title": "V16|PR #192 修复后窄复审(只判定不合并)。对 关联 #192 新 head 0518107 只核 V1 审阅点:①A2A 规范路径差异(声明...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:29:26",
+        "dispatch_id": "ctx_0132d1a574f5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:26:03",
+        "dispatch_completed_at": "2026-08-12 18:29:26",
+        "worker_done_at": "2026-08-12T18:29:26.216Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4edb094104d6",
+        "task_title": "V17|PR #74 修订后窄复审(只判定不合并)。对 关联 agent-plugins#74 新 head ce33378 只核三方审阅点是否解决:①欠...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:36:00",
+        "dispatch_id": "ctx_852acf177730",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:31:59",
+        "dispatch_completed_at": "2026-08-12 18:36:00",
+        "worker_done_at": "2026-08-12T18:36:00.288Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b8e89aeb3901",
+        "task_title": "R13|kb#13 变基收尾(V10 条件已满足:kb#10 已入 main)。在 关联 private-kb#13 原分支:①变基到最新 main;②复...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:40:51",
+        "dispatch_id": "ctx_e75124c20204",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:33:56",
+        "dispatch_completed_at": "2026-08-12 18:40:51",
+        "worker_done_at": "2026-08-12T18:40:51.126Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_91af608f1346",
+        "task_title": "P1|插件发版装端批(既定程序,授权链:守恒律三方审阅已完成的 #73/#74 已合入 main)。在 agent-plugins:①按既定发版程序 bu...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:50:19",
+        "dispatch_id": "ctx_2a5186bee3d5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:42:10",
+        "dispatch_completed_at": "2026-08-12 18:50:19",
+        "worker_done_at": "2026-08-12T18:50:19.232Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_dba8da3b5b62",
+        "task_title": "S1|#145/#147 综合裁决草案(只起草不决定)。汇总每 Issue 的四条独立审阅(席A/席B)与两条攻防评论(席甲状态机/席乙判断税),在 关联...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 18:57:17",
+        "dispatch_id": "ctx_a4e5ac8eddc7",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 18:42:13",
+        "dispatch_completed_at": "2026-08-12 18:57:17",
+        "worker_done_at": "2026-08-12T18:57:17.010Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_c3cdcbe8c9f3",
+        "task_title": "Z1|#145 合同修订(负责人已批「按综合草案修改」)。按 关联 #145 的综合裁决草案+四条审阅+两条攻防评论的最小修改集修订正文:校正父级/基线(...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:19:08",
+        "dispatch_id": "ctx_aa1de4095f93",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:08",
+        "dispatch_completed_at": "2026-08-12 19:19:08",
+        "worker_done_at": "2026-08-12T19:19:08.636Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_9721a0b71191",
+        "task_title": "Z2|#147 薄替代对照验证(负责人已批)。按 关联 #147 综合草案:预注册实验卡(假设/检验方式/成功阈值/停止条件写死后不改)→以现行三门实现为...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:15:13",
+        "dispatch_id": "ctx_08746d5c375f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:14",
+        "dispatch_completed_at": "2026-08-12 19:15:13",
+        "worker_done_at": "2026-08-12T19:15:13.552Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_e6fb71bb17a9",
+        "task_title": "Z3|Mode B 常驻战术层方案起草(关联 #193 已批进方案阶段)。综合:E1 调研(信箱聚合+TTL+automations 兜底)、关联 #20...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:16:46",
+        "dispatch_id": "ctx_d6317febbed1",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:18",
+        "dispatch_completed_at": "2026-08-12 19:16:46",
+        "worker_done_at": "2026-08-12T19:16:46.973Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d66d2905d5b6",
+        "task_title": "Z4|#200 C1+C2 落地(负责人已批)。C1:①把「真实硬依赖用 GitHub 原生 blocked-by/blocking 边表达,父子只表分解...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:16:17",
+        "dispatch_id": "ctx_20a5fda54b42",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:22",
+        "dispatch_completed_at": "2026-08-12 19:16:17",
+        "worker_done_at": "2026-08-12T19:16:17.867Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4af93bcd670f",
+        "task_title": "Z5|K2/K8/K12 验活与恢复知识增量修订(负责人已批 #203-C4+#204 关键候选)。把本日新证据并入 knowledge/ 对应文件(Dr...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:19:40",
+        "dispatch_id": "ctx_1e62eed3d5a9",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:26",
+        "dispatch_completed_at": "2026-08-12 19:19:40",
+        "worker_done_at": "2026-08-12T19:19:40.039Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_536c5d292a6c",
+        "task_title": "Z6|#10 方案 A 首切片+0.2.2 断言修复(负责人已批)。按 关联 #10 调研评论的 A 案边界实施首切片(自然决策与结果闭环——按评论定义的...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:14:47",
+        "dispatch_id": "ctx_fa26069f8872",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:05:37",
+        "dispatch_completed_at": "2026-08-12 19:14:47",
+        "worker_done_at": "2026-08-12T19:14:47.413Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_f9d8a124b991",
+        "task_title": "V18|agent-plugins PR #75 独立验证席(只判定不合并)。对 关联 agent-plugins#75(#10 方案A 资源决定闭环+0...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:22:39",
+        "dispatch_id": "ctx_6886bfd8870d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:15:08",
+        "dispatch_completed_at": "2026-08-12 19:22:39",
+        "worker_done_at": "2026-08-12T19:22:39.427Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_12889d7a7d56",
+        "task_title": "V19|agent-plugins PR #76 独立验证席(只判定不合并)。对 关联 agent-plugins#76(原生依赖边规范,C1)当前 he...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:21:42",
+        "dispatch_id": "ctx_25cc23b1993b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:16:39",
+        "dispatch_completed_at": "2026-08-12 19:21:42",
+        "worker_done_at": "2026-08-12T19:21:42.351Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_53dae324b1dd",
+        "task_title": "V20|PR #206 独立验证席(只判定不合并)。对 关联 #206(K2/K8/K12 验活与恢复知识增量,head c04b9c9)未参与者审阅:①...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:26:54",
+        "dispatch_id": "ctx_c3ce09a30769",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:20:04",
+        "dispatch_completed_at": "2026-08-12 19:26:54",
+        "worker_done_at": "2026-08-12T19:26:54.420Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_169da950fbd9",
+        "task_title": "F5|按审阅修复 PR #76(关联 agent-plugins#76 原生依赖边规范)。按审阅评论(pull/76#issuecomment-52717...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:26:34",
+        "dispatch_id": "ctx_9ecce91dff16",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:21:59",
+        "dispatch_completed_at": "2026-08-12 19:26:34",
+        "worker_done_at": "2026-08-12T19:26:34.994Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5989d5b3f74f",
+        "task_title": "V21|PR #76 修复后窄复审(只判定不合并)。对 关联 agent-plugins#76 新 head 7921898 只核审阅点:①第五/六节冲突...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:32:22",
+        "dispatch_id": "ctx_a5e20f10f2be",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:27:25",
+        "dispatch_completed_at": "2026-08-12 19:32:22",
+        "worker_done_at": "2026-08-12T19:32:22.135Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_28562b64e0c1",
+        "task_title": "P2|插件发版装端批②(既定程序)。agent-plugins main 自 0.3.14 后新合入:#75(resource-observability...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 19:40:43",
+        "dispatch_id": "ctx_7e6ce24621ef",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 19:33:01",
+        "dispatch_completed_at": "2026-08-12 19:40:43",
+        "worker_done_at": "2026-08-12T19:40:43.954Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "missing"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_9a2a1807a9b6",
+        "task_title": "P0|Mode B 前检与预注册(关联 #207,负责人已批 205-D1)。按 #207 正文合同执行:①最窄权限隔离 Run 绑定/Delivery...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:16:39",
+        "dispatch_id": "ctx_70a7e9c7ebd2",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:07:49",
+        "dispatch_completed_at": "2026-08-12 23:16:39",
+        "worker_done_at": "2026-08-12T23:16:39.303Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_e30ee3ab24a9",
+        "task_title": "K2|KB 重建续切片(关联 #46)。恢复 #46 当前合同与今日进展(PR #8/#10/#12/#13 已合:入口/转换器/briefings索引/...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:19:29",
+        "dispatch_id": "ctx_8b368b53533d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:16:37",
+        "dispatch_completed_at": "2026-08-12 23:19:29",
+        "worker_done_at": "2026-08-12T23:19:29.318Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_4f88ed3ae25f",
+        "task_title": "D2|需求发现首轮(关联 #183,负责人今日原话「如果找不到事情做,那就去建设能找到事情的能力」)。执行一轮真实需求发现扫描:材料=今日全部运营面(#1...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:28:36",
+        "dispatch_id": "ctx_5754c65e0e3c",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:16:41",
+        "dispatch_completed_at": "2026-08-12 23:28:36",
+        "worker_done_at": "2026-08-12T23:28:36.294Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_07955e523048",
+        "task_title": "U1|#31 上游报告提交(负责人已批「发」)。步骤:①取 关联 #31 的 Y6 评论中英文草案;②用其后新证据刷新:codex fresh 竞态 4...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:25:32",
+        "dispatch_id": "ctx_f605218ef930",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:20:08",
+        "dispatch_completed_at": "2026-08-12 23:25:32",
+        "worker_done_at": "2026-08-12T23:25:32.878Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_7491d7cca639",
+        "task_title": "L1|Hook 正向回执(关联 #208)。按 #208 合同实现,参考 关联 #203 调研的 C1 设计与风险表(固定二进制/本地端点/最小载荷)。D...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:49:39",
+        "dispatch_id": "ctx_b79017455715",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:32:16",
+        "dispatch_completed_at": "2026-08-12 23:49:39",
+        "worker_done_at": "2026-08-12T23:49:39.429Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_6996e7f54296",
+        "task_title": "L2|turn.started 验活面(关联 #209)。按 #209 合同实现,参考 关联 #204 调研(JSONL 事件+flag 形状差异)。Dr...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:53:00",
+        "dispatch_id": "ctx_317e0c8ba237",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:32:26",
+        "dispatch_completed_at": "2026-08-12 23:53:00",
+        "worker_done_at": "2026-08-12T23:53:00.140Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5b82b0ae5afb",
+        "task_title": "L3|headless 有界调用(关联 #210)。按 #210 合同实现,参考 关联 #203 调研 C2/C3(预算/schema/超时边界)。纪律:...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:51:28",
+        "dispatch_id": "ctx_d8bb63e155b6",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:32:39",
+        "dispatch_completed_at": "2026-08-12 23:51:28",
+        "worker_done_at": "2026-08-12T23:51:28.456Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_da321564f27b",
+        "task_title": "E1|tui-idle 竞态对照实验(关联 #211)。按 #211 合同:先在 #211 发预注册实验卡,再跑 A/B 各 5 次探针(探针任务文本=一...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:52:59",
+        "dispatch_id": "ctx_3b234fe5dc7c",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:32:48",
+        "dispatch_completed_at": "2026-08-12 23:52:59",
+        "worker_done_at": "2026-08-12T23:52:59.407Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_3696f166b000",
+        "task_title": "V22|PR #212 独立验证席(只判定不合并)。对 关联 agent-control#212(L1 Hook 正向回执 Go 实现,head 9de1...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:01:25",
+        "dispatch_id": "ctx_f447ef475b69",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:51:22",
+        "dispatch_completed_at": "2026-08-13 00:01:25",
+        "worker_done_at": "2026-08-13T00:01:25.281Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_3fa060dec2e4",
+        "task_title": "M1|Mode C 可行性评估(关联 #213)。按 #213 正文合同执行——注意三个硬约束:观察面(在工数+各自任务)/移动远程(netbird 手机...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:09:55",
+        "dispatch_id": "ctx_24a4065f3187",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:52:13",
+        "dispatch_completed_at": "2026-08-13 00:09:55",
+        "worker_done_at": "2026-08-13T00:09:55.282Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_d0e3c5c17946",
+        "task_title": "V23|PR #213 独立验证席(只判定不合并)。对 关联 agent-control#213(L3 headless 包装,Python)当前 hea...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:01:55",
+        "dispatch_id": "ctx_baf5e96cda09",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:53:39",
+        "dispatch_completed_at": "2026-08-13 00:01:55",
+        "worker_done_at": "2026-08-13T00:01:55.879Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_874132eb901d",
+        "task_title": "V24|PR #215 独立验证席(只判定不合并)。对 关联 agent-control#215(L2 Codex JSONL 三态验活)当前 head...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:01:32",
+        "dispatch_id": "ctx_affb5e617ccf",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:53:43",
+        "dispatch_completed_at": "2026-08-13 00:01:32",
+        "worker_done_at": "2026-08-13T00:01:32.501Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_de2fdb8b01c6",
+        "task_title": "F6|按审阅修复 PR #213(关联 agent-control#213 L3 headless 包装)。按 V23 审阅评论(pull/213#iss...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:09:30",
+        "dispatch_id": "ctx_af0bdc0d60a1",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 00:03:04",
+        "dispatch_completed_at": "2026-08-13 00:09:30",
+        "worker_done_at": "2026-08-13T00:09:30.435Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_bf4353695d98",
+        "task_title": "V25|PR #213 修复后窄复审(只判定不合并)。对 关联 agent-control#213 新 head 09eb6b4 只核 V23 三点是否解...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:14:36",
+        "dispatch_id": "ctx_bb43aa52488e",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 00:09:53",
+        "dispatch_completed_at": "2026-08-13 00:14:36",
+        "worker_done_at": "2026-08-13T00:14:36.525Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_b3a75abf0cd7",
+        "task_title": "PILOT|Mode C 试点执行(关联 #216,合同已获负责人确认)。严格按 #216 预注册合同:S 影子读(用 main 已合入的 tools/c...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:48:46",
+        "dispatch_id": "ctx_c2d88e235303",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 00:37:27",
+        "dispatch_completed_at": "2026-08-13 00:48:46",
+        "worker_done_at": "2026-08-13T00:48:46.791Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_35646d9529d1",
+        "task_title": "INST|L1 Hook 安装(关联 #208,负责人已批「212 批准」)。按 关联 #212（已合入 main 的实现与安装提案）执行:①构建/放置...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 00:46:09",
+        "dispatch_id": "ctx_250f7fdd519d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 00:37:31",
+        "dispatch_completed_at": "2026-08-13 00:46:09",
+        "worker_done_at": "2026-08-13T00:46:09.026Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_df99ac23e33b",
+        "task_title": "KD|知识蒸馏批③(今日深夜积累候选)。逐条过价值门/可信门:①三门对照验证(#147 收口回执登记);②Mode B 前件不成立事实(#207 登记);...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:23:36",
+        "dispatch_id": "ctx_2a01cbc81f8c",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:01:38",
+        "dispatch_completed_at": "2026-08-13 01:23:36",
+        "worker_done_at": "2026-08-13T01:23:36.801Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_ae1a298ba6d2",
+        "task_title": "AS|#183 候选评估(关联 #183,收件箱 5 候选:低打扰消费信号梯度/Orca 更新排水与恢复/跨仓跨 Run 波次证据账/审阅冗余收益成本分层...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:10:07",
+        "dispatch_id": "ctx_0745a4a2d98d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:01:50",
+        "dispatch_completed_at": "2026-08-13 01:10:07",
+        "worker_done_at": "2026-08-13T01:10:07.758Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_c9ac46d49fe9",
+        "task_title": "DR|Orca 更新排水调研(关联 #217)。按 #217 正文合同执行:只读核验 1.4.181 更新控制能力面,逐项矩阵+三选一结论。纪律:「关联...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:25:37",
+        "dispatch_id": "ctx_99d07c3f5154",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:14:45",
+        "dispatch_completed_at": "2026-08-13 01:25:37",
+        "worker_done_at": "2026-08-13T01:25:37.142Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a8220326e05f",
+        "task_title": "V26|PR #218 独立验证席(只判定不合并)。对 关联 agent-control#218(知识蒸馏批③:K2/K12 增量+K22/K23 新增)...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:34:59",
+        "dispatch_id": "ctx_89687d85790b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:24:01",
+        "dispatch_completed_at": "2026-08-13 01:34:59",
+        "worker_done_at": "2026-08-13T01:34:59.464Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_57186d6937e0",
+        "task_title": "SEC|安全面审计(关联 #219)。按 #219 合同执行只读审计,交付 #219 自足评论。纪律:①先恢复远端合同;②「关联 #N（中文短题）」,禁英...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 02:01:56",
+        "dispatch_id": "ctx_63e4250e0956",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:44:15",
+        "dispatch_completed_at": "2026-08-13 02:01:56",
+        "worker_done_at": "2026-08-13T02:01:56.357Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_92ef165aa283",
+        "task_title": "WIN|Windows 陷阱面(关联 #220)。按 #220 合同执行,交付 #220 自足评论。纪律:①先恢复远端合同;②「关联 #N（中文短题）」,...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 02:04:10",
+        "dispatch_id": "ctx_80b26bd10802",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:44:19",
+        "dispatch_completed_at": "2026-08-13 02:04:10",
+        "worker_done_at": "2026-08-13T02:04:10.359Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_0e0254e2aac4",
+        "task_title": "MDL|模型×角色矩阵(关联 #221)。按 #221 合同执行(可用 claude-api 技能的现价数据),交付 #221 自足评论。纪律:①先恢复远...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:51:58",
+        "dispatch_id": "ctx_0ff7aa4147f8",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:44:23",
+        "dispatch_completed_at": "2026-08-13 01:51:58",
+        "worker_done_at": "2026-08-13T01:51:58.960Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_46cb35c477d7",
+        "task_title": "RAD|信息雷达第二期(关联 #186)。恢复 #186 远端合同与首期简报形态,交付第二期(合同规定形态,Draft PR 或评论按合同;若入 priv...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 01:58:15",
+        "dispatch_id": "ctx_105033c474d2",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:44:27",
+        "dispatch_completed_at": "2026-08-13 01:58:15",
+        "worker_done_at": "2026-08-13T01:58:15.644Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_965d0c3363a0",
+        "task_title": "V27|private-kb PR #14 独立验证席(只判定不合并)。对 关联 private-kb#14(信息雷达第二期,head 606b65c)未...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 02:09:17",
+        "dispatch_id": "ctx_894350c964f5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 01:58:38",
+        "dispatch_completed_at": "2026-08-13 02:09:17",
+        "worker_done_at": "2026-08-13T02:09:17.612Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_2a81e145c960",
+        "task_title": "OPS|当日运营重算(关联 #183/#184 消费路径)。用 tools/ops-metrics 重算 2026-08-12 全天+08-13 凌晨段(...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:32:56",
+        "dispatch_id": "ctx_178989f03061",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:11:41",
+        "dispatch_completed_at": "2026-08-13 03:32:56",
+        "worker_done_at": "2026-08-13T03:32:56.261Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_935acd6054ab",
+        "task_title": "WKN|Windows 惯例知识切片(关联 #220 已交付调研的 WIN-1/3/4/5 候选)。把五条预防惯例过价值门/可信门,通过者成一页窄知识(k...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:26:39",
+        "dispatch_id": "ctx_930e1ba518f5",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:11:52",
+        "dispatch_completed_at": "2026-08-13 03:26:39",
+        "worker_done_at": "2026-08-13T03:26:39.486Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_e85051c6e20e",
+        "task_title": "LRN|#166 下一学习单元(关联 #166)。恢复合同,避开已交付单元(思维地图消费/vLLM serving),选树上下一单元交付 Draft PR...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:26:31",
+        "dispatch_id": "ctx_4c026cfecc5d",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:12:01",
+        "dispatch_completed_at": "2026-08-13 03:26:31",
+        "worker_done_at": "2026-08-13T03:26:31.213Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_f3105e20c8de",
+        "task_title": "GID|GitHub 身份拆分切片(关联 #219 审计切片③,负责人已批且点名有意思)。按审计的 scope 对照表设计并交付:①精确 runbook—...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:39:21",
+        "dispatch_id": "ctx_4fae7218b632",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:26:52",
+        "dispatch_completed_at": "2026-08-13 03:39:21",
+        "worker_done_at": "2026-08-13T03:39:21.560Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a82e0235bfae",
+        "task_title": "V28|PR #223 独立验证席(只判定不合并)。对 关联 agent-control#223(APC 学习单元,head 38c2c66)未参与者审阅...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:38:43",
+        "dispatch_id": "ctx_575288ecaf83",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:28:02",
+        "dispatch_completed_at": "2026-08-13 03:38:43",
+        "worker_done_at": "2026-08-13T03:38:43.442Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_460ad5757906",
+        "task_title": "V29|PR #222 独立验证席(只判定不合并)。对 关联 agent-control#222(K24 Windows 运维惯例知识,head 07b1...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:36:15",
+        "dispatch_id": "ctx_4fd279b690f3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:28:06",
+        "dispatch_completed_at": "2026-08-13 03:36:15",
+        "worker_done_at": "2026-08-13T03:36:15.775Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_1e347fbcb4d2",
+        "task_title": "V30|PR #224 独立验证席(只判定不合并)。对 关联 agent-control#224(当日运营重算+released Worker 修复)当前...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:45:12",
+        "dispatch_id": "ctx_b7f3b3e41e2f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:33:25",
+        "dispatch_completed_at": "2026-08-13 03:45:12",
+        "worker_done_at": "2026-08-13T03:45:12.605Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5420eeaf47b5",
+        "task_title": "F7|按审阅修复 PR #223(关联 agent-control#223 APC 学习单元)。按 V28 审阅评论(pull/223#issuecomm...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:47:55",
+        "dispatch_id": "ctx_a490e7ea75f7",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:39:07",
+        "dispatch_completed_at": "2026-08-13 03:47:55",
+        "worker_done_at": "2026-08-13T03:47:55.173Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_f81716806597",
+        "task_title": "V31|PR #223 修复后窄复审(只判定不合并)。对 关联 agent-control#223 新 head 28f7259 只核 V28 点是否解决...",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 03:53:09",
+        "dispatch_id": "ctx_bde4035e63a3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 03:48:17",
+        "dispatch_completed_at": "2026-08-13 03:53:09",
+        "worker_done_at": "2026-08-13T03:53:09.563Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_6769404df191",
+        "task_title": "W225 事件唤醒接通",
+        "task_status": "dispatched",
+        "task_completed_at": null,
+        "dispatch_id": "ctx_6693d4805646",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-13 06:17:12",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "ready",
+        "worker_stage": "input_accepted",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_c93b987e3a1b",
+        "task_title": "W226 观察面一页",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 06:34:38",
+        "dispatch_id": "ctx_7d42773802ae",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 06:17:44",
+        "dispatch_completed_at": "2026-08-13 06:34:38",
+        "worker_done_at": "2026-08-13T06:34:38.731Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_5a4c158f31c8",
+        "task_title": "W227 知识消费实验",
+        "task_status": "dispatched",
+        "task_completed_at": null,
+        "dispatch_id": "ctx_37bee28f5363",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-13 06:18:06",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "ready",
+        "worker_stage": "input_accepted",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_a72b735848e9",
+        "task_title": "W228 运营日报自动化",
+        "task_status": "dispatched",
+        "task_completed_at": null,
+        "dispatch_id": "ctx_d75a546bcb47",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-13 06:18:23",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "ready",
+        "worker_stage": "input_accepted",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_09d84bfae907",
+        "task_title": "W229 指针瘦身",
+        "task_status": "dispatched",
+        "task_completed_at": null,
+        "dispatch_id": "ctx_f7f84c605d68",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 06:18:56",
+        "dispatch_completed_at": "2026-08-13 06:34:51",
+        "worker_done_at": null,
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_65a73145f0e2",
+        "task_id": "task_41dcee8433f9",
+        "task_title": "W230 KB迁移首切片",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-13 06:34:23",
+        "dispatch_id": "ctx_2499b77b5e20",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-13 06:19:13",
+        "dispatch_completed_at": "2026-08-13 06:34:23",
+        "worker_done_at": "2026-08-13T06:34:23.134Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "running"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_1ebf012c09cc",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:37:30",
+        "dispatch_id": "ctx_9aa3fe51d44f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:37:12",
+        "dispatch_completed_at": "2026-08-12 23:37:30",
+        "worker_done_at": "2026-08-12T23:37:30.533Z",
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_9cc2c6f31886",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:38:11",
+        "dispatch_id": "ctx_26f3532ce8da",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:37:52",
+        "dispatch_completed_at": "2026-08-12 23:38:11",
+        "worker_done_at": "2026-08-12T23:38:11.465Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_2e9cd34ef5c2",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:38:46",
+        "dispatch_id": "ctx_fe2e704e7c0f",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:38:30",
+        "dispatch_completed_at": "2026-08-12 23:38:46",
+        "worker_done_at": "2026-08-12T23:38:46.541Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_7febb7a0307f",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:41:24.676Z",
+        "dispatch_id": "ctx_1382d1d20a8f",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:39:06",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_693d4e7eb184",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:43:18.105Z",
+        "dispatch_id": "ctx_a7fe0b969fa9",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:42:24",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_12ea8c2b2061",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:43:44",
+        "dispatch_id": "ctx_af9528967737",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:43:27",
+        "dispatch_completed_at": "2026-08-12 23:43:44",
+        "worker_done_at": "2026-08-12T23:43:44.182Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_341c29d711be",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:44:09",
+        "dispatch_id": "ctx_2fea41bc1a2b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:43:56",
+        "dispatch_completed_at": "2026-08-12 23:44:09",
+        "worker_done_at": "2026-08-12T23:44:09.151Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_32b2b962602f",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:45:28.308Z",
+        "dispatch_id": "ctx_bb4156d9a14f",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:44:38",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_d4cc9b96f208",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:46:33.565Z",
+        "dispatch_id": "ctx_ef8d11121b16",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:45:41",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_63cd14c3acbb",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:46:58",
+        "dispatch_id": "ctx_7d094947403b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:46:42",
+        "dispatch_completed_at": "2026-08-12 23:46:58",
+        "worker_done_at": "2026-08-12T23:46:58.910Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_a0a5f1dbdbeb",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:47:34",
+        "dispatch_id": "ctx_bad88b6a0de3",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:47:13",
+        "dispatch_completed_at": "2026-08-12 23:47:34",
+        "worker_done_at": "2026-08-12T23:47:34.417Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_51d99310312f",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:48:27.999Z",
+        "dispatch_id": "ctx_42f815c8d9d5",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:47:46",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_e7dba50f50d5",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "failed",
+        "task_completed_at": "2026-08-12T23:49:25.001Z",
+        "dispatch_id": "ctx_f98196a26066",
+        "dispatch_status": "dispatched",
+        "dispatched_at": "2026-08-12 23:48:42",
+        "dispatch_completed_at": null,
+        "worker_done_at": null,
+        "worker_state": "unavailable",
+        "worker_stage": null,
+        "observation_status": "unavailable"
+      },
+      {
+        "run_id": "run_1dec590bc737",
+        "task_id": "task_4d6eea8bdb80",
+        "task_title": "请只用一句话自述，然后立即按已注入合同发送 worker_done。",
+        "task_status": "completed",
+        "task_completed_at": "2026-08-12 23:49:48",
+        "dispatch_id": "ctx_d00123bacf3b",
+        "dispatch_status": "completed",
+        "dispatched_at": "2026-08-12 23:49:32",
+        "dispatch_completed_at": "2026-08-12 23:49:48",
+        "worker_done_at": "2026-08-12T23:49:48.705Z",
+        "worker_state": "succeeded",
+        "worker_stage": "settled",
+        "observation_status": "exited"
+      }
+    ],
+    "dispatch_count": 134,
+    "worker_done_count": 126,
+    "dispatch_cohort_returned_count": 126,
+    "dispatch_cohort_return_rate": 0.9402985074626866,
+    "delivery_return_latency": {
+      "count": 126,
+      "median_seconds": 577.734,
+      "p90_seconds": 1235.28,
+      "max_seconds": 4836.616
+    },
+    "inflight_peak": 12,
+    "inflight_peak_at": "2026-08-12T17:33:07+00:00",
+    "task_states": {
+      "completed": 135,
+      "failed": 7,
+      "dispatched": 4
+    },
+    "dispatch_states": {
+      "completed": 136,
+      "failed": 1,
+      "dispatched": 9
+    },
+    "worker_states": {
+      "succeeded": 135,
+      "failed": 1,
+      "ready": 3,
+      "unavailable": 7
+    },
+    "worker_observations": {
+      "missing": 92,
+      "exited": 41,
+      "running": 6,
+      "unavailable": 7
+    },
+    "collection_errors": [
+      "task_1ebf012c09cc/ctx_9aa3fe51d44f: worker details unavailable after release (dispatch_not_found)",
+      "task_7febb7a0307f/ctx_1382d1d20a8f: worker details unavailable after release (dispatch_not_found)",
+      "task_693d4e7eb184/ctx_a7fe0b969fa9: worker details unavailable after release (dispatch_not_found)",
+      "task_32b2b962602f/ctx_bb4156d9a14f: worker details unavailable after release (dispatch_not_found)",
+      "task_d4cc9b96f208/ctx_ef8d11121b16: worker details unavailable after release (dispatch_not_found)",
+      "task_51d99310312f/ctx_42f815c8d9d5: worker details unavailable after release (dispatch_not_found)",
+      "task_e7dba50f50d5/ctx_f98196a26066: worker details unavailable after release (dispatch_not_found)"
+    ]
+  },
+  "annotations": {
+    "correction_events": [
+      {
+        "id": "decision-surface-not-self-contained",
+        "category": "decision_surface",
+        "label": "决定面只有标签与链接，负责人无法在第一屏获得拍板信息",
+        "sources": [
+          "../../../work/records/2026-08-10-federated-session-entry/record.md#51-决定面自足性纠偏2026-08-12"
+        ]
+      },
+      {
+        "id": "scan-window-missed-delivery",
+        "category": "operational_observability",
+        "label": "协调扫描时间窗设错，漏看已完成交付",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184"
+        ]
+      },
+      {
+        "id": "reference-link-written-from-memory",
+        "category": "reference_integrity",
+        "label": "评论链接凭记忆写错，未先取后写",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184"
+        ]
+      },
+      {
+        "id": "capacity-underuse-first-callout",
+        "category": "capacity_utilization",
+        "label": "负责人第一次点名产能利用不足",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184"
+        ]
+      },
+      {
+        "id": "capacity-underuse-second-callout",
+        "category": "capacity_utilization",
+        "label": "负责人第二次点名产能利用不足；#184 正文明确登记为两次",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184"
+        ]
+      },
+      {
+        "id": "value-mix-imbalance",
+        "category": "value_roi",
+        "label": "内务、研究与真实价值的结构失衡，忙碌代理指标替代高价值订单",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184",
+          "../../../work/records/2026-08-10-federated-session-entry/record.md#52-需求侧纠偏从系统建设自己到公司化找订单2026-08-12"
+        ]
+      },
+      {
+        "id": "unnecessary-dispatch-approval",
+        "category": "delegation_boundary",
+        "label": "框内派发不应重复请求负责人审批",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5267787821"
+        ]
+      },
+      {
+        "id": "approved-decision-reasked",
+        "category": "decision_reuse",
+        "label": "Mode B 已有批准却被再次询问，丢失的是决定复用而非远端记录",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268121472"
+        ]
+      },
+      {
+        "id": "idle-workers-found-by-owner-first",
+        "category": "operational_observability",
+        "label": "把终端存活误当工作态，5 个空转 worker 由负责人先发现",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+        ]
+      },
+      {
+        "id": "owner-personal-scope-boundary",
+        "category": "scope_boundary",
+        "label": "不得进入负责人个人事项，也不得向负责人索要具体素材或参与",
+        "sources": [
+          "../../../work/records/2026-08-10-federated-session-entry/record.md#53-负责人个人事项边界2026-08-12负责人明确指令"
+        ]
+      },
+      {
+        "id": "unnecessary-merge-batch-approval",
+        "category": "delegation_boundary",
+        "label": "例行交付已在授权内，仍逐批向负责人请求合并批准",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5270207250"
+        ]
+      },
+      {
+        "id": "capacity-count-typo-explanation",
+        "category": "operational_accuracy",
+        "label": "把席位数 39 笔误为 30，需由负责人纠正并追加解释",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271396248"
+        ]
+      },
+      {
+        "id": "reintroduced-declined-upgrade-option-first",
+        "category": "decision_reuse",
+        "label": "负责人已明确不升级后，第一次再次提出 Pro 升级期权",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271873345"
+        ]
+      },
+      {
+        "id": "reintroduced-declined-upgrade-option-second",
+        "category": "decision_reuse",
+        "label": "负责人已明确不升级后，第二次再次提出 Pro 升级期权",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271873345"
+        ]
+      }
+    ],
+    "correction_count": 14,
+    "correction_categories": {
+      "decision_surface": 1,
+      "operational_observability": 2,
+      "reference_integrity": 1,
+      "capacity_utilization": 2,
+      "value_roi": 1,
+      "delegation_boundary": 2,
+      "decision_reuse": 3,
+      "scope_boundary": 1,
+      "operational_accuracy": 1
+    },
+    "worker_idle_events": [
+      {
+        "id": "dispatch-input-not-submitted",
+        "category": "dispatch_input_race",
+        "label": "input_accepted 后任务未真正提交；#172 将其登记为当日第 1 例",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5267339422",
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+        ]
+      },
+      {
+        "id": "redispatch-batch-idle",
+        "category": "worker_state_misread",
+        "label": "重启后重派的 5 个 Codex 同批空转约 40 分钟；共同触发按 1 个事件计",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+        ]
+      }
+    ],
+    "worker_idle_event_count": 2,
+    "dispatch_race_events": [
+      {
+        "id": "resumed-codex-composer-pending",
+        "category": "composer_pending",
+        "label": "复用既有 worktree 重派的 5 个 Codex 在 input_accepted 后停在提示符，沿原身份各点火一次后进入工作态",
+        "recorded_at": "2026-08-12T15:03:02Z",
+        "affected_count": 5,
+        "ignition_count": 5,
+        "dispatch_ids": [],
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+        ]
+      },
+      {
+        "id": "fresh-claude-composer-pending",
+        "category": "composer_pending",
+        "label": "fresh Claude 观察窗中 3 个 Dispatch 停在 composer，沿原身份各点火一次后恢复",
+        "recorded_at": "2026-08-12T17:47:02Z",
+        "affected_count": 3,
+        "ignition_count": 3,
+        "dispatch_ids": [
+          "ctx_54bba59b302b",
+          "ctx_2ac6cc659fff",
+          "ctx_859ea9358083"
+        ],
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5270403811"
+        ]
+      },
+      {
+        "id": "fresh-codex-composer-pending",
+        "category": "composer_pending",
+        "label": "后续 fresh Codex 观察窗中 4 个 Dispatch 停在 composer，沿原身份各点火一次后恢复",
+        "recorded_at": "2026-08-12T23:25:01Z",
+        "affected_count": 4,
+        "ignition_count": 4,
+        "dispatch_ids": [
+          "ctx_6aedf6e3acf3",
+          "ctx_1abdda3940cf",
+          "ctx_95d8145bdf37",
+          "ctx_a4e5ac8eddc7"
+        ],
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5273970032"
+        ]
+      }
+    ],
+    "dispatch_race_count": 12,
+    "ignition_count": 12,
+    "dispatch_race_categories": {
+      "composer_pending": 12
+    },
+    "regression_checks": [
+      {
+        "id": "window-and-delivery-coverage",
+        "category": "operational_observability",
+        "label": "扫描日窗或运行面范围错误会漏看已经回流的交付",
+        "sample_ids": [
+          "scan-window-missed-delivery"
+        ],
+        "check_type": "hybrid",
+        "procedure": [
+          "运行 python -m unittest discover -s tools/ops-metrics/tests -v，核对本地自然日到 UTC 半开区间以及 worker_report 来源门",
+          "使用报告中的冻结快照复算命令重跑，并核对每个显式 Run 的 created_at、Dispatch dispatched_at 与 worker_done completedAt",
+          "确认报告逐字披露 Run 晚于日窗起点或历史重试不可见等覆盖缺口"
+        ],
+        "expected": "日窗、快照和所选 Run 均可定位；worker_done 只由 worker_report 证明；已知覆盖缺口不会被静默省略",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184",
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5269558988"
+        ]
+      },
+      {
+        "id": "reference-fetch-before-write",
+        "category": "reference_integrity",
+        "label": "凭记忆发布评论链接或知识编号会把引用指向错误对象",
+        "sample_ids": [
+          "reference-link-written-from-memory",
+          "knowledge-id-written-from-memory"
+        ],
+        "check_type": "manual",
+        "procedure": [
+          "发布前用 gh issue view 或 gh api 取回每个 GitHub 对象的编号、中文短题与稳定 URL",
+          "发布前从 knowledge/README.md 或目标知识文件取回每个 K 编号与标题",
+          "逐项对照准备发布的文本；只使用本次取回值，不使用会话记忆补全"
+        ],
+        "expected": "GitHub 编号、中文短题、稳定 URL、知识编号和标题均与本次取回对象一致",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5268472354",
+          "../../../knowledge/README.md#自治与多-session-审阅"
+        ]
+      },
+      {
+        "id": "capacity-signal-completeness",
+        "category": "capacity_utilization",
+        "label": "只看终端存活或活动总量会掩盖派发不足、交付未回流与批量空转",
+        "sample_ids": [
+          "capacity-underuse-first-callout",
+          "capacity-underuse-second-callout"
+        ],
+        "check_type": "hybrid",
+        "procedure": [
+          "用报告中的冻结快照命令重跑所选 Orca Run",
+          "在 JSON 与 Markdown 间逐项核对派发数、worker_done 回流数、同日派发队列回流率、派发到回流时延统计和空转事件数"
+        ],
+        "expected": "五项产能信号同时存在且值一致；终端 running 或 Worker ready 不被解释为有效交付",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184",
+          "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+        ]
+      },
+      {
+        "id": "throughput-is-not-value",
+        "category": "value_roi",
+        "label": "把派发密度或活动量直接写成价值，会重现内务、研究与真实价值结构失衡",
+        "sample_ids": [
+          "value-mix-imbalance"
+        ],
+        "check_type": "manual",
+        "procedure": [
+          "检查结论先行、产能仪表与口径边界，定位每一处从活动量到价值、质量或产品采用的推断",
+          "没有独立订单消费或负责人认可证据时，删除该推断并保留为未知"
+        ],
+        "expected": "日报只陈述吞吐、周转与纠偏观测，不把它们升级成价值、质量、产品采用或长期能力改善",
+        "sources": [
+          "https://github.com/Eridanus117/agent-control/issues/184",
+          "../../../work/records/2026-08-10-federated-session-entry/record.md#52-需求侧纠偏从系统建设自己到公司化找订单2026-08-12"
+        ]
+      }
+    ],
+    "regression_check_count": 4,
+    "regression_sample_count": 6,
+    "regression_check_types": {
+      "hybrid": 2,
+      "manual": 2
+    },
+    "manual_baseline": {
+      "label": "协调者人工重算口径",
+      "dispatch_count": 134,
+      "worker_done_count": 126,
+      "success_rate": 0.94,
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5275619579"
+      ]
+    },
+    "notes": [
+      "纠偏事件按已登记的独立触发去重；同一事实被 #184 与研发记忆重复登记时不重复计数。",
+      "#184 评论中的 K20 编号错配是 Agent 自报，不计入负责人纠偏。",
+      "§54 的总体能力评估是 #184 的来源链，不再另计一次纠偏。",
+      "关联 #214 翻转条件第 2 自然波次样本：按生效车道纪律把一个窄代码审阅交给 tools/claude-headless；单次调用使用 Haiku 完整模型、low effort、1 agentic turn、$0.10 预算与 60 秒外层门，60.261 秒后 timed_out、无结构化结果，Provider 成本字段不可得，运行中人工介入 0 次且未自动重试；随后由外层确定性测试与人工实现完成修复。该样本显示当前车道没有降低这一步的端到端周期或人工兜底，增加一例超时与成本未知证据，不单独触发从混合方案翻转。"
+    ]
+  }
+}

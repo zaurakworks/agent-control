@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-12",
+  "correction_events": [
+    {
+      "id": "decision-surface-not-self-contained",
+      "category": "decision_surface",
+      "label": "决定面只有标签与链接，负责人无法在第一屏获得拍板信息",
+      "sources": [
+        "../../../work/records/2026-08-10-federated-session-entry/record.md#51-决定面自足性纠偏2026-08-12"
+      ]
+    },
+    {
+      "id": "scan-window-missed-delivery",
+      "category": "operational_observability",
+      "label": "协调扫描时间窗设错，漏看已完成交付",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184"
+      ]
+    },
+    {
+      "id": "reference-link-written-from-memory",
+      "category": "reference_integrity",
+      "label": "评论链接凭记忆写错，未先取后写",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184"
+      ]
+    },
+    {
+      "id": "capacity-underuse-first-callout",
+      "category": "capacity_utilization",
+      "label": "负责人第一次点名产能利用不足",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184"
+      ]
+    },
+    {
+      "id": "capacity-underuse-second-callout",
+      "category": "capacity_utilization",
+      "label": "负责人第二次点名产能利用不足；#184 正文明确登记为两次",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184"
+      ]
+    },
+    {
+      "id": "value-mix-imbalance",
+      "category": "value_roi",
+      "label": "内务、研究与真实价值的结构失衡，忙碌代理指标替代高价值订单",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184",
+        "../../../work/records/2026-08-10-federated-session-entry/record.md#52-需求侧纠偏从系统建设自己到公司化找订单2026-08-12"
+      ]
+    },
+    {
+      "id": "unnecessary-dispatch-approval",
+      "category": "delegation_boundary",
+      "label": "框内派发不应重复请求负责人审批",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5267787821"
+      ]
+    },
+    {
+      "id": "approved-decision-reasked",
+      "category": "decision_reuse",
+      "label": "Mode B 已有批准却被再次询问，丢失的是决定复用而非远端记录",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268121472"
+      ]
+    },
+    {
+      "id": "idle-workers-found-by-owner-first",
+      "category": "operational_observability",
+      "label": "把终端存活误当工作态，5 个空转 worker 由负责人先发现",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+      ]
+    },
+    {
+      "id": "owner-personal-scope-boundary",
+      "category": "scope_boundary",
+      "label": "不得进入负责人个人事项，也不得向负责人索要具体素材或参与",
+      "sources": [
+        "../../../work/records/2026-08-10-federated-session-entry/record.md#53-负责人个人事项边界2026-08-12负责人明确指令"
+      ]
+    },
+    {
+      "id": "unnecessary-merge-batch-approval",
+      "category": "delegation_boundary",
+      "label": "例行交付已在授权内，仍逐批向负责人请求合并批准",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5270207250"
+      ]
+    },
+    {
+      "id": "capacity-count-typo-explanation",
+      "category": "operational_accuracy",
+      "label": "把席位数 39 笔误为 30，需由负责人纠正并追加解释",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271396248"
+      ]
+    },
+    {
+      "id": "reintroduced-declined-upgrade-option-first",
+      "category": "decision_reuse",
+      "label": "负责人已明确不升级后，第一次再次提出 Pro 升级期权",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271873345"
+      ]
+    },
+    {
+      "id": "reintroduced-declined-upgrade-option-second",
+      "category": "decision_reuse",
+      "label": "负责人已明确不升级后，第二次再次提出 Pro 升级期权",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5271873345"
+      ]
+    }
+  ],
+  "worker_idle_events": [
+    {
+      "id": "dispatch-input-not-submitted",
+      "category": "dispatch_input_race",
+      "label": "input_accepted 后任务未真正提交；#172 将其登记为当日第 1 例",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5267339422",
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+      ]
+    },
+    {
+      "id": "redispatch-batch-idle",
+      "category": "worker_state_misread",
+      "label": "重启后重派的 5 个 Codex 同批空转约 40 分钟；共同触发按 1 个事件计",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+      ]
+    }
+  ],
+  "dispatch_race_events": [
+    {
+      "id": "resumed-codex-composer-pending",
+      "category": "composer_pending",
+      "label": "复用既有 worktree 重派的 5 个 Codex 在 input_accepted 后停在提示符，沿原身份各点火一次后进入工作态",
+      "recorded_at": "2026-08-12T15:03:02Z",
+      "affected_count": 5,
+      "ignition_count": 5,
+      "dispatch_ids": [],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+      ]
+    },
+    {
+      "id": "fresh-claude-composer-pending",
+      "category": "composer_pending",
+      "label": "fresh Claude 观察窗中 3 个 Dispatch 停在 composer，沿原身份各点火一次后恢复",
+      "recorded_at": "2026-08-12T17:47:02Z",
+      "affected_count": 3,
+      "ignition_count": 3,
+      "dispatch_ids": [
+        "ctx_54bba59b302b",
+        "ctx_2ac6cc659fff",
+        "ctx_859ea9358083"
+      ],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5270403811"
+      ]
+    },
+    {
+      "id": "fresh-codex-composer-pending",
+      "category": "composer_pending",
+      "label": "后续 fresh Codex 观察窗中 4 个 Dispatch 停在 composer，沿原身份各点火一次后恢复",
+      "recorded_at": "2026-08-12T23:25:01Z",
+      "affected_count": 4,
+      "ignition_count": 4,
+      "dispatch_ids": [
+        "ctx_6aedf6e3acf3",
+        "ctx_1abdda3940cf",
+        "ctx_95d8145bdf37",
+        "ctx_a4e5ac8eddc7"
+      ],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5273970032"
+      ]
+    }
+  ],
+  "manual_baseline": {
+    "label": "协调者人工重算口径",
+    "dispatch_count": 134,
+    "worker_done_count": 126,
+    "success_rate": 0.94,
+    "sources": [
+      "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5275619579"
+    ]
+  },
+  "regression_checks": [
+    {
+      "id": "window-and-delivery-coverage",
+      "category": "operational_observability",
+      "label": "扫描日窗或运行面范围错误会漏看已经回流的交付",
+      "sample_ids": [
+        "scan-window-missed-delivery"
+      ],
+      "check_type": "hybrid",
+      "procedure": [
+        "运行 python -m unittest discover -s tools/ops-metrics/tests -v，核对本地自然日到 UTC 半开区间以及 worker_report 来源门",
+        "使用报告中的冻结快照复算命令重跑，并核对每个显式 Run 的 created_at、Dispatch dispatched_at 与 worker_done completedAt",
+        "确认报告逐字披露 Run 晚于日窗起点或历史重试不可见等覆盖缺口"
+      ],
+      "expected": "日窗、快照和所选 Run 均可定位；worker_done 只由 worker_report 证明；已知覆盖缺口不会被静默省略",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184",
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5269558988"
+      ]
+    },
+    {
+      "id": "reference-fetch-before-write",
+      "category": "reference_integrity",
+      "label": "凭记忆发布评论链接或知识编号会把引用指向错误对象",
+      "sample_ids": [
+        "reference-link-written-from-memory",
+        "knowledge-id-written-from-memory"
+      ],
+      "check_type": "manual",
+      "procedure": [
+        "发布前用 gh issue view 或 gh api 取回每个 GitHub 对象的编号、中文短题与稳定 URL",
+        "发布前从 knowledge/README.md 或目标知识文件取回每个 K 编号与标题",
+        "逐项对照准备发布的文本；只使用本次取回值，不使用会话记忆补全"
+      ],
+      "expected": "GitHub 编号、中文短题、稳定 URL、知识编号和标题均与本次取回对象一致",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5268472354",
+        "../../../knowledge/README.md#自治与多-session-审阅"
+      ]
+    },
+    {
+      "id": "capacity-signal-completeness",
+      "category": "capacity_utilization",
+      "label": "只看终端存活或活动总量会掩盖派发不足、交付未回流与批量空转",
+      "sample_ids": [
+        "capacity-underuse-first-callout",
+        "capacity-underuse-second-callout"
+      ],
+      "check_type": "hybrid",
+      "procedure": [
+        "用报告中的冻结快照命令重跑所选 Orca Run",
+        "在 JSON 与 Markdown 间逐项核对派发数、worker_done 回流数、同日派发队列回流率、派发到回流时延统计和空转事件数"
+      ],
+      "expected": "五项产能信号同时存在且值一致；终端 running 或 Worker ready 不被解释为有效交付",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184",
+        "https://github.com/Eridanus117/agent-control/issues/172#issuecomment-5268591611"
+      ]
+    },
+    {
+      "id": "throughput-is-not-value",
+      "category": "value_roi",
+      "label": "把派发密度或活动量直接写成价值，会重现内务、研究与真实价值结构失衡",
+      "sample_ids": [
+        "value-mix-imbalance"
+      ],
+      "check_type": "manual",
+      "procedure": [
+        "检查结论先行、产能仪表与口径边界，定位每一处从活动量到价值、质量或产品采用的推断",
+        "没有独立订单消费或负责人认可证据时，删除该推断并保留为未知"
+      ],
+      "expected": "日报只陈述吞吐、周转与纠偏观测，不把它们升级成价值、质量、产品采用或长期能力改善",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184",
+        "../../../work/records/2026-08-10-federated-session-entry/record.md#52-需求侧纠偏从系统建设自己到公司化找订单2026-08-12"
+      ]
+    }
+  ],
+  "notes": [
+    "纠偏事件按已登记的独立触发去重；同一事实被 #184 与研发记忆重复登记时不重复计数。",
+    "#184 评论中的 K20 编号错配是 Agent 自报，不计入负责人纠偏。",
+    "§54 的总体能力评估是 #184 的来源链，不再另计一次纠偏。",
+    "关联 #214 翻转条件第 2 自然波次样本：按生效车道纪律把一个窄代码审阅交给 tools/claude-headless；单次调用使用 Haiku 完整模型、low effort、1 agentic turn、$0.10 预算与 60 秒外层门，60.261 秒后 timed_out、无结构化结果，Provider 成本字段不可得，运行中人工介入 0 次且未自动重试；随后由外层确定性测试与人工实现完成修复。该样本显示当前车道没有降低这一步的端到端周期或人工兜底，增加一例超时与成本未知证据，不单独触发从混合方案翻转。"
+  ]
+}

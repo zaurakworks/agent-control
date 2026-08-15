@@ -1,0 +1,46 @@
+name: Existing repository checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check federated entry contract
+        run: python scripts/test_federated_entry.py
+
+      - name: Check repository entry projections
+        run: python -m scripts.entry_sync check --scope repository
+
+      - name: Test dispatch deadlines
+        run: python -m unittest discover -s tools/dispatch_deadlines/tests -v
+
+      - name: Test sibling facts
+        run: python -m unittest discover -s tools/sibling-facts/tests -v
+
+      - name: Test operations console
+        run: python -m unittest discover -s tools/ops-console/tests -v
+
+      - name: Test report formats
+        run: python -m unittest discover -s tools/report_formats/tests -v
+
+      # Installed targets use machine-specific absolute paths that do not exist
+      # on GitHub-hosted runners. Validate them locally instead with:
+      # python -m scripts.entry_sync check --scope installed

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "kind": "agent-control.worker-current",
+  "observed_at": "2026-08-14T20:46:02.693758Z",
+  "running_count": 1,
+  "dispatched_count": 1,
+  "active_anomaly_count": 0
+}

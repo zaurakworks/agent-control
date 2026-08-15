@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "classification": {
+      "type": "string",
+      "enum": ["ready_for_review", "needs_work", "blocked"]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "maxItems": 3
+    }
+  },
+  "required": ["classification", "summary", "risks"]
+}

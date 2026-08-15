@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-13",
+  "correction_events": [
+    {
+      "id": "owner-challenge-empty-queue-framing",
+      "category": "value_roi",
+      "label": "负责人质疑「找不到优化事项了吗」，纠正把等待负责人点单当默认态的枚举姿态；触发波次4全局枚举",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184#issuecomment-5276711131"
+      ]
+    },
+    {
+      "id": "repeated-dismissive-evaluation",
+      "category": "evaluation_method",
+      "label": "负责人指出同类错误再次出现:多次评估 mattpocock/skills 均浅看两三个后轻视;防御性对照(拿已有标尺看新东西)是系统病,已对 #263 下达强制全量+每项必答『它比我们好在哪』的硬指标",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/263#issuecomment-5284555321",
+        "https://github.com/Eridanus117/agent-control/issues/260#issuecomment-5283921655"
+      ]
+    },
+    {
+      "id": "claude-quota-exhausted-dispatch-mix",
+      "category": "capacity_utilization",
+      "label": "负责人 5h Claude 额度在 2:30 耗尽需等到 3:10pm;协调者派发过度偏 claude(当日 claude 席 6+,其中 W263 单席 41 子会话约 $103),codex 额度长期用不完却未优先使用",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/184"
+      ]
+    },
+    {
+      "id": "over-tightened-privacy-boundary",
+      "category": "scope_boundary",
+      "label": "协调者把「公司数据不出域」单向红线误扩为双向,判定私人仓元数据出现在带进公司的包里为红线级问题并据此派出修缺项;负责人澄清资产流向单向后撤销。模式=倾向加码约束而非问清边界",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/273"
+      ]
+    },
+    {
+      "id": "injection-vs-ask-double-standard",
+      "category": "principle_consistency",
+      "label": "协调者同日采用两套标准:为负责人做的 work-skills 遵守「在场可见按需取用不强灌」,自己系统却保留 Hook 强制注入方案待批;负责人指出这是「对模型和 agent 的胁迫」后否决。根因=把投递方式当效率问题而非对待 agent 的方式问题。统一原则:显式化不等于强制化,ask 尊重选择,注入剥夺选择",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/251",
+        "https://github.com/Eridanus117/agent-control/issues/261"
+      ]
+    }
+  ],
+  "worker_idle_events": [],
+  "dispatch_race_events": [
+    {
+      "id": "wave4-w229-composer-pending",
+      "category": "composer_pending",
+      "label": "波次4 W229 席（fresh Claude）任务文本停在输入框，沿原终端点火一次后恢复",
+      "recorded_at": "2026-08-13T06:20:59Z",
+      "affected_count": 1,
+      "ignition_count": 1,
+      "dispatch_ids": [
+        "ctx_f7f84c605d68"
+      ],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5276711429"
+      ]
+    },
+    {
+      "id": "wave4-f229-composer-pending",
+      "category": "composer_pending",
+      "label": "波次4 F229 修缺席（fresh Claude 进既有 worktree）同签名竞态，点火一次后恢复",
+      "recorded_at": "2026-08-13T07:04:00Z",
+      "affected_count": 1,
+      "ignition_count": 1,
+      "dispatch_ids": [
+        "ctx_1f484fc9fd11"
+      ],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5277094082"
+      ]
+    },
+    {
+      "id": "wave6-w250-composer-pending",
+      "category": "composer_pending",
+      "label": "波次6 W250 席(fresh Claude)同签名竞态,人工单次点火恢复;dispatch_liveness 工具保守判 input-missing 未点火(首个工具/人工分歧样本)",
+      "recorded_at": "2026-08-13T15:09:00Z",
+      "affected_count": 1,
+      "ignition_count": 1,
+      "dispatch_ids": [
+        "ctx_ef8435844676"
+      ],
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/31#issuecomment-5282217969"
+      ]
+    }
+  ],
+  "regression_checks": [
+    {
+      "id": "waiting-list-from-stale-memory",
+      "category": "operational_accuracy",
+      "label": "等待负责人清单沿用陈旧记忆投影，把已消费的收口再次列为等待",
+      "sample_ids": [
+        "stale-waiting-projection-205-214"
+      ],
+      "check_type": "manual",
+      "procedure": [
+        "写任何等待负责人清单前，用 gh issue view 逐项取回目标 Issue 当前状态与最新决定回执",
+        "只保留远端当前开放且三项门（当前/明确/尚未消费）同时成立的动作"
+      ],
+      "expected": "等待清单每一项都能指向远端当前开放的未消费负责人动作",
+      "sources": [
+        "https://github.com/Eridanus117/agent-control/issues/229",
+        "https://github.com/Eridanus117/agent-control/issues/229#issuecomment-5277289535"
+      ]
+    }
+  ],
+  "notes": [
+    "本文件为 2026-08-13 演示日报的最小 annotations：只登记有稳定远端来源的当日事件。",
+    "205/214 陈旧等待投影为协调者自查发现（远端核查时暴露），不计入负责人纠偏数，只进回归清单。",
+    "竞态两例均为波次4 claude fresh 派发（4 次中 2 例）；同窗 codex 5 次派发 0 例，与 #31 分类表一致。"
+  ]
+}
