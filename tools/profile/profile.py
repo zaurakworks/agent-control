@@ -213,6 +213,13 @@ def materialize(profile_dir: Path, manifest: dict) -> Path:
             k: ([expand(x, home) for x in v] if k == "context" and isinstance(v, list) else v)
             for k, v in manifest.get("uncontrollable", {}).items()
         },
+        # 每个维度由哪个量具负责。默认 run（读 agent 自报）。
+        # 声明成 probe 的维度，diff 不再把"自报里没有"当成观测不足 —— 因为压根
+        # 就没指望自报能看见它。这不是放宽，是把量具指到看得见的那一个上。
+        "measured_by": {
+            "mcp": manifest.get("mcp", {}).get("measured_by", "run"),
+            "context": manifest.get("context", {}).get("measured_by", "run"),
+        },
         "home": str(home),
         "materialized_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -223,27 +230,50 @@ def materialize(profile_dir: Path, manifest: dict) -> Path:
 
 
 def build_prompt_file(profile_dir: Path, manifest: dict) -> Path:
-    """只拼锚点，走 --append-system-prompt-file，不过命令行。
+    """把完整的阶段提示词一次性拼好，走 --append-system-prompt-file。
 
-    刻意**不**把阶段规则放进系统提示词：那会在 profile 里留一份副本，
-    而副本会漂移 —— 上一版就是这样，profile/stage.md 比仓库里的
-    references/observe.md 旧了一个版本，两份冲突的指令同时在上下文里。
-    阶段规则的唯一来源是 skill，由锚点第 5 条按名触发加载。
+    锚点 1-4（四阶段逐字共用）+ 阶段文件（首行是本阶段的锚点第 5 条）。
+    可选再加自述段。
+
+    上一版只注入锚点，让模型运行时自己去加载 stage skill、再自己去读对应那一份
+    —— 两跳，每跳都是模型的自由裁量，而真正的完成判据全在第二跳之后。跳成功了
+    四次，但那是运气不是机制。合并之后反而更小：SKILL.md 的路由表存在的唯一目的
+    就是告诉模型"再去读一次"，注入式提示词里它没有意义。
+
+    规则仍然只有一份来源：这里读的就是 .claude/skills/stage/ 下那几个文件，
+    交互式会话按名加载的也是同一批。profile 目录里不留副本。
     """
     p = manifest.get("prompt", {})
-    parts = []
-    for key in ("anchor",):
-        rel = p.get(key)
-        if not rel:
-            continue
-        # <skills> 指向 skill 树，让锚点也只有一份来源。
-        # 之前 profiles/_shared/anchor.md 和 skill 里的 anchor.md 是两份逐字副本。
-        f = (Path(expand(rel)) if "<" in rel else profile_dir / rel).resolve()
-        if not f.exists():
-            sys.exit(f"prompt 文件不存在: {f}")
+    src = Path(expand("<skills>")) / "stage"
+    parts: list[str] = []
+
+    anchor = src / "anchor.md"
+    if not anchor.is_file():
+        sys.exit(f"锚点文件不存在: {anchor}")
+    parts.append(anchor.read_text(encoding="utf-8"))
+
+    stage = p.get("stage")
+    if stage:
+        f = src / "references" / f"{stage}.md"
+        if not f.is_file():
+            sys.exit(f"阶段文件不存在: {f}")
         parts.append(f.read_text(encoding="utf-8"))
+
+    # 自述段是量具，不是产品规则。默认不注入 —— 带上它，每次交付都会拖一段
+    # 运维输出。只有要核验漂移时才打开，而那时 diff 才有数据可比。
+    if p.get("self_report"):
+        f = src / "self-report.md"
+        if not f.is_file():
+            sys.exit(f"自述文件不存在: {f}")
+        parts.append(f.read_text(encoding="utf-8"))
+
     out = profile_dir / "system-prompt.md"
-    out.write_text("\n\n---\n\n".join(parts), encoding="utf-8")
+    # 锚点与阶段文件之间不加分隔线：第 5 条是锚点那个编号列表的延续，
+    # 中间横一道线会把一份清单读成两份。自述段是另一回事，它要分开。
+    body = "\n".join(parts[:2] if stage else parts[:1])
+    if p.get("self_report") and len(parts) > 2:
+        body += "\n\n---\n\n" + parts[-1]
+    out.write_text(body, encoding="utf-8")
     return out
 
 
@@ -305,7 +335,14 @@ def probe_static(profile_dir: Path, manifest: dict, home: Path) -> dict:
     # --- 上下文文件：按发现规则枚举候选，逐个测存在性 ---
     # 没有 CLI 能问（claude doctor 不含记忆路径），但规则是确定的，文件系统能答。
     memory = "AGENTS.md" if provider == "codex" else "CLAUDE.md"
-    cands = [home / memory, Path.home() / (".codex" if provider == "codex" else ".claude") / memory]
+    cands = [home / memory]
+    # 真实用户目录的入口，只有 Claude 要算 —— 两边的证据是相反的：
+    #   Claude: ~/.claude/CLAUDE.md 在 CLAUDE_CONFIG_DIR 重定向后**仍然**加载
+    #           （四个变体都拦不住，含重定向 HOME+USERPROFILE）。
+    #   Codex:  CODEX_HOME 重定向后 ~/.codex 整个不再被读，那份 AGENTS.md 是
+    #           假候选。把它算进来，probe 会报一个永远无法确认的越界。
+    if provider != "codex":
+        cands.append(Path.home() / ".claude" / memory)
     d = workdir_of(profile_dir, manifest, home)
     for _ in range(6):  # cwd 及其祖先
         cands.append(d / memory)
@@ -342,7 +379,9 @@ def probe(profile_dir: Path, manifest: dict) -> int:
     # probe 和 diff 必须认同一份声明，否则两个量具会给出矛盾的判断。
     u = manifest.get("uncontrollable", {})
     allow = set(manifest.get("skills", {}).get("allow", [])) | set(u.get("skills", []))
-    mcp_allow = set(manifest.get("mcp", {}).get("allow", [])) | set(u.get("mcp", []))
+    mcp_unctl = set(u.get("mcp", []))
+    mcp_wildcard = "*" in mcp_unctl
+    mcp_allow = set(manifest.get("mcp", {}).get("allow", [])) | mcp_unctl
     ctx_allow = {
         norm_path(expand(x, home))
         for x in list(manifest.get("context", {}).get("allow", [])) + list(u.get("context", []))
@@ -375,6 +414,9 @@ def probe(profile_dir: Path, manifest: dict) -> int:
         extra = sorted(x for x in observed if key(x) not in {key(y) for y in declared})
         # MCP 是运行期开关能拦的：配置面有，不代表生效面有。
         # probe 看不到 --strict-mcp-config 的效果，所以这里只能标注，不能判漂移。
+        if label.startswith("MCP") and extra and mcp_wildcard:
+            print(f"  {label}: {observed}  ⚠ 整维度已声明为不可控（无关闭开关，且自报名字不稳定）")
+            continue
         if label.startswith("MCP") and extra and manifest.get("mcp", {}).get("strict"):
             print(f"  {label}: {observed}  ⚠ 配置面有 {len(extra)} 个，"
                   f"但 strict=true 会在运行期全部拦掉（已由 run 确认为 []）")
@@ -573,6 +615,13 @@ def diff(profile_dir: Path) -> int:
         unctl = declared.get("uncontrollable", {}).get(allow_key.replace("_allow", ""), [])
         observed = effective.get(obs_key)
 
+        # "*" = 整个维度不可控。给 Codex 的 MCP 用：既没有关闭开关，运行时自报的
+        # 名字也不稳定 —— 三次运行给出三份不同清单，第三次还多出三个没见过的对象。
+        # 逐个枚举名字会让每次运行都报一次假漂移，那比不报更糟：告警一旦总是响，
+        # 就等于没有告警。整维度声明要求 *_reason 写清为什么，且观测到的东西照常
+        # 打印出来 —— 看得见，但不判失败。
+        wildcard = "*" in unctl
+
         key = norm_path if by_path else (lambda x: x.strip())
         ok = {key(x) for x in list(allow) + list(unctl)}
 
@@ -581,11 +630,18 @@ def diff(profile_dir: Path) -> int:
         print(f"  声明不可控: {sorted(unctl) or '(未声明)'}")
         print(f"  运行时观测: {observed if observed is not None else 'unknown'}")
 
+        dim = allow_key.replace("_allow", "")
+        by = declared.get("measured_by", {}).get(dim, "run")
         if observed is None:
-            blind = True
-            unknowns.append(f"{label}: unknown —— 产出里没有对应标记行。**不能据此判定无漂移**")
+            if by == "probe":
+                unknowns.append(f"{label}: 本维度由 probe 测量，run 的自报看不见它，符合预期")
+            else:
+                blind = True
+                unknowns.append(f"{label}: unknown —— 产出里没有对应标记行。**不能据此判定无漂移**")
             continue
-        extra = sorted(x for x in observed if key(x) not in ok)
+        extra = [] if wildcard else sorted(x for x in observed if key(x) not in ok)
+        if wildcard and observed:
+            unknowns.append(f"{label} 整维度已声明为不可控，本次出现 {len(observed)} 个：{observed}")
         if extra:
             problems.append(f"{label} 越界 ({len(extra)}): {extra}")
         expected_unctl = sorted(x for x in observed if key(x) in {key(u) for u in unctl})

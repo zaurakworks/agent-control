@@ -21,6 +21,11 @@ allow = []
 [context]
 # 运行时自动加载为指令的文件。Codex 没有 --append-system-prompt，
 # 锚点+阶段规则是靠往 CODEX_HOME 写 AGENTS.md 承载的 —— 这条是有意的。
+# 这一维由 probe 测量，不看 run 的自报。
+# 实测：Codex 自报不出自己的上下文文件 —— 它只看得到内容在提示词里，反推不出
+# 路径。上一版它报过 <home>/AGENTS.md，那是推断不是观察；新提示词把「unknown 是
+# 观测失败」讲死之后它改口写 unknown，更诚实。probe 用文件系统枚举候选，看得见。
+measured_by = "probe"
 allow = ['<home>\AGENTS.md', '<home>\skills\stage\anchor.md']
 
 [uncontrollable]
@@ -35,12 +40,15 @@ reason = "不在二进制内 —— 真实 ~/.codex/skills/.system/ 有同名目
 # `codex mcp list` 报「一个都没配」—— 配置面完全看不见它，只有 run 能观测到。
 # codex exec 无 --strict-mcp-config 之类的开关。名字两轮不稳定（一次 id 一次显示名），
 # 所以两种写法都列上。
-mcp = [
-  "codex_apps",
-  "connector_openai_default_templates", "connector_openai_plugin_management",
-  "connector_20205bf7d4e99a89d7154bb849718324",
-  "Default templates", "Plugin Management", "Sites",
-]
+# 整个维度不可控。不是逐个枚举名字 —— 试过，行不通：
+#   第 1 次  codex_apps, connector_openai_default_templates,
+#            connector_openai_plugin_management, connector_20205bf7d4e9…
+#   第 2 次  codex_apps, Default templates, Plugin Management, Sites
+#   第 3 次  codex_apps, codex_document_control, hotline,
+#            plugin_management, safety_settings, sites
+# 三次三份清单，第三次还多出三个从没见过的对象。逐个枚举会让每次运行都报一次
+# 假漂移，而总是响的告警等于没有告警。
+mcp = ["*"]
 mcp_reason = "Codex 内置，不进配置表，CLI 无关闭开关"
 
 [plugins]
@@ -67,9 +75,13 @@ networkAccess = true
 windowsSandbox = "unelevated"
 
 [prompt]
-# 锚点也只有一份来源：skill 树。之前 _shared/anchor.md 是逐字副本，会漂移。
-anchor = '<skills>\stage\anchor.md'
-# 阶段规则不进系统提示词：唯一来源是 skill，由锚点第 5 条按名加载
+# 完整阶段提示词一次注入，零跳：锚点 1-4 + 阶段文件（首行是本阶段的第 5 条）。
+# 三段都从 .claude/skills/stage/ 取，与交互式会话共用同一批文件，
+# profile 目录里不留副本。
+stage = "observe"
+# 自述四行是量具，不是产品规则。这两个 profile 的用途就是核验漂移，所以显式打开；
+# 干正经活的 profile 不要开 —— 否则每次交付都会拖一段运维输出。
+self_report = true
 
 [run]
 # 工作目录。<work> = 仓库外的专用目录，既不是仓库（否则本仓入口进上下文），
