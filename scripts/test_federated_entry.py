@@ -303,7 +303,6 @@ agents_continuation_section = extract_markdown_section(
 for entry_name, continuation_section in [
     ("仓库 README", readme_continuation_section),
     ("版本化系统入口", system_continuation_section),
-    ("Codex／Claude 仓库入口", agents_continuation_section),
 ]:
     add_check_result(
         len(continuation_section) <= CONTINUATION_SECTION_MAX_CHARACTERS,
@@ -343,20 +342,19 @@ test_contains_all(
     ],
     "版本化系统入口保留在线续接的触发、恢复、决定与离线边界",
 )
-for entry_name, continuation_section in [
-    ("README", readme_continuation_section),
-    ("AGENTS", agents_continuation_section),
-]:
-    test_contains_all(
-        continuation_section,
-        [CONTINUATION_BACKREFERENCE],
-        f"{entry_name} 的在线续接章节回指唯一版本化正文",
-    )
+# README 是给人看的入口，分节回指是有用的导航，保留。
+# AGENTS 是给 Agent 看的入口，顶部已经把版本化正文声明为开工前必读，分节再指
+# 一次是纯冗余 —— 而且指向的是一份 CLAUDE.md 已经 @import 全文的文档。它不只
+# 浪费，还在教模型养成"去大文档里找"的习惯。所以这里断言的是**一节都没有**，
+# 比原先的"只保留最短回指"更严：既挡正文复制，也挡回指长回来。
+test_contains_all(
+    readme_continuation_section,
+    [CONTINUATION_BACKREFERENCE],
+    "README 的在线续接章节回指唯一版本化正文",
+)
 add_check_result(
-    bool(system_continuation_section)
-    and readme_continuation_section == agents_continuation_section
-    and system_continuation_section != readme_continuation_section,
-    "README 与 AGENTS 只保留在线续接最短回指，版本化入口独占正文",
+    bool(system_continuation_section) and not agents_continuation_section.strip(),
+    "AGENTS 不再单列在线续接章节，版本化入口独占正文",
 )
 readme_global_wave_section = extract_markdown_subsection(
     readme, "持有 Issue 时扩大并行波次"
@@ -407,19 +405,14 @@ add_check_result(
     else "版本化系统入口的扩大并行波次正文不含反向放宽；发现："
     + "、".join(global_wave_contradictions),
 )
-for entry_name, global_wave_section in [
-    ("README", readme_global_wave_section),
-    ("AGENTS", agents_global_wave_section),
-]:
-    test_contains_all(
-        global_wave_section,
-        [GLOBAL_WAVE_BACKREFERENCE],
-        f"{entry_name} 的扩大并行波次章节回指唯一版本化正文",
-    )
+test_contains_all(
+    readme_global_wave_section,
+    [GLOBAL_WAVE_BACKREFERENCE],
+    "README 的扩大并行波次章节回指唯一版本化正文",
+)
 add_check_result(
-    readme_global_wave_section == agents_global_wave_section
-    and system_global_wave_section != readme_global_wave_section,
-    "README 与 AGENTS 只保留扩大并行波次最短回指，版本化入口独占正文",
+    bool(system_global_wave_section) and not agents_global_wave_section.strip(),
+    "AGENTS 不再单列扩大并行波次章节，版本化入口独占正文",
 )
 claude_entry_lines = [line.strip() for line in claude_entry.strip().splitlines() if line.strip()]
 add_check_result(
@@ -514,10 +507,31 @@ test_contains_all(
     "机器级作用域与语言边界位于同一版本化入口章节",
 )
 add_check_result(
-    bool(system_language_section)
-    and LANGUAGE_BACKREFERENCE in agents_language_section
-    and system_language_section != agents_language_section,
-    "AGENTS 的持久实现语言章节只回指唯一版本化正文",
+    bool(system_language_section) and not agents_language_section.strip(),
+    "AGENTS 不再单列持久实现语言章节，版本化入口独占正文",
+)
+
+# 顶部那一行是上面三条的前提：分节回指全部撤掉之后，Agent 靠它知道要读全文。
+# 少了它，AGENTS 就从"冗余"变成"缺失"。
+add_check_result(
+    "entrypoints/agent-system.md" in agents_entry.split("##", 1)[0],
+    "AGENTS 顶部把版本化正文声明为开工前必读",
+)
+
+# 通用兜底。上面三条是逐章节写的，只盖了在线续接、扩大并行波次、持久实现语言 ——
+# 而撤掉的回指有五节，父目标验收和经营总账维护那两节可以悄悄长回来而不被发现
+# （反向测试实证：加回 ## 父目标验收，检查数从 121 涨到 122，一条都没响）。
+# 这里改成按形状断言：带 # 锚点的分节回指一个都不许有。顶部那条不带锚点，指向
+# 整份正文，不受影响。
+agents_anchored_backrefs = re.findall(
+    r"entrypoints/agent-system\.md#[^)\s]+", agents_entry
+)
+add_check_result(
+    not agents_anchored_backrefs,
+    "AGENTS 不含指向版本化正文的分节回指"
+    if not agents_anchored_backrefs
+    else "AGENTS 不含指向版本化正文的分节回指；发现 "
+    + f"{len(agents_anchored_backrefs)} 处：" + "、".join(agents_anchored_backrefs),
 )
 test_contains_all(
     authority_map,

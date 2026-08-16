@@ -254,7 +254,10 @@ class TargetGenerationTests(unittest.TestCase):
 
         self.assertEqual(config["source"], "entrypoints/agent-system.md")
         self.assertEqual(len(targets["repository-readme"]["sections"]), 3)
-        self.assertEqual(len(targets["repository-agents"]["sections"]), 7)
+        # AGENTS 只剩两节实质内容（仓库任务路由、知识按名问路）。原先另有 5 节是
+        # 指向版本化正文的回指，而 CLAUDE.md 已经 @import 了那份正文全文 ——
+        # 纯冗余，且在教模型"去大文档里找"。
+        self.assertEqual(len(targets["repository-agents"]["sections"]), 2)
         # 默认配置只剩 repository 作用域：用户级入口下沉之后，~/.claude/CLAUDE.md 与
         # ~/.codex/AGENTS.md 不再是版本化正文的投影，改由 test_federated_entry 的
         # 反向断言守护（它们必须**不**引用那份正文）。

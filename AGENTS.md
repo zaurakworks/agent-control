@@ -2,10 +2,6 @@
 
 本仓的公共系统规则正文在 [`entrypoints/agent-system.md`](./entrypoints/agent-system.md)，开始工作前读取。用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面——这份正文只在工作目录落在本仓时才加载。
 
-## 持久实现语言
-
-公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#持久实现语言)。
-
 ## 仓库任务路由
 
 - 开始任何工作前，先读取 `README.md` 并执行其中的“开始工作”。
@@ -19,19 +15,3 @@
 
 - 需要 Windows／PowerShell GitHub 多行 Markdown 或 Windows 长路径／文件锁知识时，主动按名运行 `python tools/knowledge_action_trigger/action_trigger.py --action github-multiline-markdown` 或 `--action windows-path-or-file-lock`，再按需读取返回的当前知识源。
 - 这是可查询工具，不自动触发、注入或挂 Hook；也可直接按名读取 `knowledge/windows-powershell-multiline-transfer.md` 或 `knowledge/windows-agent-ops.md`。查询不扩大合同、权限或产品决定。
-
-### 持有 Issue 时扩大并行波次
-
-公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#持有-issue-时扩大并行波次)。
-
-## 在线续接与负责人事项
-
-公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#在线续接与负责人事项)。
-
-## 父目标验收
-
-公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#父目标验收)。
-
-## 经营总账维护
-
-公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#经营总账维护)。
