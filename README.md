@@ -48,7 +48,8 @@ Session 的职责由当前 Issue 合同和写入所有权决定，不由 Provide
 - `entrypoints/agent-system.md`：Windows 用户级 Agent 系统提示词的版本化来源；实际入口副本不是新的权威来源；
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
 - `CLAUDE.md`：Claude Code 导入同一份入口规则，并在本仓内加载 `entrypoints/agent-system.md`；用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面；
-- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状）。它既是 Claude Code 在本仓内的直接可用资产，也是 profile 物化到 `CLAUDE_CONFIG_DIR` 与 `CODEX_HOME` 时的**唯一来源**；两个 Provider 共用同一份，不各存一份。
+- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状）。它既是 Claude Code 在本仓内的直接可用资产，也是 profile 物化到 `CLAUDE_CONFIG_DIR` 与 `CODEX_HOME` 时的**唯一来源**；两个 Provider 共用同一份，不各存一份；
+- [`tools/profile/`](./tools/profile/)：把一份声明的 agent 状态物化成可运行的配置 home，跑完再比对实际生效态，用于锁定某个状态并核验它没漂。声明（`manifest.toml`）进版本控制，物化产物和凭据落在仓库之外。两个量具：`probe` 秒级查配置面，`run` 跑一次 agent 查生效面，两者会在两个方向上不一致，差值是信号。边界与已验证的不可控项见 [`tools/profile/README.md`](./tools/profile/README.md)。
 
 旧仓、旧 Issue、旧实现、历史记录、分析和实验都不能反向定义当前权威。
 

@@ -1,0 +1,77 @@
+# observe profile（Codex 侧）— 声明态
+# 跟 observe/manifest.toml 只差 provider 与 provider 专属设置。
+
+[profile]
+name = "observe-codex"
+version = "v1"
+
+[model]
+provider = "codex"
+id = "gpt-5.6-sol"
+
+[skills]
+allow = ["stage"]
+source = '<repo>\.claude\skills'
+
+[mcp]
+# 生成的 config.toml 不含任何 mcp_servers 段，所以预期是空。
+# 有证据前不预先声明不可控 —— 让它报出来，再决定关掉还是承认管不了。
+allow = []
+
+[context]
+# 运行时自动加载为指令的文件。Codex 没有 --append-system-prompt，
+# 锚点+阶段规则是靠往 CODEX_HOME 写 AGENTS.md 承载的 —— 这条是有意的。
+allow = ['<home>\AGENTS.md', '<home>\skills\stage\anchor.md']
+
+[uncontrollable]
+# Codex 自己在物化 home 里建 skills/.system/ 并写入这五个。
+# 证据：2026-08-15 两次运行的 SKILLS-AVAILABLE 自报，白名单只放了 stage。
+skills = [
+  "imagegen", "openai-docs", "plugin-creator", "skill-creator", "skill-installer",
+]
+reason = "不在二进制内 —— 真实 ~/.codex/skills/.system/ 有同名目录，Codex 也会在物化 CODEX_HOME 里自建一份 .system/，发生在白名单复制之后。原则上可控（是文件），未验证怎么阻止。"
+
+# codex_apps 是内置 MCP server，暴露 3 个连接器。
+# `codex mcp list` 报「一个都没配」—— 配置面完全看不见它，只有 run 能观测到。
+# codex exec 无 --strict-mcp-config 之类的开关。名字两轮不稳定（一次 id 一次显示名），
+# 所以两种写法都列上。
+mcp = [
+  "codex_apps",
+  "connector_openai_default_templates", "connector_openai_plugin_management",
+  "connector_20205bf7d4e99a89d7154bb849718324",
+  "Default templates", "Plugin Management", "Sites",
+]
+mcp_reason = "Codex 内置，不进配置表，CLI 无关闭开关"
+
+[plugins]
+enabled = []
+
+[seed]
+# Codex 的凭据是 auth.json（不是 Claude 的 .credentials.json）
+from = '<userhome>\.codex'
+files = ["auth.json"]
+
+[settings]
+# 不用沙箱。负责人决定，理由是隔离由 worktree 承担，且真实 ~/.codex/config.toml
+# 本来就是 danger-full-access。
+#
+# 换掉 workspace-write 的直接原因有实测证据：那个沙箱在本机间歇性挂死 ——
+# 落仓后 3 次端到端尝试有 2 次卡在沙箱内启动 pwsh，没有输出也不返回；
+# 且它拒绝 agent 往自己的 CODEX_HOME 写，逼出了 workdir 必须是第三个目录。
+#
+# 代价要说清楚：agent 的写入不再受 cwd 约束。这个 profile 是观察阶段（只读），
+# 但换成执行阶段的 profile 时，这一条要重新判断，不能照抄。
+sandboxMode = "danger-full-access"
+networkAccess = true
+# 仍保留：Windows 沙箱账户争用的修复对其他路径依然有效
+windowsSandbox = "unelevated"
+
+[prompt]
+# 锚点也只有一份来源：skill 树。之前 _shared/anchor.md 是逐字副本，会漂移。
+anchor = '<skills>\stage\anchor.md'
+# 阶段规则不进系统提示词：唯一来源是 skill，由锚点第 5 条按名加载
+
+[run]
+# 工作目录。<work> = 仓库外的专用目录，既不是仓库（否则本仓入口进上下文），
+# 也不是物化 home（Codex 沙箱拒绝往自己的 CODEX_HOME 写）。
+workdir = "<work>"
