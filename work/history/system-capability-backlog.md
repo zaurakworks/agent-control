@@ -1,5 +1,7 @@
 # 系统能力事项与轻量 ROI 排序
 
+> 归档说明（2026-08-16）：本文件保存早期候选排序，已退出当前工作面。其“思考模式与元方法只有问题和期望结果”“不扩展为完整方法系统”等判断已被当前权威、[问题求解诉求 #4](https://github.com/zaurakworks/agent-control/issues/4) 与 APS 方法登记面替代；不得据此恢复旧方向。归档动作见 [#54](https://github.com/zaurakworks/agent-control/issues/54)。
+
 > 状态：候选排序，不是权威，也不代表实施授权。
 > 依据：只使用当前权威和本次 Session 已确认的诉求；旧仓和旧 Issue 不作为需求来源。
 > 目的：把原始诉求、衍生诉求和实现候选放在同一张图中，避免局部事项压过总目标。
@@ -99,7 +101,7 @@
 
 受限调研确认负责人重视的“低打断”与沙箱边界不是同一个控制，也确认 Codex 存在无询问的工作区边界方案。但当前没有证据证明其收益高于兼容、绕行和判断成本。
 
-负责人最终选择维持 Codex `never + danger-full-access` 与 Claude `bypassPermissions`，不执行试点、不修改配置。普通任务不逐次重新判断；只在发生实际事故、敏感资产或权限明显增加、无人值守规模扩大，或出现已证明无摩擦的新边界时重新评估。详细依据见 [`permission-strategy-research.md`](./permission-strategy-research.md)。
+负责人最终选择维持 Codex `never + danger-full-access` 与 Claude `bypassPermissions`，不执行试点、不修改配置。普通任务不逐次重新判断；只在发生实际事故、敏感资产或权限明显增加、无人值守规模扩大，或出现已证明无摩擦的新边界时重新评估。详细依据见 [`permission-strategy-research.md`](../permission-strategy-research.md)。
 
 ## 推荐下一项：当前权威的远程恢复
 
