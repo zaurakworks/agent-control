@@ -72,9 +72,13 @@ skillListingBudgetFraction = 0.05
 permissionsDefaultMode = "bypassPermissions"
 
 [prompt]
-# 锚点也只有一份来源：skill 树。之前 _shared/anchor.md 是逐字副本，会漂移。
-anchor = '<skills>\stage\anchor.md'
-# 阶段规则不进系统提示词：唯一来源是 skill，由锚点第 5 条按名加载
+# 完整阶段提示词一次注入，零跳：锚点 1-4 + 阶段文件（首行是本阶段的第 5 条）。
+# 三段都从 .claude/skills/stage/ 取，与交互式会话共用同一批文件，
+# profile 目录里不留副本。
+stage = "observe"
+# 自述四行是量具，不是产品规则。这两个 profile 的用途就是核验漂移，所以显式打开；
+# 干正经活的 profile 不要开 —— 否则每次交付都会拖一段运维输出。
+self_report = true
 
 [run]
 # 工作目录。<work> = 仓库外的专用目录，既不是仓库（否则本仓入口进上下文），
