@@ -1,5 +1,7 @@
 # 仓库工作入口
 
+本仓的公共系统规则正文在 [`entrypoints/agent-system.md`](./entrypoints/agent-system.md)，开始工作前读取。用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面——这份正文只在工作目录落在本仓时才加载。
+
 ## 持久实现语言
 
 公共规则见 [`entrypoints/agent-system.md` 的同名章节](./entrypoints/agent-system.md#持久实现语言)。

@@ -255,9 +255,13 @@ class TargetGenerationTests(unittest.TestCase):
         self.assertEqual(config["source"], "entrypoints/agent-system.md")
         self.assertEqual(len(targets["repository-readme"]["sections"]), 3)
         self.assertEqual(len(targets["repository-agents"]["sections"]), 7)
+        # 默认配置只剩 repository 作用域：用户级入口下沉之后，~/.claude/CLAUDE.md 与
+        # ~/.codex/AGENTS.md 不再是版本化正文的投影，改由 test_federated_entry 的
+        # 反向断言守护（它们必须**不**引用那份正文）。
+        # installed 作用域的生成能力本身保留，本文件其他用例仍用合成配置覆盖它。
         self.assertEqual(
             {target["scope"] for target in targets.values()},
-            {"repository", "installed"},
+            {"repository"},
         )
 
     def test_repository_target_cannot_escape_repository_root(self) -> None:
