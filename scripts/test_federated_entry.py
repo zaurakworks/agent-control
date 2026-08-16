@@ -221,127 +221,50 @@ else:
                 ),
             )
 
-    installed_targets = {
-        target["id"]: target
-        for target in iter_targets(entry_sync_config, "installed")
-    }
-    # installed-claude 不在此列：用户级 ~/.claude/CLAUDE.md 已不再是版本化正文的
-    # 投影，改由下面的反向断言守护（它必须**不**加载那份正文）。
-    expected_pointer_formats = {
-        "installed-codex": "text",
-        "installed-orca-codex": "text",
-    }
-    # installed 目标是本机绝对路径（~/.claude、~/.codex、%APPDATA%），只在本机成立。
-    # 这里按平台限定而不是按「文件是否存在」跳过：存在性判断会掩盖本机上真实的漂移，
-    # 平台判断不会——在 Windows 上它永远执行。CI（Linux runner）上如实标记为不适用。
-    if os.name != "nt":
-        add_check_result(
-            True,
-            "installed 指针检查在非 Windows 环境不适用（本机专属，需在 Windows 上运行）",
-        )
-        expected_pointer_formats = {}
+    # installed 目标已从声明式配置中移除：用户级入口不再是版本化正文的投影。
+    # 守护它们的不变量改由下面的反向断言承担。
+    add_check_result(
+        not list(iter_targets(entry_sync_config, "installed")),
+        "声明式配置不再把用户级入口当作版本化正文的投影",
+    )
 
-    for (
-        installed_target_id,
-        expected_pointer_format,
-    ) in expected_pointer_formats.items():
-        installed_target = installed_targets.get(installed_target_id)
-        if installed_target is None:
-            add_check_result(False, f"{installed_target_id} 指针目标已声明")
-            continue
-        try:
-            generated_target = generate_target(
-                REPOSITORY_ROOT,
-                entry_sync_config,
-                installed_target,
-                REPOSITORY_ROOT / "build" / "entry-sync",
-            )
-            current_target = generated_target.current_path.read_bytes().decode(
-                "utf-8"
-            )
-            target_comparison = compare_contents(
-                generated_target.content,
-                current_target,
-                expected_name=f"generated/{installed_target_id}",
-                actual_name=str(generated_target.current_path),
-            )
-        except (EntrySyncError, OSError, UnicodeError) as error:
-            add_check_result(
-                False,
-                f"{installed_target_id} 使用单一正文指针；错误：{error}",
-            )
-        else:
-            uses_pointer = installed_target["strategy"] == "pointer"
-            pointer_format = installed_target.get("pointer_format", "at_import")
-            pointer_target = Path(installed_target.get("pointer", ""))
-            pointer_target_exists = (
-                pointer_target.is_absolute() and pointer_target.is_file()
-            )
-            if not uses_pointer:
-                pointer_description = (
-                    f"{installed_target_id} 使用单一正文指针；"
-                    f"实际 strategy={installed_target['strategy']}"
-                )
-            elif pointer_format != expected_pointer_format:
-                pointer_description = (
-                    f"{installed_target_id} 使用单一正文指针；"
-                    f"实际 pointer_format={pointer_format}，"
-                    f"预期={expected_pointer_format}"
-                )
-            elif not pointer_target_exists:
-                pointer_description = (
-                    f"{installed_target_id} 使用单一正文指针；"
-                    f"指针目标不存在或不是绝对路径：{pointer_target}"
-                )
-            elif not target_comparison.matches:
-                pointer_description = (
-                    f"{installed_target_id} 使用单一正文指针；"
-                    f"差异：\n{target_comparison.diff}"
-                )
-            else:
-                pointer_description = f"{installed_target_id} 使用单一正文指针"
-            add_check_result(
-                (
-                    uses_pointer
-                    and pointer_format == expected_pointer_format
-                    and pointer_target_exists
-                    and target_comparison.matches
-                ),
-                pointer_description,
-            )
 
-# 用户级 Claude 入口的反向断言。
+# 用户级入口的反向断言，两个 Provider 都要守。
 #
-# 原先这里断言它是版本化正文的单一指针 —— 那等于让那 12 KB 在这台机器的每一个
-# Claude 会话里常驻，包括与本仓无关的项目。入口下沉到仓库级之后，需要守护的
-# 不变量正好相反：用户级只放与任务无关的锚点，本仓正文不得进全局常驻面。
+# 原先这里断言用户级入口是版本化正文的指针 —— 那等于让本仓正文对这台机器上
+# 每一个会话生效，包括与本仓无关的项目。入口下沉到仓库级之后，要守的不变量
+# 正好相反：用户级只放与任务无关的锚点，本仓正文不得进全局面。
 #
-# 和 installed 指针检查一样按平台限定，不按文件存在性跳过 —— 存在性判断会把
-# 本机上真实的漂移掩盖成"不适用"。
+# Claude 的 @import 会把正文内联展开，Codex 的指针只是一句"去读它" —— 常驻的
+# token 量差很多，但作用域问题同类，所以两边用同一条断言。
+#
+# 按平台限定而非按文件存在性跳过：存在性判断会把本机上真实的漂移掩盖成"不适用"。
+INSTALLED_ENTRIES = [
+    ("Claude", Path.home() / ".claude" / "CLAUDE.md"),
+    ("Codex", Path.home() / ".codex" / "AGENTS.md"),
+]
 if os.name == "nt":
-    installed_claude_path = Path.home() / ".claude" / "CLAUDE.md"
-    if not installed_claude_path.is_file():
-        add_check_result(False, f"用户级 Claude 入口存在：{installed_claude_path}")
-    else:
-        installed_claude_text = installed_claude_path.read_text(
-            encoding="utf-8", errors="replace"
-        )
+    for provider_name, installed_path in INSTALLED_ENTRIES:
+        if not installed_path.is_file():
+            add_check_result(False, f"用户级 {provider_name} 入口存在：{installed_path}")
+            continue
+        installed_text = installed_path.read_text(encoding="utf-8", errors="replace")
         leaks = [
             marker
             for marker in ("entrypoints/agent-system.md", "entrypoints\agent-system.md")
-            if marker in installed_claude_text
+            if marker in installed_text
         ]
         add_check_result(
             not leaks,
-            "用户级 Claude 入口不把版本化正文拉进全局常驻面"
+            f"用户级 {provider_name} 入口不把版本化正文拉进全局面"
             if not leaks
-            else "用户级 Claude 入口不把版本化正文拉进全局常驻面；发现引用："
+            else f"用户级 {provider_name} 入口不把版本化正文拉进全局面；发现引用："
             + "、".join(leaks),
         )
 else:
     add_check_result(
         True,
-        "用户级 Claude 入口检查在非 Windows 环境不适用（本机专属，需在 Windows 上运行）",
+        "用户级入口检查在非 Windows 环境不适用（本机专属，需在 Windows 上运行）",
     )
 
 routing_patterns = [

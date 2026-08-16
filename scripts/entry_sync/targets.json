@@ -158,31 +158,6 @@
           "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
         }
       ]
-    },
-    {
-      "id": "installed-codex",
-      "scope": "installed",
-      "strategy": "pointer",
-      "pointer_format": "text",
-      "pointer": "C:/Users/Morni/workspace/agent-control/entrypoints/agent-system.md",
-      "destination": {
-        "base": "home",
-        "path": ".codex/AGENTS.md"
-      },
-      "output": "installed/codex/AGENTS.md"
-    },
-    {
-      "id": "installed-orca-codex",
-      "scope": "installed",
-      "strategy": "pointer",
-      "pointer_format": "text",
-      "pointer": "C:/Users/Morni/workspace/agent-control/entrypoints/agent-system.md",
-      "destination": {
-        "base": "environment",
-        "variable": "APPDATA",
-        "path": "orca/codex-runtime-home/home/AGENTS.md"
-      },
-      "output": "installed/orca-codex/AGENTS.md"
     }
   ]
 }
