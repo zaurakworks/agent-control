@@ -225,8 +225,9 @@ else:
         target["id"]: target
         for target in iter_targets(entry_sync_config, "installed")
     }
+    # installed-claude 不在此列：用户级 ~/.claude/CLAUDE.md 已不再是版本化正文的
+    # 投影，改由下面的反向断言守护（它必须**不**加载那份正文）。
     expected_pointer_formats = {
-        "installed-claude": "at_import",
         "installed-codex": "text",
         "installed-orca-codex": "text",
     }
@@ -308,6 +309,40 @@ else:
                 ),
                 pointer_description,
             )
+
+# 用户级 Claude 入口的反向断言。
+#
+# 原先这里断言它是版本化正文的单一指针 —— 那等于让那 12 KB 在这台机器的每一个
+# Claude 会话里常驻，包括与本仓无关的项目。入口下沉到仓库级之后，需要守护的
+# 不变量正好相反：用户级只放与任务无关的锚点，本仓正文不得进全局常驻面。
+#
+# 和 installed 指针检查一样按平台限定，不按文件存在性跳过 —— 存在性判断会把
+# 本机上真实的漂移掩盖成"不适用"。
+if os.name == "nt":
+    installed_claude_path = Path.home() / ".claude" / "CLAUDE.md"
+    if not installed_claude_path.is_file():
+        add_check_result(False, f"用户级 Claude 入口存在：{installed_claude_path}")
+    else:
+        installed_claude_text = installed_claude_path.read_text(
+            encoding="utf-8", errors="replace"
+        )
+        leaks = [
+            marker
+            for marker in ("entrypoints/agent-system.md", "entrypoints\agent-system.md")
+            if marker in installed_claude_text
+        ]
+        add_check_result(
+            not leaks,
+            "用户级 Claude 入口不把版本化正文拉进全局常驻面"
+            if not leaks
+            else "用户级 Claude 入口不把版本化正文拉进全局常驻面；发现引用："
+            + "、".join(leaks),
+        )
+else:
+    add_check_result(
+        True,
+        "用户级 Claude 入口检查在非 Windows 环境不适用（本机专属，需在 Windows 上运行）",
+    )
 
 routing_patterns = [
     "没有明确 Issue",
@@ -463,9 +498,13 @@ add_check_result(
     and system_global_wave_section != readme_global_wave_section,
     "README 与 AGENTS 只保留扩大并行波次最短回指，版本化入口独占正文",
 )
+claude_entry_lines = [line.strip() for line in claude_entry.strip().splitlines() if line.strip()]
 add_check_result(
-    claude_entry.strip() == "@AGENTS.md",
-    "Claude 真实仓库入口继续导入同一 AGENTS.md",
+    claude_entry_lines == ["@AGENTS.md", "@entrypoints/agent-system.md"],
+    "Claude 真实仓库入口继续导入同一 AGENTS.md"
+    if claude_entry_lines == ["@AGENTS.md", "@entrypoints/agent-system.md"]
+    else "Claude 真实仓库入口继续导入同一 AGENTS.md；实际："
+    + "、".join(claude_entry_lines or ["(空)"]),
 )
 
 effective_entries = [

@@ -160,17 +160,6 @@
       ]
     },
     {
-      "id": "installed-claude",
-      "scope": "installed",
-      "strategy": "pointer",
-      "pointer": "C:/Users/Morni/workspace/agent-control/entrypoints/agent-system.md",
-      "destination": {
-        "base": "home",
-        "path": ".claude/CLAUDE.md"
-      },
-      "output": "installed/claude/CLAUDE.md"
-    },
-    {
       "id": "installed-codex",
       "scope": "installed",
       "strategy": "pointer",

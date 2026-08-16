@@ -47,7 +47,8 @@ Session 的职责由当前 Issue 合同和写入所有权决定，不由 Provide
 - `work/` 根目录下的其余 Markdown（`configuration-inventory.md`、`current-monitoring-directive.md`、`knowledge-mvp-proposal.md`、`knowledge-mvp-boundary-candidate.md`、`knowledge-mvp-decision.md`、`permission-strategy-research.md`、`system-capability-backlog.md`）与 `work/knowledge-trial/`：具名的调研、清单与候选，非权威；默认不读取，只在当前任务明确链接时按需读取。新增同类内容优先进 `work/records/<日期>-<主题>/`，不再往根目录堆放；
 - `entrypoints/agent-system.md`：Windows 用户级 Agent 系统提示词的版本化来源；实际入口副本不是新的权威来源；
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
-- `CLAUDE.md`：Claude Code 导入同一份入口规则。
+- `CLAUDE.md`：Claude Code 导入同一份入口规则，并在本仓内加载 `entrypoints/agent-system.md`；用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面；
+- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状）。它既是 Claude Code 在本仓内的直接可用资产，也是 profile 物化到 `CLAUDE_CONFIG_DIR` 与 `CODEX_HOME` 时的**唯一来源**；两个 Provider 共用同一份，不各存一份。
 
 旧仓、旧 Issue、旧实现、历史记录、分析和实验都不能反向定义当前权威。
 
