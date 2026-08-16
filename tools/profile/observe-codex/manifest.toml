@@ -52,11 +52,18 @@ from = '<userhome>\.codex'
 files = ["auth.json"]
 
 [settings]
-# workspace-write + 开网：写入仍限在 cwd，但不再断网
-# 上一轮 codex exec 失败就是因为默认沙箱把网络也断了
-sandboxMode = "workspace-write"
+# 不用沙箱。负责人决定，理由是隔离由 worktree 承担，且真实 ~/.codex/config.toml
+# 本来就是 danger-full-access。
+#
+# 换掉 workspace-write 的直接原因有实测证据：那个沙箱在本机间歇性挂死 ——
+# 落仓后 3 次端到端尝试有 2 次卡在沙箱内启动 pwsh，没有输出也不返回；
+# 且它拒绝 agent 往自己的 CODEX_HOME 写，逼出了 workdir 必须是第三个目录。
+#
+# 代价要说清楚：agent 的写入不再受 cwd 约束。这个 profile 是观察阶段（只读），
+# 但换成执行阶段的 profile 时，这一条要重新判断，不能照抄。
+sandboxMode = "danger-full-access"
 networkAccess = true
-# 保留今晚那个修复，避免沙箱账户竞争
+# 仍保留：Windows 沙箱账户争用的修复对其他路径依然有效
 windowsSandbox = "unelevated"
 
 [prompt]
