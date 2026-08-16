@@ -76,18 +76,6 @@
         {
           "mode": "target_specific",
           "source": {
-            "heading": "持久实现语言",
-            "level": 2
-          },
-          "target": {
-            "heading": "持久实现语言",
-            "level": 2
-          },
-          "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
-        },
-        {
-          "mode": "target_specific",
-          "source": {
             "heading": "Agent 系统任务路由",
             "level": 2
           },
@@ -108,54 +96,6 @@
             "level": 2
           },
           "reason": "仓库入口使用当前 worktree 的相对路径；安装入口使用稳定主仓绝对路径，均保持主动按名问路。"
-        },
-        {
-          "mode": "target_specific",
-          "source": {
-            "heading": "持有 Issue 时扩大并行波次",
-            "level": 3
-          },
-          "target": {
-            "heading": "持有 Issue 时扩大并行波次",
-            "level": 3
-          },
-          "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
-        },
-        {
-          "mode": "target_specific",
-          "source": {
-            "heading": "在线续接与负责人事项",
-            "level": 2
-          },
-          "target": {
-            "heading": "在线续接与负责人事项",
-            "level": 2
-          },
-          "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
-        },
-        {
-          "mode": "target_specific",
-          "source": {
-            "heading": "父目标验收",
-            "level": 2
-          },
-          "target": {
-            "heading": "父目标验收",
-            "level": 2
-          },
-          "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
-        },
-        {
-          "mode": "target_specific",
-          "source": {
-            "heading": "经营总账维护",
-            "level": 2
-          },
-          "target": {
-            "heading": "经营总账维护",
-            "level": 2
-          },
-          "reason": "AGENTS 只保留指向版本化入口同名章节的最短回指。"
         }
       ]
     }
