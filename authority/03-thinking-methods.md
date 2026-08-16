@@ -43,13 +43,13 @@
 
 因此，思考模式、知识和多 Agent 协作都可能产生一个或多个 Skill，但不等于这些领域本身就是 Skill。确认这项边界不自动授权创建对应 Skill，也不决定最终 Plugin、仓库或工具结构。在本领域，特定条件下重新界定问题、比较、选择、切换、降级或退出方法的可重复步骤可以成为 Skill。
 
-`self-improvement` 是第一个可长期复用的窄切片：它处理已观察到的漂移、纠正和行为改进，也能在多轮概念增加却没有减少关键未知、形成决定或可检验资产时主动暂停，以最小可逆资产让高层判断接受真实反馈。它不代表完整元方法能力已经实现，也不能替代当前任务的方法控制；方法库建设另由关联 [#8](https://github.com/Eridanus117/agent-control/issues/8) 下的有界合同承载。具体版本和安装水位属于当前 Plugin 清单与安装面，不由本权威固化。
+`self-improvement` 是第一个可长期复用的窄切片：它处理已观察到的漂移、纠正和行为改进，也能在多轮概念增加却没有减少关键未知、形成决定或可检验资产时主动暂停，以最小可逆资产让高层判断接受真实反馈。它不代表完整元方法能力已经实现，也不能替代当前任务的方法控制；问题求解诉求的当前满足判断由 [zaurakworks/agent-control#4](https://github.com/zaurakworks/agent-control/issues/4) 承载，方法库目标形态与全量建设决定保留在旧仓 [Eridanus117/agent-control#70](https://github.com/Eridanus117/agent-control/issues/70)。具体版本和安装水位属于当前 Plugin 清单与安装面，不由本权威固化。
 
 ## 当前方法边界
 
 **共同确认**：`adaptive-problem-solving`（APS）是当前任务内的方法控制器。它恢复问题、识别主瓶颈、比较普通处理与方法介入，并负责选择、组合、升级、降级或退出方法；按需方法登记面只向它提供可发现的候选及其证据、成本、进入门与退出条件，不建立第二套控制器。
 
-**共同确认**：负责人已经批准直接全量建设方法库；具体建设由关联 [#8](https://github.com/Eridanus117/agent-control/issues/8) 下的有界合同承载。本权威只固化职责边界，不固化问题类型表、schema、度量方案或具体方法清单。
+**共同确认**：负责人已经批准直接全量建设方法库；决定来源为旧仓 [Eridanus117/agent-control#70 的 70-D1 至 70-D3](https://github.com/Eridanus117/agent-control/issues/70)，当前诉求状态由 [zaurakworks/agent-control#4](https://github.com/zaurakworks/agent-control/issues/4) 承载。本权威只固化职责边界，不固化问题类型表、schema、度量方案或具体方法清单。
 
 **共同确认**：方法被登记只表示可被发现，不表示它可信、应当默认触发、已经获得产品采用或取得本次执行授权。方法仍须遵守自身硬门；例如带有显式同意门的 `grilling`，即使分类命中也只能建议，不能自动启动。
 

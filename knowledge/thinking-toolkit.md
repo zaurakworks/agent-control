@@ -2,17 +2,27 @@
 
 > **定位**：本页是 B1 思考法／元认知范围的单一当前知识载体，服务负责人学习、浏览、比较与迁移；它不属于 `authority/`，也不是 Agent 的触发器、执行清单或第二个方法控制器。
 >
-> **当前对象**：`agent-control` 中的 Agent 系统决策，以及 `adaptive-problem-solving`（APS）`0.2.9` 的 30 张方法卡（M0 18 张、M1 12 张）。
+> **当前对象**：`agent-control` 中的 Agent 系统决策，以及 `adaptive-problem-solving`（APS）`0.2.11` 的 30 张方法卡（M0 18 张、M1 12 张）。
 >
 > **整合来源**：[关联 #161（建立可浏览思考工具箱）](https://github.com/Eridanus117/agent-control/pull/161)与[关联 #163（新增可浏览思考工具箱）](https://github.com/Eridanus117/agent-control/pull/163)；本页完成去重和价值门复核后置换两份分散草稿。
 >
-> **最近核验**：2026-08-12；逐项对照 APS 方法登记面的 README、类型索引与 30 张卡。
+> **最近核验**：2026-08-16；对照当前 APS 方法登记面的 README、类型索引、30 张卡与符合性检查，证据分布未变。
 >
 > **证据上限**：来源支持概念原义、部分人类或领域证据，以及本页与现有 APS 卡的关系；本仓例子只说明怎样迁移概念，尚无证据证明这些方法必然改善当前 Agent 系统。
 
+## 先选阅读入口
+
+如果你是负责人或普通读者，不要从 `SKILL.md` 开始顺序通读。`SKILL.md`、类型索引和方法卡是给 Agent 按任务选择性加载的可执行合同，优先保证触发、硬门、分支、退出和责任边界完整，不按教程组织。
+
+| 你现在想做什么 | 从哪里开始 |
+| --- | --- |
+| 快速知道 APS 替你做什么、什么时候会用到 | [给负责人的 Skill 选型面](https://github.com/zaurakworks/agent-plugins/blob/main/docs/skills-overview.md#adaptive-problem-solving) |
+| 学习、浏览和比较思考概念 | 继续读本页 |
+| 维护或审查 Agent 实际怎样选择和执行方法 | [APS 行为合同](https://github.com/zaurakworks/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/SKILL.md) → [方法类型索引](https://github.com/zaurakworks/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/INDEX.md) → 命中的单张方法卡 |
+
 ## 怎么用这页
 
-先从一个真实问题进入，通常只挑一个主角度；若低成本、可回退的普通行动能更快给出反馈，就直接行动。概念页回答“这个角度是什么意思、何时值得想”，[APS 方法登记面](https://github.com/Eridanus117/agent-plugins/tree/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry)回答 Agent “何时触发、怎样执行、成本多大、何时停止、证据到哪一级”。
+先从一个真实问题进入，通常只挑一个主角度；若低成本、可回退的普通行动能更快给出反馈，就直接行动。概念页回答“这个角度是什么意思、何时值得想”，[APS 方法登记面](https://github.com/zaurakworks/agent-plugins/tree/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry)回答 Agent “何时触发、怎样执行、成本多大、何时停止、证据到哪一级”。
 
 概念被收录或建议登记都不产生同意、授权、写入所有权、产品采用或默认触发资格。需要执行时，APS 仍先判断普通路径是否足够、当前主瓶颈是什么，并遵守对应卡片的硬门与组合上限。
 
@@ -187,7 +197,7 @@
 
 ### 本次直接核验
 
-- 2026-08-12 对照 APS `0.2.9` 的[方法登记面说明](https://github.com/Eridanus117/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/README.md)、[方法类型学索引](https://github.com/Eridanus117/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/INDEX.md)与 30 张卡，确认 18 张 M0、12 张 M1，以及逐项“覆盖／并入／净增建议”关系。
+- 2026-08-16 对照 APS `0.2.11` 的[方法登记面说明](https://github.com/zaurakworks/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/README.md)、[方法类型学索引](https://github.com/zaurakworks/agent-plugins/blob/main/plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/INDEX.md)、30 张卡与符合性检查，确认 18 张 M0、12 张 M1，以及逐项“覆盖／并入／净增建议”关系未变。
 - 本仓职责边界来自[思考模式与元方法权威](../authority/03-thinking-methods.md)，知识准入与退出边界来自[知识权威](../authority/01-knowledge.md)；本页不修改两者。
 - 本仓例子来自当前知识包、近期远端合同与[关联 #136（今夜自治运行的反向反思）跟丢审计补正](https://github.com/Eridanus117/agent-control/issues/136#issuecomment-5263279476)。这些材料支持例子真实性，不单独证明方法有效。
 
