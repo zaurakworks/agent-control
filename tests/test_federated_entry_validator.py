@@ -150,7 +150,7 @@ class FederatedEntryValidatorTests(unittest.TestCase):
     def test_continuation_target_drift_fails_source_projection(self) -> None:
         proposal_gate = "公开父 Issue 的缺口时，只记录 proposal"
         activation_gate = "只有负责人明确激活后"
-        plugin_gate = "实际安装、合同明确调用且运行时核验通过"
+        scan_gate = "不自动启动，也不扫描队列找活"
         mutations = [
             (
                 proposal_gate,
@@ -161,8 +161,8 @@ class FederatedEntryValidatorTests(unittest.TestCase):
                 "无需负责人明确激活",
             ),
             (
-                plugin_gate,
-                "源码存在或历史上安装过",
+                scan_gate,
+                "自动启动并扫描队列找活",
             ),
             (
                 "新建 Session 与恢复空闲 Session 都必须重读项目入口和远端当前合同",
