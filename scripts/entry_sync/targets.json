@@ -31,19 +31,19 @@
             "level": 2
           },
           "target": {
-            "heading": "机器级持久实现语言",
+            "heading": "持久实现语言",
             "level": 2
           },
-          "reason": "README 保留仓库读者所需的机器级语言规则摘要。"
+          "reason": "README 保留仓库贡献者所需的项目级语言规则摘要。"
         },
         {
           "mode": "target_specific",
           "source": {
-            "heading": "持有 Issue 时扩大并行波次",
+            "heading": "扩大工作范围",
             "level": 3
           },
           "target": {
-            "heading": "持有 Issue 时扩大并行波次",
+            "heading": "扩大工作范围",
             "level": 3
           },
           "reason": "README 只保留指向版本化入口同名章节的最短回指。"

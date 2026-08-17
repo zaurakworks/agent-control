@@ -128,9 +128,9 @@ class FederatedEntryValidatorTests(unittest.TestCase):
             "repository-readme 的声明式投影与单一真源一致",
             "repository-agents 的声明式投影与单一真源一致",
             "AGENTS 不再单列在线续接章节，版本化入口独占正文",
-            "AGENTS 不再单列扩大并行波次章节，版本化入口独占正文",
-            "版本化系统入口保留在线续接的触发、恢复、决定与离线边界",
-            "版本化系统入口保留扩大并行波次的触发、所有权与禁用边界",
+            "AGENTS 不再单列扩大工作范围章节，版本化入口独占正文",
+            "版本化系统入口保留显式激活、恢复与离线边界",
+            "版本化系统入口保留扩大范围的触发、所有权与禁用边界",
             "Claude 真实仓库入口继续导入同一 AGENTS.md",
         }
         self.assertTrue(
@@ -148,48 +148,38 @@ class FederatedEntryValidatorTests(unittest.TestCase):
         self.assertGreaterEqual(receipt["counts"]["total"], 80)
 
     def test_continuation_target_drift_fails_source_projection(self) -> None:
-        trigger_gate = (
-            "自然发现直接对应明确、开放且已授权父 Issue 未满足成功条件的"
-            "具体缺口时，加载 `github-collaboration:issue-workflow`"
-        )
+        proposal_gate = "公开父 Issue 的缺口时，只记录 proposal"
+        activation_gate = "只有负责人明确激活后"
+        plugin_gate = "实际安装、合同明确调用且运行时核验通过"
         mutations = [
             (
-                trigger_gate,
-                (
-                    "自然发现一个直接对应明确、开放且已授权父 Issue 未满足成功条件的"
-                    "具体缺口时，不加载 `github-collaboration:issue-workflow`。"
-                ),
+                proposal_gate,
+                "私有父 Issue 的缺口也可以直接执行",
             ),
             (
-                trigger_gate,
-                (
-                    "即使缺口并不对应明确、开放且已授权父 Issue 未满足成功条件，"
-                    "也可以加载 `github-collaboration:issue-workflow`。"
-                ),
+                activation_gate,
+                "无需负责人明确激活",
             ),
             (
-                trigger_gate,
-                (
-                    "自然发现一个直接对应明确、开放且已授权父 Issue 未满足成功条件的"
-                    "具体缺口时，可以选择加载 `github-collaboration:issue-workflow`。"
-                ),
+                plugin_gate,
+                "源码存在或历史上安装过",
             ),
             (
-                "新建一个 Session 与恢复一个已有但当前空闲的 Session 是等价入口：",
-                "新建一个 Session 与恢复一个已有但当前空闲的 Session 不是等价入口：",
+                "新建 Session 与恢复空闲 Session 都必须重读项目入口和远端当前合同",
+                "恢复空闲 Session 可以沿用旧合同",
             ),
             (
                 (
-                    "重读入口、远端 Issue／Project 与必要的 `work/current.md`；"
+                    "重读项目入口和远端当前合同；"
                     "不得沿用旧聊天记忆、草稿、角色、身份、授权或所有权。"
                 ),
                 (
-                    "重读入口、远端 Issue／Project 与必要的 `work/current.md`；"
+                    "重读项目入口和远端当前合同；"
                     "可以沿用旧聊天记忆、草稿、角色、身份、授权或所有权。"
                 ),
             ),
         ]
-        gate_description = "版本化系统入口保留在线续接的触发、恢复、决定与离线边界"
+        gate_description = "版本化系统入口保留显式激活、恢复与离线边界"
 
         for before, after in mutations:
             with self.subTest(after=after):
@@ -207,57 +197,35 @@ class FederatedEntryValidatorTests(unittest.TestCase):
 
     def test_global_wave_target_drift_fails_source_projection(self) -> None:
         trigger_gate = (
-            "持有明确 Issue 时，只有负责人要求扩大当前并发面、增加并行投入或选择下一波次"
-            "（包括询问“还有可并发推进事项吗”），才读取经营总账权威与远端观察面，"
-            "把候选枚举源扩大到整个经营总账的未满足／部分满足诉求，并返回 "
-            "`adaptive-problem-solving` 形成或选择有界 Issue。"
+            "只有负责人明确要求扩大并发面、选择下一项工作或启动另一项任务时，"
+            "才枚举公开候选。"
         )
         ownership_gate = (
-            "看得更宽不等于写得更宽：当前 Session 的写入所有权仍限于原 Issue 子树；"
-            "表外候选只能提出、形成获准合同或交给其他所有者。"
+            "迁移索引默认排除；当前 Session 的写入所有权仍限于原合同。"
         )
         guard_gate = (
-            "普通进度询问和当前 Issue 内选择下一切片不触发全局枚举；"
-            "同一阶段没有新证据时不重复扫描。"
-            "全局枚举本身不自动建 Issue、派发或修改 Project；"
+            "没有明确激活语句时，不创建 Issue、不派发、不修改 Project、不启动新模型执行。"
         )
         mutations = [
             (
                 trigger_gate,
-                (
-                    "持有明确 Issue 时，即使负责人只问当前 PR 进度，也读取经营总账权威与"
-                    "远端观察面，把候选枚举源扩大到整个经营总账的未满足／部分满足诉求。"
-                ),
+                "普通进度询问也枚举所有公开候选。",
             ),
             (
                 trigger_gate,
-                (
-                    "持有明确 Issue 时，只有负责人要求扩大当前并发面、增加并行投入或选择"
-                    "下一波次，才读取短活动协调快照，把候选枚举源限制为当前 Run 邻域。"
-                ),
+                "只有发现空闲运行后端时，才枚举私有旧 Project。",
             ),
             (
                 ownership_gate,
-                (
-                    "看得更宽就可以写得更宽：当前 Session 的写入所有权扩展到表外候选；"
-                    "表外候选可以直接领取、派发或改写。"
-                ),
+                "迁移索引一并纳入；当前 Session 的写入所有权扩展到全部候选。",
             ),
             (
                 guard_gate,
-                (
-                    "普通进度询问和当前 Issue 内选择下一切片也触发全局枚举；"
-                    "同一阶段没有新证据时不重复扫描。"
-                    "全局枚举本身不自动建 Issue、派发或修改 Project。"
-                ),
+                "没有明确激活语句时，也可以创建 Issue、派发和启动新模型执行。",
             ),
             (
                 guard_gate,
-                (
-                    "普通进度询问和当前 Issue 内选择下一切片不触发全局枚举；"
-                    "同一阶段没有新证据时重复扫描。"
-                    "全局枚举本身自动建 Issue、派发并修改 Project。"
-                ),
+                "没有明确激活语句时，不创建 Issue，但可以派发并修改 Project。",
             ),
             (
                 guard_gate,
@@ -268,8 +236,8 @@ class FederatedEntryValidatorTests(unittest.TestCase):
             ),
         ]
         gate_prefixes = (
-            "版本化系统入口保留扩大并行波次的触发、所有权与禁用边界",
-            "版本化系统入口的扩大并行波次正文不含反向放宽",
+            "版本化系统入口保留扩大范围的触发、所有权与禁用边界",
+            "版本化系统入口的扩大工作范围正文不含反向放宽",
         )
 
         for before, after in mutations:

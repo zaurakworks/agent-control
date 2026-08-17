@@ -47,7 +47,7 @@ CONTINUATION_FORBIDDEN_WORKFLOW_DETAILS = (
 )
 GLOBAL_WAVE_SECTION_MAX_CHARACTERS = 700
 CONTINUATION_BACKREFERENCE = "./entrypoints/agent-system.md#在线续接与负责人事项"
-GLOBAL_WAVE_BACKREFERENCE = "./entrypoints/agent-system.md#持有-issue-时扩大并行波次"
+GLOBAL_WAVE_BACKREFERENCE = "./entrypoints/agent-system.md#扩大工作范围"
 LANGUAGE_BACKREFERENCE = "./entrypoints/agent-system.md#持久实现语言"
 
 passes: list[str] = []
@@ -164,7 +164,6 @@ readme = get_repository_text("README.md")
 system_entry = get_repository_text("entrypoints/agent-system.md")
 agents_entry = get_repository_text("AGENTS.md")
 claude_entry = get_repository_text("CLAUDE.md")
-current = get_repository_text("work/current.md")
 collaboration_authority = get_repository_text("authority/04-collaboration.md")
 thinking_authority = get_repository_text("authority/03-thinking-methods.md")
 ledger_authority = get_repository_text("authority/10-operating-ledger.md")
@@ -246,7 +245,10 @@ INSTALLED_ENTRIES = [
 if os.name == "nt":
     for provider_name, installed_path in INSTALLED_ENTRIES:
         if not installed_path.is_file():
-            add_check_result(False, f"用户级 {provider_name} 入口存在：{installed_path}")
+            add_check_result(
+                True,
+                f"用户级 {provider_name} 入口不是本仓安装前提：{installed_path}",
+            )
             continue
         installed_text = installed_path.read_text(encoding="utf-8", errors="replace")
         leaks = [
@@ -256,9 +258,9 @@ if os.name == "nt":
         ]
         add_check_result(
             not leaks,
-            f"用户级 {provider_name} 入口不把版本化正文拉进全局面"
+            f"现有用户级 {provider_name} 入口不把版本化正文拉进全局面"
             if not leaks
-            else f"用户级 {provider_name} 入口不把版本化正文拉进全局面；发现引用："
+            else f"现有用户级 {provider_name} 入口不把版本化正文拉进全局面；发现引用："
             + "、".join(leaks),
         )
 else:
@@ -268,28 +270,35 @@ else:
     )
 
 routing_patterns = [
+    "公开、自足",
+    "迁移索引/待分诊",
     "没有明确 Issue",
-    "父 Issue",
-    "叶子 Issue",
-    "github-collaboration:issue-workflow",
-    "未满足",
-    "就绪",
+    "不能自行激活",
+    "实际安装",
+    "合同明确调用",
 ]
 
 test_contains_all(
     readme,
     routing_patterns,
-    "README 覆盖无 Issue／父 Issue／叶子 Issue 三种模式",
+    "README 覆盖明确激活、迁移索引和无 Issue 三种模式",
 )
 test_contains_all(
     system_entry,
     routing_patterns,
-    "版本化系统入口覆盖三种模式并使用固定 Skill 接口",
+    "版本化系统入口覆盖明确激活、迁移索引和无 Issue 三种模式",
 )
 test_contains_all(
     agents_entry,
-    ["github-collaboration:issue-workflow", "Issue 合同", "写入所有权"],
-    "Codex 仓库入口与联邦式路由一致",
+    [
+        "迁移索引/待分诊",
+        "只读核验",
+        "没有明确 Issue",
+        "不能自行激活",
+        "实际安装",
+        "能力核验通过",
+    ],
+    "Codex 仓库入口与公开激活边界一致",
 )
 readme_continuation_section = extract_markdown_section(
     readme, "在线续接与负责人事项"
@@ -331,16 +340,17 @@ for entry_name, continuation_section in [
 test_contains_all(
     system_continuation_section,
     [
-        "明确、开放且已授权父 Issue 未满足成功条件",
-        "具体缺口时，加载 `github-collaboration:issue-workflow`",
+        "公开父 Issue 的缺口时，只记录 proposal",
+        "只有负责人明确激活后",
+        "实际安装、合同明确调用且运行时核验通过",
         "不自动启动，也不扫描队列找活",
-        "新建一个 Session 与恢复一个已有但当前空闲的 Session 是等价入口",
+        "新建 Session 与恢复空闲 Session",
         "不得沿用旧聊天记忆",
         "Project 只作观察面",
         "不是默认审批入口",
         "缺少 L3 离线唤醒",
     ],
-    "版本化系统入口保留在线续接的触发、恢复、决定与离线边界",
+    "版本化系统入口保留显式激活、恢复与离线边界",
 )
 # README 是给人看的入口，分节回指是有用的导航，保留。
 # AGENTS 是给 Agent 看的入口，顶部已经把版本化正文声明为开工前必读，分节再指
@@ -357,13 +367,13 @@ add_check_result(
     "AGENTS 不再单列在线续接章节，版本化入口独占正文",
 )
 readme_global_wave_section = extract_markdown_subsection(
-    readme, "持有 Issue 时扩大并行波次"
+    readme, "扩大工作范围"
 )
 system_global_wave_section = extract_markdown_subsection(
-    system_entry, "持有 Issue 时扩大并行波次"
+    system_entry, "扩大工作范围"
 )
 agents_global_wave_section = extract_markdown_subsection(
-    agents_entry, "持有 Issue 时扩大并行波次"
+    agents_entry, "扩大工作范围"
 )
 for entry_name, global_wave_section in [
     ("仓库 README", readme_global_wave_section),
@@ -373,25 +383,24 @@ for entry_name, global_wave_section in [
     add_check_result(
         len(global_wave_section) <= GLOBAL_WAVE_SECTION_MAX_CHARACTERS,
         (
-            f"{entry_name}：扩大并行波次章节保持短（实际 {len(global_wave_section)} 字符，"
+            f"{entry_name}：扩大工作范围章节保持短（实际 {len(global_wave_section)} 字符，"
             f"上限 {GLOBAL_WAVE_SECTION_MAX_CHARACTERS} 字符）"
         ),
     )
 add_check_result(
     bool(system_global_wave_section),
-    "版本化系统入口包含扩大并行波次正文",
+    "版本化系统入口包含扩大工作范围正文",
 )
 test_contains_all(
     system_global_wave_section,
     [
-        "只有负责人要求扩大当前并发面",
-        "经营总账权威与远端观察面",
-        "写入所有权仍限于原 Issue 子树",
-        "普通进度询问和当前 Issue 内选择下一切片不触发全局枚举",
-        "同一阶段没有新证据时不重复扫描",
-        "不自动建 Issue、派发或修改 Project",
+        "只有负责人明确要求扩大并发面、选择下一项工作或启动另一项任务时",
+        "枚举公开候选",
+        "迁移索引默认排除",
+        "写入所有权仍限于原合同",
+        "不创建 Issue、不派发、不修改 Project、不启动新模型执行",
     ],
-    "版本化系统入口保留扩大并行波次的触发、所有权与禁用边界",
+    "版本化系统入口保留扩大范围的触发、所有权与禁用边界",
 )
 global_wave_contradictions = [
     phrase
@@ -400,19 +409,19 @@ global_wave_contradictions = [
 ]
 add_check_result(
     not global_wave_contradictions,
-    "版本化系统入口的扩大并行波次正文不含反向放宽"
+    "版本化系统入口的扩大工作范围正文不含反向放宽"
     if not global_wave_contradictions
-    else "版本化系统入口的扩大并行波次正文不含反向放宽；发现："
+    else "版本化系统入口的扩大工作范围正文不含反向放宽；发现："
     + "、".join(global_wave_contradictions),
 )
 test_contains_all(
     readme_global_wave_section,
     [GLOBAL_WAVE_BACKREFERENCE],
-    "README 的扩大并行波次章节回指唯一版本化正文",
+    "README 的扩大工作范围章节回指唯一版本化正文",
 )
 add_check_result(
     bool(system_global_wave_section) and not agents_global_wave_section.strip(),
-    "AGENTS 不再单列扩大并行波次章节，版本化入口独占正文",
+    "AGENTS 不再单列扩大工作范围章节，版本化入口独占正文",
 )
 claude_entry_lines = [line.strip() for line in claude_entry.strip().splitlines() if line.strip()]
 add_check_result(
@@ -429,16 +438,16 @@ effective_entries = [
 ]
 scenario_contracts = [
     (
-        "明确叶子 Issue",
-        ["有明确 Issue", "叶子 Issue", "github-collaboration:issue-workflow", "端到端交付"],
+        "明确激活公开 Issue",
+        ["负责人明确激活", "公开、自足", "授权范围"],
     ),
     (
-        "父 Issue 局部协调",
-        ["父 Issue", "github-collaboration:issue-workflow", "协调自己的子树"],
+        "迁移索引只读分诊",
+        ["迁移索引/待分诊", "只分诊", "只读核验", "不从旧正文"],
     ),
     (
-        "无 Issue 选择下一项工作",
-        ["没有明确 Issue", "经营总账", "adaptive-problem-solving", "有界 Issue"],
+        "无 Issue 保持最小范围",
+        ["没有明确 Issue", "最小范围", "proposal", "不能自行激活"],
     ),
 ]
 for entry_name, entry_text in effective_entries:
@@ -452,12 +461,12 @@ for entry_name, entry_text in effective_entries:
 test_contains_all(
     system_entry,
     [
-        "Issue 是持久任务合同，不是最高权威",
-        "当前权威",
-        "负责人更新的明确指令",
-        "有效协作派发",
+        "负责人当前指令",
+        "公开自足合同",
+        "写入所有权",
+        "Issue 不能覆盖更高层权限边界",
     ],
-    "入口不会把 Issue 升格到权威和负责人新指令之上",
+    "入口不会把 Issue 升格到当前指令和权限边界之上",
 )
 test_contains_all(
     system_entry,
@@ -466,45 +475,47 @@ test_contains_all(
 )
 
 language_rule_patterns = [
-    "持久维护的程序、CLI、自动化和验证脚本",
+    "本仓新增或实质修改的持久程序、CLI、自动化和验证脚本",
     "Go",
     "Python",
     "TypeScript",
     "Rust",
-    "PowerShell",
-    "Batch",
-    "Shell",
-    "不得以当前是否",
-    "安装",
-    "排除理由",
+    "不得新增 PowerShell、Batch 或 Shell 产品脚本",
+    "一次性命令",
 ]
-global_language_scope_patterns = [
-    "这台电脑",
-    "Codex",
-    "Claude Code",
-    "所有仓库、Provider、Session 和 worktree",
-    "仓库入口",
-    "触发条件",
-    "不授权",
-    "批量重写",
+project_scope_patterns = [
+    "只约束在 `agent-control` 仓库内",
+    "不是这台电脑或其他仓库的用户级全局提示词",
+    "不授权批量重写",
+    "不自动扩大到其他仓库或用户级配置",
 ]
-test_contains_all(system_entry, language_rule_patterns, "版本化入口包含全局脚本语言规则")
-for scope_name, scope_text in [
-    ("版本化系统入口", system_entry),
-    ("仓库 README", readme),
-    ("可读研发记录", record),
-]:
-    test_contains_all(
-        scope_text,
-        global_language_scope_patterns,
-        f"{scope_name} 明确语言规则的机器级全局作用域与非批量重写边界",
-    )
+test_contains_all(system_entry, language_rule_patterns, "版本化入口包含项目级脚本语言规则")
+test_contains_all(
+    system_entry,
+    project_scope_patterns,
+    "版本化系统入口明确项目级作用域与非批量重写边界",
+)
+test_contains_all(
+    readme,
+    [
+        "本仓新增或实质修改的持久程序、CLI、自动化和验证脚本",
+        "Go",
+        "Python",
+        "TypeScript",
+        "Rust",
+        "PowerShell、Batch 或 Shell",
+        "本仓贡献约束",
+        "不自动扩大到其他仓库或用户级配置",
+    ],
+    "仓库 README 明确项目级语言与作用域边界",
+)
 system_language_section = extract_markdown_section(system_entry, "持久实现语言")
 agents_language_section = extract_markdown_section(agents_entry, "持久实现语言")
 test_contains_all(
     system_language_section,
-    language_rule_patterns + global_language_scope_patterns,
-    "机器级作用域与语言边界位于同一版本化入口章节",
+    language_rule_patterns
+    + ["不授权批量重写", "不自动扩大到其他仓库或用户级配置"],
+    "项目级语言章节包含非批量重写边界",
 )
 add_check_result(
     bool(system_language_section) and not agents_language_section.strip(),
@@ -535,78 +546,44 @@ add_check_result(
 )
 test_contains_all(
     authority_map,
-    ["[`entrypoints/agent-system.md`](../entrypoints/agent-system.md)", "唯一版本化正文", "本总图不复制"],
-    "权威总图回指机器级持久实现语言与常驻规则的唯一版本化正文",
+    ["[`entrypoints/agent-system.md`](../entrypoints/agent-system.md)", "项目级 Agent 规则", "本总图不复制"],
+    "权威总图回指项目级规则的唯一版本化正文",
 )
 add_check_result(
     system_entry.find("## 持久实现语言")
-    < system_entry.find("当任务涉及 Agent 系统"),
-    "机器级语言规则位于 Agent 系统任务条件之前",
+    < system_entry.find("当任务落在本仓"),
+    "持久实现语言规则位于项目任务路由之前",
 )
 test_contains_all(
     readme,
-    ["机器级持久实现语言", "Go", "Python", "TypeScript", "Rust", "一次性命令"],
+    ["持久实现语言", "Go", "Python", "TypeScript", "Rust", "一次性命令"],
     "仓库入口可发现脚本语言规则",
 )
 
-required_current_headings = [
-    "## 主线入口",
-    "## 各来源 observedAt 水位",
-    "## unresolved-conflict",
-]
-test_contains_all(current, required_current_headings, "current 只保留指针壳的三部分")
-test_contains_all(
-    current,
-    [
-        "本文件是恢复指针，不是状态权威",
-        "github.com/zaurakworks/agent-control/issues/22",  # 迁仓后：老 #44 → 新 #22
-        "observedAt",
-    ],
-    "current 声明指针壳定位、主线入口与来源水位",
-)
-forbidden_current_patterns = [
-    "## 当前主线",
-    "## 活动并行事项",
-    "## 活动协调与共享写入所有权",
-    "## 最新授权与边界变化",
-    "## 下一检查点",
-    "## 当前任务可读取的权威与记录",
-    "term_",
-]
-present_forbidden = [
-    pattern for pattern in forbidden_current_patterns if pattern in current
-]
+runtime_pointer_path = REPOSITORY_ROOT / "work/current.md"
 add_check_result(
-    not present_forbidden,
-    "current 不再承载状态、授权与执行者标识"
-    if not present_forbidden
-    else f"current 仍含已降级内容：{'、'.join(present_forbidden)}",
+    not runtime_pointer_path.exists(),
+    "仓库不存在活动恢复指针 work/current.md"
+    if not runtime_pointer_path.exists()
+    else "仓库仍存在活动恢复指针 work/current.md",
 )
 
-current_line_count = len(current.splitlines())
-add_check_result(
-    current_line_count <= 30,
-    f"current 保持指针壳（实际 {current_line_count} 行，上限 30 行）",
-)
-current_byte_count = len(current.encode("utf-8"))
-add_check_result(
-    current_byte_count <= 1200,
-    f"current 保持紧凑（实际 {current_byte_count} 字节，上限 1200 字节）",
-)
-
-historical_headings = [
-    "## 并行资源实验的原始问题",
-    "## 2026-08-10 负责人纠偏",
-    "## 当前证据与下一检查点",
-]
-leaked_headings = [heading for heading in historical_headings if heading in current]
-if leaked_headings:
+active_entry_texts = {
+    "README.md": readme,
+    "AGENTS.md": agents_entry,
+    "entrypoints/agent-system.md": system_entry,
+    "authority/00-map.md": authority_map,
+    "authority/10-operating-ledger.md": ledger_authority,
+}
+forbidden_runtime_pointer_terms = ["work/current.md", "run_65a73145f0e2", "observedAt 水位"]
+for relative_path, text in active_entry_texts.items():
+    present = [term for term in forbidden_runtime_pointer_terms if term in text]
     add_check_result(
-        False,
-        f"current 不再承载长篇历史章节；残留：{'、'.join(leaked_headings)}",
+        not present,
+        f"{relative_path} 不从仓内运行态指针恢复工作"
+        if not present
+        else f"{relative_path} 仍引用仓内运行态指针：{'、'.join(present)}",
     )
-else:
-    add_check_result(True, "current 不再承载长篇历史章节")
 
 test_contains_all(
     record,
@@ -646,10 +623,11 @@ test_contains_all(
     collaboration_authority,
     [
         "联邦式 Session 入口的后续确认",
-        "github-collaboration:issue-workflow",
+        "负责人明确激活公开、自足的 Issue",
+        "源码存在或历史上曾安装不等于当前生效",
         "不保留永久协调者身份",
     ],
-    "协作权威记录联邦式模型及能力边界",
+    "协作权威记录显式激活的联邦式模型与能力边界",
 )
 test_contains_all(
     authority_map,
@@ -666,8 +644,13 @@ test_contains_all(
 )
 test_contains_all(
     ledger_authority,
-    ["“就绪”子集为空", "未满足／部分满足诉求", "adaptive-problem-solving", "不扩大当前授权"],
-    "经营总账权威保留空队列返回诉求的窄路由",
+    [
+        "全局枚举只由负责人明确触发",
+        "排除未重新激活的迁移索引",
+        "只返回 proposal",
+        "不创建 Issue、不派发、不实施",
+    ],
+    "经营总账权威保留显式触发的候选路由",
 )
 
 git_files = run_git(
@@ -712,7 +695,6 @@ test_local_markdown_links(
     [
         "README.md",
         "AGENTS.md",
-        "work/current.md",
         "work/records/2026-08-10-federated-session-entry/record.md",
         "work/records/2026-08-10-federated-session-entry/raw/index.md",
         "authority/00-map.md",
