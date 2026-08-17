@@ -106,6 +106,7 @@ GLOBAL_CAPABILITY_PATHS = (
     ".qoder/skills",
     ".yunke/aah_hooks/config_register_state.json",
     ".yunke/aah_hooks/hook_entry.json",
+    "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.qoder.work.connector.json",
 )
 GLOBAL_FLOOR_PATHS = frozenset({".codex/AGENTS.md", ".qoder/AGENTS.md"})
 HOST_FLOOR_TEXT = """# Agent 宿主底座

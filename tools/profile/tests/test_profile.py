@@ -277,6 +277,10 @@ class GateAndLockTests(ProfileTestCase):
                 ".yunke/aah_hooks/config_register_state.json",
                 '{"agents": {"qoder": {}}}',
             ),
+            (
+                "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.qoder.work.connector.json",
+                '{"name": "com.qoder.work.connector"}',
+            ),
             (".qoder/AGENTS.md", "pollution"),
         )
         for index, (relative, content) in enumerate(global_configs):
