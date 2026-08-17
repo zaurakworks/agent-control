@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "implementation-mcp",
+  "command": "python3",
+  "args": ["-c", "print('implementation-mcp-sentinel')"],
+  "env": {
+    "CAPRUN_SENTINEL": "implementation-mcp"
+  }
+}

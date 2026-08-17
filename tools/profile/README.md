@@ -1,118 +1,101 @@
-# profile —— 锁定一个 agent 状态，并核验它没漂
+# profile —— 显式能力面、三端隔离与生效态核验
 
-把一份声明（`manifest.toml`）物化成可运行的配置 home，跑完再比对**实际生效态**。
+`tools/profile/profile.py` 是唯一入口。它用一套严格 schema 锁定项目能力声明，用同一棵渲染树物化并启动 Codex、Qoder 或 OMP，再把声明态、配置态和实际生效态分开记录。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须同时给出 `--client` 和 `--profile`。
 
-目的是「锁定某个智能体的最优状态」：声明进 git，可 diff、可 tag、可回滚；生效态每次运行捕获，跟声明比对。**只有声明是锁不住的，只有生效态是没法回滚的，所以两半都要。**
+## 唯一 schema
 
-## 用法
+一个受管项目只有下面这一套结构：
 
+```text
+AGENTS.md                              # 项目公共基线，只由客户端原生发现
+.cap/manifest.toml                    # profile 名到 profile 文件的唯一索引
+.cap/profiles/<profile>.toml          # 扁平闭包：prompt/skills/mcps/hooks/plugins
+.cap/prompts/<profile>.md
+.cap/capabilities/skills/<name>/...
+.cap/capabilities/mcp/<name>.json
+.cap/capabilities/hooks/<name>/targets/{codex,qoder,omp}/...
+.cap/capabilities/plugins/<name>/targets/{codex,qoder,omp}/...
+.cap/lock.json                        # 输入 content+mode、renderer 与三端 tree hash
 ```
-python profile.py materialize <profile-dir>              # 只物化，不跑
-python profile.py probe       <profile-dir>              # 秒级，无模型调用
-python profile.py run         <profile-dir> --task <t.md>  # 分钟级，要 token
-python profile.py diff        <profile-dir>              # 比对上一次 run
+
+所有路径必须是 `.cap` 下的规范 POSIX 相对路径，禁止 symlink、未引用能力、重复名字、未知字段和 overlay 路径冲突。能力来源首版只接受项目内文件；固定 commit vendoring 应先落成同样的项目内普通文件。根 `AGENTS.md` 不复制进 profile prompt，避免公共基线被加载两次。
+
+隔离 fixture 在 [`fixtures/multi-profile/`](./fixtures/multi-profile/)；`review` 与 `implementation` 各有独立的 Skill、MCP、Hook、Plugin sentinel。
+
+## 命令
+
+以下命令都从仓库根运行；`<project>` 是包含 `AGENTS.md` 和 `.cap/` 的 Git worktree 根。
+
+```text
+python tools/profile/profile.py --project <project> list
+python tools/profile/profile.py --project <project> explain --profile review
+python tools/profile/profile.py --project <project> lock
+python tools/profile/profile.py --project <project> verify
+
+python tools/profile/profile.py --project <project> materialize \
+  --client codex --profile review --output <existing-empty-dir>
+
+python tools/profile/profile.py --project <project> launch \
+  --client qoder --profile review --receipt <new-receipt.json> -- <client-args>
+
+python tools/profile/profile.py --project <project> probe \
+  --client omp --profile review --state <existing-empty-state-dir>
+
+python tools/profile/profile.py --project <project> run \
+  --client codex --profile review --state <existing-empty-state-dir> \
+  -- exec "<prompt requesting the markers below>"
+
+python tools/profile/profile.py --project <project> diff \
+  --client codex --profile review --state <state-dir-from-run>
 ```
 
-现有 profile：`observe/`（Claude）、`observe-codex/`（Codex）。两个跑同一个观察任务，用来自检。
+`lock` 是显式更新操作；它记录 manifest、profile、根 `AGENTS.md`、prompt、每个能力文件的 SHA-256 与 mode，并锁定 renderer、adapter 和三端输出树。`list`、`explain` 以及所有执行命令都先按当前输入重算并严格比对 lock；stale lock 不能只读未锁定声明。`materialize` 只接受项目和用户级原生能力根之外的既有空目录。
+平台边界：首版安全写入后端依赖 POSIX `dir_fd`／`openat`／`O_NOFOLLOW`，当前试点支持 macOS 和 Linux；Windows 没有静默降级，会 fail closed。Windows 不是 Issue #62 的 fixture 验收范围；进入 Windows 前必须另行实现并验证 HANDLE-relative、拒绝 reparse point 的等价后端。
 
-## 两个量具，量的不是同一个东西
+
+`launch` 是交互式薄 launcher；`run` 走完全相同的校验、渲染、参数门禁和临时运行根，只额外捕获一次 batch 输出供 observer 解析。Codex batch 参数通常是 `-- exec "<prompt>"`，Qoder 和 OMP 的 one-shot 参数是 `-- -p "<prompt>"`。工具不替调用者虚构跨客户端 task 参数。
+
+## 三端会话根
+
+每次 `launch` 或 `run` 都创建新的临时根，进程退出后清理：
+
+| 客户端 | 隔离根与固定启动约束 |
+| --- | --- |
+| Codex | `CODEX_HOME=<runtime>`；profile prompt 渲染为 `<runtime>/AGENTS.md` |
+| Qoder | `QODER_CONFIG_DIR=<runtime>`；清除 ambient `QODER_WORKING_DIR`，固定进程 cwd 为项目根；固定 `--config-dir`、`--strict-mcp-config`、`--mcp-config`，profile prompt 以文本传给 `--append-system-prompt` |
+| OMP | `PI_CODING_AGENT_DIR=<runtime>`、`PI_CONFIG_DIR=<runtime>`；把 `OMP_PROFILE`/`PI_PROFILE` 固定为非空 `default`，把 `PI_CONFIG_FILES` 固定为 `<runtime>/config.yml`，阻止工作目录 `.env` 回填配置根；固定 Skill allowlist、`--no-extensions`、`--no-rules` |
+
+启动前会移除所有 ambient 配置根和工作目录环境变量，再写入所选客户端的固定值。转发参数不能覆盖 config/profile/cwd/worktree/MCP/Skill/Hook/Plugin/Extension 根；Codex 的 `-p` 和 Qoder 的 `--worktree` 等原生别名同样被拒绝。门禁或 lock 失败发生在创建客户端进程之前。项目必须等于 Git worktree 根；项目中的 provider 原生目录、嵌套指令文件和 MCP 旁路按大小写不敏感路径语义拒绝，避免 macOS／Windows 上的大小写变体绕过。已知用户级业务能力路径及配置中的 capability-bearing key 也会被拒绝；只含模型、主题等运行参数的用户配置不算业务能力污染。
+
+lock 校验后、启动前会重新渲染并再次核对 tree hash，并在最终创建进程前重新核对全部 lock inputs 和项目旁路，防止校验、物化与启动之间的漂移。物化树和 observer state 从文件系统根开始逐级持有 no-follow 目录描述符；只允许把 macOS `/var` 这类 root-owned 第一层系统 symlink 规范到其固定目标，其他 symlink ancestor 一律拒绝。render output、state 和 receipt 的“项目外／原生能力根外”边界按持有描述符的祖先 inode 身份判断，大小写别名不能绕过。目录项被换成 symlink 或其他 inode 时失败，写入不会跟随新路径；launcher 与 probe 从已锁的内存渲染树读取 prompt、Skill 和 MCP 元数据，不按可替换的 runtime pathname 回读。收据只保存 client/profile、adapter、inventory、lock/tree hash、参数数量、退出码和临时根清理结果；不保存参数值、环境值、输出正文或临时路径。显式收据路径的所有祖先都不得是 symlink，目标必须尚不存在；启动前用 exclusive create 预留目标，最终只通过已持有且身份复核过的文件描述符写入。收据 inode 在提交前后必须保持单一硬链接；同一路径的并发启动不能覆盖已有收据。
+
+## `probe`、`run`、`diff` 量的不是同一层
 
 | | `probe` | `run` |
 | --- | --- | --- |
-| 手段 | CLI 只读子命令 + 文件系统 | 真跑一次 agent，读它的自报 |
-| 实测耗时 | Claude 4.6 s / Codex 0.14 s | Claude 232 s / Codex 281 s |
-| 成本 | 0 token | 一次完整会话 |
-| 量的是 | **配置面**（配了什么） | **生效面**（运行时看得见什么） |
+| 是否启动 agent | 否 | 是 |
+| 证据 | 已锁渲染树中的原生配置和落盘 Skill | 客户端输出中的自述 marker |
+| 量的是 | 配置态 | 实际生效态 |
+| 输出 | `declared.json` + `probed.json` | `declared.json` + `effective.json` + 无 secret 收据 |
 
-**两个方向都会错，所以 `probe` 只能降低 `run` 的频率，不能取代它：**
+`probe` 能可靠回答渲染树里有哪些 Skill 和 MCP 配置，但“文件存在”不能证明客户端加载了上下文、Hook 或 Plugin；这些维度写成 JSON `null`（unknown），候选和 staged inventory 分栏保存。它不会把不可观测项写成空数组。
 
-- **Claude 侧 `probe` 多报**：`claude mcp list` 不接受 `--strict-mcp-config`，会报出运行期已被拦掉的连接器；
-- **Codex 侧 `probe` 少报**：`codex mcp list` 报「一个都没配」，而 agent 实际看得见内置的 `codex_apps` 及其 3 个连接器。
+`run` 从 stdout/stderr 的最后一个有效 marker 读取：
 
-第二种更危险——**配置面上完全不可见的能力**。差值本身是要看的信号。
+```text
+SKILLS-AVAILABLE: name1, name2
+MCP-AVAILABLE: none
+CONTEXT-FILES: unknown
+HOOKS-AVAILABLE: unknown
+PLUGINS-AVAILABLE: unknown
+```
 
-`run` 依赖 agent 自报，而自报的标识符不稳定：同一批 Codex 连接器两轮运行一次报 id、一次报显示名。所以 `[uncontrollable]` 里两种写法都列。
+`none` 是“已观察且为空”，落盘为 `[]`；`unknown`、缺少 marker 或明确“未知”都是观测失败，落盘为 `null`。两者绝不互换。`diff` 必须重新指定同一个 client/profile，并先确认当前 lock 与 `declared.json` 一致；观测到缺失或越界返回 1，任一维度 unknown 且无已知漂移返回 2，只有所有维度都实际观察且一致才返回 0。
 
-## 受检的三个维度
+Codex/Qoder/OMP 的运行时自述能力并不对称。Codex 的内置 MCP 不进配置表、名称多轮不稳定，且无法从提示内容可靠反推上下文文件路径；OMP 的 MCP 只核实到会话内 `/mcp`，未核实 one-shot 自述能等价列举 runtime resolved MCP。因此 Codex 的 MCP/context 与 OMP 的 MCP marker 只旁存为 `reported_client_limited`，effective observation 固定保持 unknown。Qoder 有静态 MCP/Plugin 列举接口；本工具首版不为这些差异另造第二套 schema，也不把配置文件解析冒充 runtime resolved 列表。真实产品无法可靠观测时保持 unknown。
 
-| 维度 | 声明 | 运行时标记 |
-| --- | --- | --- |
-| skill | `[skills] allow` / `deny` | `SKILLS-AVAILABLE` |
-| MCP | `[mcp] allow` / `strict` | `MCP-AVAILABLE` |
-| 上下文文件 | `[context] allow` | `CONTEXT-FILES` |
+## Hook、Plugin 与范围边界
 
-标记的确切格式由 [`.claude/skills/stage`](../../.claude/skills/stage/SKILL.md) 的「运行面自述」一节承载，四个阶段共用一份。
+Skill 是 `native-staging`，MCP 是 `native-config`。Hook 和 Plugin 的 target overlay 目前只证明“按 profile、按客户端进入隔离渲染树”，尚未完成三端原生加载验证，所以 lock 固定标为 **`opaque-staging`**；每个 Hook target 的唯一第一层根必须是 `hooks/`，每个 Plugin target 的唯一第一层根必须是 `plugins/`，不得写入另一 kind、Skill、配置或 prompt 路径。即使 batch 输出带有 Hook/Plugin marker，也只旁存为 `reported_opaque_staging`，不会升级成 effective observation。不得据 sentinel 落盘或 agent 自报宣称已经原生生效。
 
-**`none` 和 `unknown` 必须分开**：`none` 是观察结果，`unknown` 是观测失败。把 `unknown` 当成 `none`，漂移检测就会报假阴性——这是已经发生过一次的错误。
-
-## 白名单是物理的
-
-`CLAUDE_CONFIG_DIR`（Claude）和 `CODEX_HOME`（Codex）都是整个配置目录重定向。物化时只把白名单里的 skill 复制进去，**不在名单里的在磁盘上根本不存在**——比 `skillOverrides` 那种黑名单强，因为黑名单要求你先知道有什么可关。
-
-但重定向管不住一切，实测边界如下。
-
-## `[uncontrollable]` 是有据的，不是懒得管
-
-没证据就声明「管不了」，等于把可修的问题登记成既成事实，比漏掉更危险。每一条都要有证据：
-
-| 对象 | 真实来源 | 能不能关 |
-| --- | --- | --- |
-| Claude 的 `dataviz` / `keybindings-help` / `fewer-permission-prompts` / `security-review` / `simplify` / `claude-api` | `claude.exe` 二进制内（grep 命中，用户目录全树无同名） | 部分可用 `skillOverrides` 黑名单逐个关 |
-| Claude 的 `code-review` | `~/.claude/plugins/marketplaces/claude-plugins-official/` | 磁盘上，但该发现路径不受 `CLAUDE_CONFIG_DIR` 影响 |
-| Codex 的 5 个 `.system` skill | 真实 `~/.codex/skills/.system/`，且 Codex 会在物化 home 里自建一份 | 原则上可控（是文件），未验证怎么阻止 |
-| Claude 的账号级 MCP 连接器 | 账号，非配置文件 | **能关**：`--strict-mcp-config` 且不给 `--mcp-config` |
-| Codex 的 `codex_apps` | 内置，不进配置表 | 未找到开关 |
-| 用户级 `~/.claude/CLAUDE.md` | 真实用户目录 | **关不掉**，见下 |
-
-### 用户级 `CLAUDE.md`：四个变体都失败
-
-| 变体 | 结果 |
-| --- | --- |
-| 基线 | 加载 |
-| `--setting-sources project,local` | 加载 |
-| 同上 + `--settings <home>/settings.json` | 加载 |
-| 重定向 `HOME` + `USERPROFILE` | 加载 |
-
-Claude Code 用 OS API 解析真实用户目录，不看环境变量。唯一的修法是删掉那个文件。
-
-**顺带一个陷阱**：`--setting-sources project,local` 会把 `skillOverrides` 一起干掉（被 deny 的 5 个 skill 全部回来，可用数 8 → 13）。想关一个东西却打开了五个能写的 skill——这种反向漂移不做实验看不出来。
-
-## 物化 home 在仓库之外
-
-默认落在 `%LOCALAPPDATA%/agent-control-profiles/<profile>/`，可用 `[homes] root` 覆盖。两个理由：
-
-1. `CLAUDE.md` / `AGENTS.md` 按 cwd 及其祖先发现。home 放在仓库里，仓库根就是祖先，本仓那 12 KB 入口会进每一次运行的上下文——量具污染被测对象。
-2. home 里有播种进去的凭据。放在仓库外，「不小心提交」在物理上不可能，而不是靠一条 `.gitignore` 撑着。
-
-## workdir 为什么是第三个目录
-
-`[run] workdir` 默认 `<work>`，落在 `%LOCALAPPDATA%/agent-control-profiles/<profile>-work/`。它既不是仓库，也不是物化 home。三个约束叠出来只剩这一个位置：
-
-1. **不能在仓库里**——`CLAUDE.md` / `AGENTS.md` 按 cwd 及其祖先发现，仓库根一旦成为祖先，本仓那 12 KB 入口会进每一次运行的上下文；
-2. **不能是物化 home 本身**——home 就是 `CODEX_HOME`，Codex 的 `workspace-write` 沙箱**拒绝 agent 往自己的配置目录写**（实测 `out.md` 写入被拒，整轮无交付）；
-3. **任务文件得在 cwd 内**——同一个沙箱只放行 cwd 内的读写。任务留在仓库里时，三次读取尝试全部挂起且无输出。
-
-所以 `run` 会先把任务文件拷进 workdir，再把 agent 指向那个副本。
-
-前两次尝试（`workdir = profile 目录`、`workdir = <home>`）各撞上其中一条，都是落仓之后才暴露的——**在 scratchpad 里跑，这三条一条都不会触发。**
-
-两次失败里量具本身都表现正确：它把「读不到」和「写不进」都报成 `unknown`，没有说成「无漂移」。需要在某个项目里干活的 profile 显式声明 `workdir` 指向那个项目。
-
-每次物化建一个带时间戳的新目录，保留最近 3 个。不复用不是洁癖：Windows 上 CLI 建的 `projects/` / `sessions/` 在进程退出后仍被短暂持有，`rmtree` 会以 `WinError 145` 失败。
-
-## manifest 里的路径令牌
-
-manifest 进 git，所以不写死任何一台机器的绝对路径：
-
-| 令牌 | 展开为 |
-| --- | --- |
-| `<repo>` | 仓库根 |
-| `<skills>` | `<repo>/.claude/skills` |
-| `<userhome>` | 真实用户目录 |
-| `<home>` | 本次物化出来的 home |
-
-## 规则只有一份来源
-
-阶段规则**不进系统提示词**，唯一来源是 `.claude/skills/stage`，由锚点第 5 条按名触发加载。锚点本身也指向 skill 树里的 `anchor.md`。
-
-profile 目录里因此没有任何一份规则副本。上一版有过两份（`stage.md` 和 `_shared/anchor.md`），其中 `stage.md` 已经比仓库里的 `references/observe.md` 旧了一个版本，导致同一个上下文里出现两套冲突的指令。
+本工具不修改用户级配置，不接管 PATH，不是通用包管理器、CAS/GC、secret broker、权限 sandbox 或 MCP supervisor，也不承诺 Qoder/OMP 的 MCP 子进程失败会阻断会话。认证文件不会从真实 home 自动复制到临时根；三端认证 staging 仍是阻断未知项，未核实前不得据本试点实施全局封存。

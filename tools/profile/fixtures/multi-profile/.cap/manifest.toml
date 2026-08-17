@@ -1,0 +1,5 @@
+version = 1
+
+[profiles]
+implementation = ".cap/profiles/implementation.toml"
+review = ".cap/profiles/review.toml"
