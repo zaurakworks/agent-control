@@ -40,6 +40,26 @@ class ProfileTestCase(unittest.TestCase):
         self.home_patch = mock.patch.dict(os.environ, {"HOME": str(self.home)})
         self.home_patch.start()
         self.addCleanup(self.home_patch.stop)
+        self.auth_root = self.root / "auth"
+        self.auth_root.mkdir(mode=0o700)
+        codex_auth = self.auth_root / "codex"
+        codex_auth.mkdir(mode=0o700)
+        (codex_auth / "auth.json").write_text(
+            '{"auth_mode":"chatgpt","tokens":{"access_token":"test"}}',
+            encoding="utf-8",
+        )
+        qoder_auth = self.auth_root / "qoder" / ".auth"
+        qoder_auth.mkdir(parents=True, mode=0o700)
+        (qoder_auth / "user").write_text('{"id":"test"}', encoding="utf-8")
+        omp_auth = self.auth_root / "omp"
+        omp_auth.mkdir(mode=0o700)
+        (omp_auth / "broker.json").write_text(
+            '{"version":1,"url":"http://127.0.0.1:43129"}',
+            encoding="utf-8",
+        )
+        (omp_auth / "token").write_text("test-broker-token", encoding="utf-8")
+        for credential in self.auth_root.rglob("*"):
+            credential.chmod(0o700 if credential.is_dir() else 0o600)
 
     def output_directory(self, name: str) -> Path:
         """Create and return one empty render output directory."""
@@ -145,6 +165,7 @@ class MaterializationTests(ProfileTestCase):
                 "review",
                 receipt_path=alias_root / receipt_parent.name / "receipt.json",
                 runner=runner,
+                auth_root=self.auth_root,
             )
         runner.assert_not_called()
 
@@ -241,12 +262,22 @@ class GateAndLockTests(ProfileTestCase):
             (".agents/skills/global-skill/SKILL.md", "pollution"),
             (".claude.json", '{"mcpServers": {}}'),
             (".codex/config.toml", 'developer_instructions = "pollution"'),
+            (".codex/config.toml", "[features]\nmulti_agent = true\n"),
+            (".codex/config.toml", 'model_provider = "rogue"\n'),
+            (".codex/config.toml", '[agents.reviewer]\ndescription = "pollution"\n'),
+            (".codex/AGENTS.md", "pollution"),
             (".codex/hooks.json", "{}"),
             (".config/opencode/opencode.json", '{"model": "safe", "mcp": {}}'),
             (".gemini/settings.json", '{"mcpServers": {}}'),
             (".omp/agent/config.yml", "skills:\n  includeSkills: []\n"),
             (".omp/agent/mcp.json", "{}"),
+            (".omp/agent/extensions/rogue.ts", "// not Orca managed\n"),
             (".qoder/settings.json", '{"enabledPlugins": {"pollution": true}}'),
+            (
+                ".yunke/aah_hooks/config_register_state.json",
+                '{"agents": {"qoder": {}}}',
+            ),
+            (".qoder/AGENTS.md", "pollution"),
         )
         for index, (relative, content) in enumerate(global_configs):
             with self.subTest(relative=relative):
@@ -263,7 +294,14 @@ class GateAndLockTests(ProfileTestCase):
     def test_runtime_only_global_configs_are_allowed(self) -> None:
         configs = {
             ".claude.json": '{"theme": "dark"}',
-            ".codex/config.toml": 'model = "gpt-5.6"\nsandbox_mode = "read-only"\n',
+            ".codex/config.toml": (
+                'model = "gpt-5.6"\nsandbox_mode = "read-only"\n'
+                '[projects."/tmp/runtime"]\ntrust_level = "trusted"\n'
+                "[agents]\nenabled = false\n"
+                '[agents.reviewer]\ndescription = "cached role"\n'
+                "[analytics]\nenabled = false\n"
+                "[feedback]\nenabled = false\n"
+            ),
             ".config/opencode/opencode.json": '{"model": "openai/gpt-5.6"}',
             ".gemini/settings.json": '{"theme": "dark"}',
             ".omp/agent/config.yml": "model: openai/gpt-5.6\n",
@@ -275,6 +313,116 @@ class GateAndLockTests(ProfileTestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
         profile.verify_project(self.project)
+
+    def test_minimal_host_floor_and_disabled_global_caches_are_allowed(self) -> None:
+        codex_skills = self.home / ".codex" / "skills" / ".system"
+        for name in ("skill-creator", "skill-installer"):
+            skill = codex_skills / name / "SKILL.md"
+            skill.parent.mkdir(parents=True, exist_ok=True)
+            skill.write_text(f"# {name}\n", encoding="utf-8")
+        (self.home / ".codex" / "plugins" / "cache").mkdir(parents=True)
+        (self.home / ".codex" / "hooks").mkdir(parents=True)
+        (self.home / ".agents" / "skills").mkdir(parents=True)
+        for client_root in (".omp/agent", ".pi/agent"):
+            for name in profile.ORCA_MANAGED_EXTENSION_NAMES:
+                extension = self.home / client_root / "extensions" / name
+                extension.parent.mkdir(parents=True, exist_ok=True)
+                extension.write_text(
+                    "// @orca-managed-pi-extension\n", encoding="utf-8"
+                )
+        codex_config = self.home / ".codex" / "config.toml"
+        codex_config.write_text(
+            "\n".join(
+                [
+                    "[features]",
+                    "hooks = false",
+                    "plugins = false",
+                    "skill_search = false",
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{codex_skills / "skill-creator" / "SKILL.md"}"',
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{codex_skills / "skill-installer" / "SKILL.md"}"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        for relative in (".codex/AGENTS.md", ".qoder/AGENTS.md"):
+            floor = self.home / relative
+            floor.parent.mkdir(parents=True, exist_ok=True)
+            floor.write_text(profile.HOST_FLOOR_TEXT, encoding="utf-8")
+        qoder_plugin = (
+            self.home
+            / ".qoder"
+            / "plugins"
+            / "cache"
+            / "test-marketplace"
+            / "cached-plugin"
+            / "1.0.0"
+        )
+        qoder_plugin.mkdir(parents=True)
+        (self.home / ".qoder" / "plugins" / "data" / "security-scan").mkdir(
+            parents=True
+        )
+        (self.home / ".qoder" / "settings.json").write_text(
+            '{"enabledPlugins": {"cached-plugin@test-marketplace": false}}',
+            encoding="utf-8",
+        )
+
+        profile.verify_project(self.project)
+
+    def test_codex_skill_symlink_alias_is_not_treated_as_disabled(self) -> None:
+        actual = self.home / "outside-skill" / "SKILL.md"
+        actual.parent.mkdir(parents=True)
+        actual.write_text("# rogue\n", encoding="utf-8")
+        alias = self.home / ".codex" / "skills" / ".system" / "rogue" / "SKILL.md"
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(actual)
+        config = self.home / ".codex" / "config.toml"
+        config.write_text(
+            "\n".join(
+                [
+                    "[features]",
+                    "skill_search = false",
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{alias}"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
+
+    def test_qoder_cache_requires_matching_disabled_plugin_identity(self) -> None:
+        rogue = (
+            self.home
+            / ".qoder"
+            / "plugins"
+            / "cache"
+            / "rogue-marketplace"
+            / "rogue-plugin"
+            / "1.0.0"
+        )
+        rogue.mkdir(parents=True)
+        (self.home / ".qoder" / "settings.json").write_text(
+            '{"enabledPlugins": {"different-plugin@rogue-marketplace": false}}',
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
 
     def test_project_native_bypasses_are_rejected(self) -> None:
         bypasses = (
@@ -523,12 +671,17 @@ class LaunchTests(ProfileTestCase):
             def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
                 runtime_root = Path(str(kwargs["env"][environment_name]))  # type: ignore[index]
                 runtime_roots.append(runtime_root)
+                environment = kwargs["env"]  # type: ignore[assignment]
                 self.assertTrue(runtime_root.is_dir())
+                expected_cwd = runtime_root if client == "omp" else self.project
+                self.assertEqual(Path(str(kwargs["cwd"])), expected_cwd)
                 self.assertEqual(command[0], executable)
                 for flag in required_flags:
                     self.assertIn(flag, command)
                 if client == "omp":
                     safe_omp_environment = {
+                        "OMP_AUTH_BROKER_TOKEN": "test-broker-token",
+                        "OMP_AUTH_BROKER_URL": "http://127.0.0.1:43129",
                         "OMP_PROFILE": "default",
                         "PI_CODING_AGENT_DIR": str(runtime_root),
                         "PI_CONFIG_DIR": str(runtime_root),
@@ -536,13 +689,20 @@ class LaunchTests(ProfileTestCase):
                         "PI_PROFILE": "default",
                     }
                     for name, value in safe_omp_environment.items():
-                        self.assertEqual(kwargs["env"][name], value)  # type: ignore[index]
-                    self.assertNotIn("CODEX_HOME", kwargs["env"])  # type: ignore[operator]
-                    self.assertNotIn("QODER_CONFIG_DIR", kwargs["env"])  # type: ignore[operator]
+                        self.assertEqual(environment[name], value)
+                    self.assertNotIn("CODEX_HOME", environment)
+                    self.assertNotIn("QODER_CONFIG_DIR", environment)
+                    for name in profile.OMP_AMBIENT_AUTH_ENV:
+                        expected = "true" if name == "AWS_EC2_METADATA_DISABLED" else ""
+                        self.assertEqual(environment[name], expected)
+                    cwd_index = command.index("--cwd") + 1
+                    self.assertEqual(Path(command[cwd_index]), self.project)
+                    self.assertEqual(environment["HOME"], str(runtime_root))
+                    self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
                 else:
                     for ambient_name in profile.AMBIENT_CONFIG_ENV:
                         if ambient_name != environment_name:
-                            self.assertNotIn(ambient_name, kwargs["env"])  # type: ignore[operator]
+                            self.assertNotIn(ambient_name, environment)
                 if client in {"qoder", "omp"}:
                     prompt_index = command.index("--append-system-prompt") + 1
                     self.assertIn("Review session profile", command[prompt_index])
@@ -553,8 +713,26 @@ class LaunchTests(ProfileTestCase):
                 self.assertEqual(command[-2:], ["--token", "super-secret"])
                 if client == "codex":
                     self.assertTrue((runtime_root / "config.toml").is_file())
+                    self.assertIn(
+                        'cli_auth_credentials_store = "file"',
+                        (runtime_root / "config.toml").read_text(encoding="utf-8"),
+                    )
+                    self.assertTrue((runtime_root / "auth.json").is_symlink())
+                    self.assertTrue(
+                        os.path.samefile(
+                            runtime_root / "auth.json",
+                            self.auth_root / "codex" / "auth.json",
+                        )
+                    )
                 elif client == "qoder":
                     self.assertTrue((runtime_root / "settings.json").is_file())
+                    self.assertTrue((runtime_root / ".auth").is_symlink())
+                    self.assertTrue(
+                        os.path.samefile(
+                            runtime_root / ".auth",
+                            self.auth_root / "qoder" / ".auth",
+                        )
+                    )
                 else:
                     self.assertTrue((runtime_root / "config.yml").is_file())
                 return SimpleNamespace(returncode=0)
@@ -566,11 +744,14 @@ class LaunchTests(ProfileTestCase):
                 ("--token", "super-secret"),
                 receipt_path=receipt,
                 runner=fake_runner,
+                auth_root=self.auth_root,
             )
             self.assertEqual(result, 0)
             payload = receipt.read_text(encoding="utf-8")
             self.assertNotIn("super-secret", payload)
             self.assertNotIn(str(runtime_roots[-1]), payload)
+            self.assertNotIn(str(self.auth_root), payload)
+            self.assertNotIn("test-broker-token", payload)
             self.assertTrue(json.loads(payload)["temporary_root_removed"])
             self.assertEqual(
                 json.loads(payload)["inventory"],
@@ -582,6 +763,299 @@ class LaunchTests(ProfileTestCase):
                 },
             )
             self.assertFalse(runtime_roots[-1].exists())
+
+    def test_auth_vault_is_required_private_and_outside_the_project(self) -> None:
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "existing non-symlink"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.root / "missing-auth",
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        project_auth = self.project / "auth-vault"
+        shutil.copytree(self.auth_root, project_auth)
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=project_auth,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        codex_auth = self.auth_root / "codex" / "auth.json"
+        codex_auth.chmod(0o644)
+        with self.assertRaisesRegex(profile.ProfileError, "group or other access"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        codex_auth.chmod(0o400)
+        with self.assertRaisesRegex(profile.ProfileError, "owner read and write"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        omp_token = self.auth_root / "omp" / "token"
+        omp_token.write_bytes(b"invalid\x00token")
+        with self.assertRaisesRegex(profile.ProfileError, "printable non-space ASCII"):
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_qoder_auth_tree_has_bounded_entries_and_depth(self) -> None:
+        runner = mock.Mock()
+        qoder_auth = self.auth_root / "qoder" / ".auth"
+        for index in range(257):
+            (qoder_auth / f"entry-{index}").mkdir(mode=0o700)
+        with self.assertRaisesRegex(profile.ProfileError, "256 directory entries"):
+            profile.run_client(
+                self.project,
+                "qoder",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_auth_vault_updates_persist_without_native_global_roots(self) -> None:
+        for client in ("codex", "qoder"):
+            with self.subTest(client=client):
+                isolated_auth = self.root / f"{client}-persistent-auth"
+                shutil.copytree(self.auth_root, isolated_auth)
+
+                def updating_runner(
+                    command: list[str], **kwargs: object
+                ) -> SimpleNamespace:
+                    environment = kwargs["env"]  # type: ignore[assignment]
+                    if client == "codex":
+                        runtime = Path(str(environment["CODEX_HOME"]))
+                        (runtime / "auth.json").write_text(
+                            '{"auth_mode":"chatgpt","refresh":"persisted"}',
+                            encoding="utf-8",
+                        )
+                    else:
+                        runtime = Path(str(environment["QODER_CONFIG_DIR"]))
+                        (runtime / ".auth" / "refresh.json").write_text(
+                            '{"refresh":"persisted"}', encoding="utf-8"
+                        )
+                    return SimpleNamespace(returncode=0)
+
+                profile.run_client(
+                    self.project,
+                    client,
+                    "review",
+                    auth_root=isolated_auth,
+                    receipt_path=self.root / f"{client}-persistent-receipt.json",
+                    runner=updating_runner,
+                )
+                if client == "codex":
+                    self.assertIn(
+                        "persisted",
+                        (isolated_auth / "codex" / "auth.json").read_text(
+                            encoding="utf-8"
+                        ),
+                    )
+                else:
+                    self.assertTrue(
+                        (isolated_auth / "qoder" / ".auth" / "refresh.json").is_file()
+                    )
+
+    def test_concurrent_codex_refresh_is_retried_to_one_stable_snapshot(self) -> None:
+        codex_auth = self.auth_root / "codex" / "auth.json"
+        original_read = os.read
+        refreshed = False
+
+        def racing_read(descriptor: int, count: int) -> bytes:
+            nonlocal refreshed
+            chunk = original_read(descriptor, count)
+            if not refreshed:
+                refreshed = True
+                codex_auth.write_text(
+                    '{"auth_mode":"chatgpt","refresh":"concurrent"}',
+                    encoding="utf-8",
+                )
+                codex_auth.chmod(0o600)
+            return chunk
+
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        with mock.patch.object(profile.os, "read", side_effect=racing_read):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                receipt_path=self.root / "stable-auth-receipt.json",
+                runner=runner,
+            )
+        self.assertTrue(refreshed)
+        runner.assert_called_once()
+        self.assertIn("concurrent", codex_auth.read_text(encoding="utf-8"))
+
+    def test_stable_but_incomplete_auth_snapshots_are_retried(self) -> None:
+        original_read = profile._read_private_file
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        for client, target in (("codex", "auth.json"), ("omp", "broker.json")):
+            with self.subTest(client=client):
+                transient_reads = 0
+
+                def transient_read(
+                    directory: profile.StableDirectory,
+                    name: str,
+                    context: str,
+                    **kwargs: object,
+                ) -> bytes:
+                    nonlocal transient_reads
+                    if name == target and transient_reads == 0:
+                        transient_reads += 1
+                        return b"{}"
+                    return original_read(directory, name, context, **kwargs)  # type: ignore[arg-type]
+
+                with mock.patch.object(
+                    profile, "_read_private_file", side_effect=transient_read
+                ):
+                    profile.run_client(
+                        self.project,
+                        client,
+                        "review",
+                        auth_root=self.auth_root,
+                        receipt_path=self.root / f"{client}-snapshot-retry.json",
+                        runner=runner,
+                    )
+                self.assertEqual(transient_reads, 1)
+
+    def test_omp_broker_url_rejects_control_characters_before_spawn(self) -> None:
+        broker = self.auth_root / "omp" / "broker.json"
+        broker.write_text(
+            json.dumps({"version": 1, "url": "https://broker.invalid\u0000"}),
+            encoding="utf-8",
+        )
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "printable non-space"):
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_ambient_auth_is_removed_before_explicit_auth_is_bound(self) -> None:
+        ambient = {
+            "CODEX_ACCESS_TOKEN": "ambient-codex-access",
+            "CODEX_API_KEY": "ambient-codex-key",
+            "OPENAI_API_KEY": "ambient-openai-key",
+            "OMP_AUTH_BROKER_URL": "https://ambient.invalid",
+            "AWS_SHARED_CREDENTIALS_FILE": "/tmp/ambient-aws-credentials",
+            "CLOUDSDK_CONFIG": "/tmp/ambient-gcloud",
+            "OLLAMA_HOST": "https://ambient-ollama.invalid",
+            "OMP_AUTH_BROKER_TOKEN": "ambient-broker-token",
+            "ANTHROPIC_API_KEY": "ambient-anthropic-key",
+            "FUTURE_PROVIDER_API_KEY": "ambient-future-key",
+        }
+        for client in profile.CLIENTS:
+            with (
+                self.subTest(client=client),
+                mock.patch.dict(os.environ, ambient, clear=False),
+            ):
+
+                def checking_runner(
+                    command: list[str], **kwargs: object
+                ) -> SimpleNamespace:
+                    environment = kwargs["env"]  # type: ignore[assignment]
+                    self.assertNotIn("CODEX_ACCESS_TOKEN", environment)
+                    self.assertNotIn("CODEX_API_KEY", environment)
+                    if client == "omp":
+                        self.assertEqual(environment["AWS_SHARED_CREDENTIALS_FILE"], "")
+                        self.assertEqual(environment["CLOUDSDK_CONFIG"], "")
+                        self.assertEqual(environment["OLLAMA_HOST"], "")
+                        self.assertNotEqual(
+                            environment["HOME"], os.path.expanduser("~")
+                        )
+                        self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
+                        self.assertEqual(environment["ANTHROPIC_API_KEY"], "")
+                        self.assertEqual(environment["OPENAI_API_KEY"], "")
+                        self.assertEqual(environment["FUTURE_PROVIDER_API_KEY"], "")
+                    else:
+                        self.assertNotIn("OPENAI_API_KEY", environment)
+                    if client == "omp":
+                        self.assertEqual(
+                            environment["OMP_AUTH_BROKER_URL"],
+                            "http://127.0.0.1:43129",
+                        )
+                        self.assertEqual(
+                            environment["OMP_AUTH_BROKER_TOKEN"],
+                            "test-broker-token",
+                        )
+                    else:
+                        self.assertNotIn("OMP_AUTH_BROKER_URL", environment)
+                        self.assertNotIn("OMP_AUTH_BROKER_TOKEN", environment)
+                    return SimpleNamespace(returncode=0)
+
+                profile.run_client(
+                    self.project,
+                    client,
+                    "review",
+                    auth_root=self.auth_root,
+                    receipt_path=self.root / f"{client}-ambient-auth-receipt.json",
+                    runner=checking_runner,
+                )
+
+    def test_omp_empty_auth_mask_blocks_project_dotenv_reload(self) -> None:
+        (self.project / ".env").write_text(
+            "ANTHROPIC_API_KEY=dotenv-secret\n"
+            "FUTURE_PROVIDER_API_KEY=future-dotenv-secret\n",
+            encoding="utf-8",
+        )
+
+        def bun_boundary_runner(
+            command: list[str], **kwargs: object
+        ) -> SimpleNamespace:
+            result = subprocess.run(
+                [
+                    "bun",
+                    "-e",
+                    "console.log(JSON.stringify([process.env.ANTHROPIC_API_KEY, process.env.FUTURE_PROVIDER_API_KEY ?? null]))",
+                ],
+                cwd=kwargs["cwd"],
+                env=kwargs["env"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout.strip(), '["",null]')
+            return SimpleNamespace(returncode=0)
+
+        profile.run_client(
+            self.project,
+            "omp",
+            "review",
+            auth_root=self.auth_root,
+            receipt_path=self.root / "dotenv-auth-mask-receipt.json",
+            runner=bun_boundary_runner,
+        )
 
     def test_launch_metadata_cannot_be_swapped_through_runtime_path(self) -> None:
         original_build_launch = profile.build_launch
@@ -626,6 +1100,7 @@ class LaunchTests(ProfileTestCase):
                             "review",
                             receipt_path=self.root / f"{client}-swap-read-receipt.json",
                             runner=fake_runner,
+                            auth_root=self.auth_root,
                         ),
                         0,
                     )
@@ -651,6 +1126,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=self.root / "omp-literal-prompt-receipt.json",
                 runner=fake_runner,
+                auth_root=self.auth_root,
             ),
             0,
         )
@@ -669,25 +1145,55 @@ class LaunchTests(ProfileTestCase):
             )
         self.assertEqual(raised.exception.code, 2)
         with self.assertRaisesRegex(profile.ProfileError, "unknown profile"):
-            profile.run_client(self.project, "codex", "missing", runner=runner)
+            profile.run_client(
+                self.project,
+                "codex",
+                "missing",
+                runner=runner,
+                auth_root=self.auth_root,
+            )
         runner.assert_not_called()
 
     def test_gate_and_lock_failures_never_invoke_client(self) -> None:
         runner = mock.Mock()
         polluted = self.home / ".agents" / "skills"
         polluted.mkdir(parents=True)
+        (polluted / "pollution" / "SKILL.md").parent.mkdir()
+        (polluted / "pollution" / "SKILL.md").write_text("pollution", encoding="utf-8")
         with self.assertRaisesRegex(
             profile.ProfileError, "global capability pollution"
         ):
-            profile.run_client(self.project, "codex", "review", runner=runner)
+            profile.run_client(
+                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
         runner.assert_not_called()
 
         shutil.rmtree(self.home / ".agents")
         with (self.project / "AGENTS.md").open("a", encoding="utf-8") as stream:
             stream.write("drift")
         with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
-            profile.run_client(self.project, "codex", "review", runner=runner)
+            profile.run_client(
+                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
         runner.assert_not_called()
+
+    def test_client_global_pollution_is_rejected_after_process_exit(self) -> None:
+        def polluting_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            pollution = self.home / ".agents" / "skills" / "late" / "SKILL.md"
+            pollution.parent.mkdir(parents=True)
+            pollution.write_text("pollution", encoding="utf-8")
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                runner=polluting_runner,
+                auth_root=self.auth_root,
+            )
 
     def test_forwarded_capability_overrides_never_invoke_client(self) -> None:
         runner = mock.Mock()
@@ -721,6 +1227,7 @@ class LaunchTests(ProfileTestCase):
                         "review",
                         arguments,
                         runner=runner,
+                        auth_root=self.auth_root,
                     )
         runner.assert_not_called()
 
@@ -733,7 +1240,9 @@ class LaunchTests(ProfileTestCase):
         with self.assertRaisesRegex(
             profile.ProfileError, "must equal the Git worktree root"
         ):
-            profile.run_client(nested, "codex", "review", runner=runner)
+            profile.run_client(
+                nested, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
         runner.assert_not_called()
 
     def test_post_verification_render_drift_never_invokes_client(self) -> None:
@@ -758,7 +1267,13 @@ class LaunchTests(ProfileTestCase):
             with self.assertRaisesRegex(
                 profile.ProfileError, "drifted after lock verification"
             ):
-                profile.run_client(self.project, "codex", "review", runner=runner)
+                profile.run_client(
+                    self.project,
+                    "codex",
+                    "review",
+                    runner=runner,
+                    auth_root=self.auth_root,
+                )
         runner.assert_not_called()
 
     def test_final_input_and_project_bypass_gates_never_invoke_client(self) -> None:
@@ -809,6 +1324,7 @@ class LaunchTests(ProfileTestCase):
                             "review",
                             receipt_path=receipt,
                             runner=runner,
+                            auth_root=self.auth_root,
                         )
                 runner.assert_not_called()
                 self.assertFalse(receipt.exists())
@@ -830,6 +1346,7 @@ class LaunchTests(ProfileTestCase):
                     "review",
                     receipt_path=self.root / "qoder-cwd-receipt.json",
                     runner=fake_runner,
+                    auth_root=self.auth_root,
                 ),
                 0,
             )
@@ -861,6 +1378,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=self.root / "dotenv-receipt.json",
                 runner=fake_runner,
+                auth_root=self.auth_root,
             ),
             0,
         )
@@ -879,6 +1397,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=linked_parent / "nested" / "receipt.json",
                 runner=runner,
+                auth_root=self.auth_root,
             )
         runner.assert_not_called()
         self.assertEqual(list(nested_target.iterdir()), [])
@@ -896,6 +1415,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=receipt,
                 runner=runner,
+                auth_root=self.auth_root,
             )
         runner.assert_not_called()
         self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
@@ -922,6 +1442,7 @@ class LaunchTests(ProfileTestCase):
                 (),
                 receipt_path=receipt,
                 runner=slow_runner,
+                auth_root=self.auth_root,
             )
             self.assertTrue(started.wait(5))
             losing_runner = mock.Mock()
@@ -933,6 +1454,7 @@ class LaunchTests(ProfileTestCase):
                         "review",
                         receipt_path=receipt,
                         runner=losing_runner,
+                        auth_root=self.auth_root,
                     )
             finally:
                 release.set()
@@ -960,6 +1482,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=receipt,
                 runner=replacing_runner,
+                auth_root=self.auth_root,
             )
         self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
         self.assertTrue(receipt.is_symlink())
@@ -984,6 +1507,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=receipt,
                 runner=replacing_runner,
+                auth_root=self.auth_root,
             )
         self.assertFalse((redirect / "receipt.json").exists())
         self.assertFalse((moved_parent / "receipt.json").exists())
@@ -1003,6 +1527,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=receipt,
                 runner=linking_runner,
+                auth_root=self.auth_root,
             )
         self.assertFalse(receipt.exists())
         self.assertEqual(alias.read_bytes(), b"")
@@ -1017,6 +1542,7 @@ class LaunchTests(ProfileTestCase):
                 "review",
                 receipt_path=receipt,
                 runner=runner,
+                auth_root=self.auth_root,
             )
         self.assertFalse(os.path.lexists(receipt))
 
@@ -1032,6 +1558,42 @@ class ObserverContractTests(ProfileTestCase):
         state = self.root / name
         state.mkdir()
         return state
+
+    def test_observer_redacts_auth_token_and_canonical_root_alias(self) -> None:
+        state = self.state_directory("auth-redaction-state")
+        token = (self.auth_root / "omp" / "token").read_text(encoding="utf-8")
+        alias_text = str(self.auth_root).replace("/private/var/", "/var/", 1)
+        auth_alias = Path(alias_text)
+
+        def leaking_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    f"SKILLS-AVAILABLE: {token}\n"
+                    "MCP-AVAILABLE: unknown\n"
+                    f"CONTEXT-FILES: {self.auth_root}/omp/token\n"
+                    "HOOKS-AVAILABLE: unknown\n"
+                    "PLUGINS-AVAILABLE: unknown\n"
+                ),
+                stderr="",
+            )
+
+        profile.run_observed(
+            self.project,
+            "omp",
+            "review",
+            state,
+            auth_root=auth_alias,
+            runner=leaking_runner,
+        )
+        evidence = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in state.iterdir()
+            if path.is_file()
+        )
+        self.assertNotIn(token, evidence)
+        self.assertNotIn(str(self.auth_root), evidence)
+        self.assertNotIn(str(auth_alias), evidence)
 
     def test_probe_uses_locked_render_tree_and_keeps_unknown_distinct(self) -> None:
         state = self.state_directory("probe-state")
@@ -1115,6 +1677,7 @@ class ObserverContractTests(ProfileTestCase):
                 state,
                 ("exec", "observe"),
                 runner=fake_runner,
+                auth_root=self.auth_root,
             ),
             0,
         )
@@ -1149,6 +1712,7 @@ class ObserverContractTests(ProfileTestCase):
             state,
             ("-p", "observe"),
             runner=fake_runner,
+            auth_root=self.auth_root,
         )
         effective = json.loads((state / "effective.json").read_text(encoding="utf-8"))
         self.assertEqual(effective["observed"]["skills"], [])
@@ -1194,6 +1758,7 @@ class ObserverContractTests(ProfileTestCase):
                 state,
                 ("-p", "observe"),
                 runner=fake_runner,
+                auth_root=self.auth_root,
             )
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1242,6 +1807,7 @@ class ObserverContractTests(ProfileTestCase):
                 state,
                 ("-p", "observe"),
                 runner=replacing_runner,
+                auth_root=self.auth_root,
             )
         self.assertEqual(list(redirect.iterdir()), [])
         self.assertFalse((moved / "receipt.json").exists())
