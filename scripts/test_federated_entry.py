@@ -274,8 +274,10 @@ routing_patterns = [
     "迁移索引/待分诊",
     "没有明确 Issue",
     "不能自行激活",
-    "实际安装",
-    "合同明确调用",
+    "实施",
+    "验证",
+    "PR",
+    "自足证据评论",
 ]
 
 test_contains_all(
@@ -295,10 +297,10 @@ test_contains_all(
         "只读核验",
         "没有明确 Issue",
         "不能自行激活",
-        "实际安装",
-        "能力核验通过",
+        "直接实施、验证",
+        "PR 或自足证据评论",
     ],
-    "Codex 仓库入口与公开激活边界一致",
+    "Codex 仓库入口与公开激活和直接交付边界一致",
 )
 readme_continuation_section = extract_markdown_section(
     readme, "在线续接与负责人事项"
@@ -342,7 +344,6 @@ test_contains_all(
     [
         "公开父 Issue 的缺口时，只记录 proposal",
         "只有负责人明确激活后",
-        "实际安装、合同明确调用且运行时核验通过",
         "不自动启动，也不扫描队列找活",
         "新建 Session 与恢复空闲 Session",
         "不得沿用旧聊天记忆",
@@ -472,6 +473,26 @@ test_contains_all(
     system_entry,
     ["只冻结依赖被推翻假设", "有独立合同和所有权的安全工作继续"],
     "纠偏采用局部冻结而不是整体停工",
+)
+github_safety_patterns = [
+    "合同明示负责人账号对应的 `User`",
+    "Bot、GitHub App、其他账号",
+    "远端当前 head",
+    "授权必须明确覆盖",
+    "lease 拒绝",
+    "排他写入所有权",
+    "可重读远端",
+    "写前、写后重读",
+]
+test_contains_all(
+    system_entry,
+    github_safety_patterns,
+    "版本化系统入口保留授权主体、PR head 与 Issue 正文重写安全边界",
+)
+test_contains_all(
+    collaboration_authority,
+    github_safety_patterns,
+    "协作权威保留授权主体、PR head 与 Issue 正文重写安全边界",
 )
 
 language_rule_patterns = [
@@ -651,6 +672,36 @@ test_contains_all(
         "不创建 Issue、不派发、不实施",
     ],
     "经营总账权威保留显式触发的候选路由",
+)
+retired_workflow_terms = [
+    "github-collaboration",
+    "issue-workflow",
+    "issue-delivery",
+    "pr-integration",
+    "objective-to-issues",
+    "operating-ledger-maintenance",
+    "issue-contract-compaction",
+]
+for surface_name, surface_text in [
+    ("README", readme),
+    ("AGENTS", agents_entry),
+    ("版本化系统入口", system_entry),
+    ("协作权威", collaboration_authority),
+    ("经营总账权威", ledger_authority),
+]:
+    dead_callers = [term for term in retired_workflow_terms if term in surface_text]
+    add_check_result(
+        not dead_callers,
+        (
+            f"{surface_name} 不含已退役 GitHub 工作流调用者"
+            if not dead_callers
+            else f"{surface_name} 不含已退役 GitHub 工作流调用者；发现："
+            + "、".join(dead_callers)
+        ),
+    )
+add_check_result(
+    not (REPOSITORY_ROOT / "tools" / "issue_create").exists(),
+    "依赖已退役 objective-to-issues 的 issue_create 工具已删除",
 )
 
 git_files = run_git(
