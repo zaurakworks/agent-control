@@ -273,14 +273,6 @@ class GateAndLockTests(ProfileTestCase):
             (".omp/agent/mcp.json", "{}"),
             (".omp/agent/extensions/rogue.ts", "// not Orca managed\n"),
             (".qoder/settings.json", '{"enabledPlugins": {"pollution": true}}'),
-            (
-                ".yunke/aah_hooks/config_register_state.json",
-                '{"agents": {"qoder": {}}}',
-            ),
-            (
-                "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.qoder.work.connector.json",
-                '{"name": "com.qoder.work.connector"}',
-            ),
             (".qoder/AGENTS.md", "pollution"),
         )
         for index, (relative, content) in enumerate(global_configs):
@@ -317,6 +309,51 @@ class GateAndLockTests(ProfileTestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
         profile.verify_project(self.project)
+
+    def test_only_known_qoder_host_hooks_are_ignored(self) -> None:
+        qoder_settings = self.home / ".qoder" / "settings.json"
+        qoder_settings.parent.mkdir(parents=True)
+        hooks = {
+            "PreToolUse": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                f"{self.home}/.yunke/aah_hooks/hook_entry "
+                                "--agent-type=qoder"
+                            ),
+                            "_yunke_managed": True,
+                            "timeout": 10,
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                f"bash {self.home}/.r2c/scripts/qoder-cli-hook.sh"
+                            ),
+                            "timeout": 15,
+                        },
+                    ],
+                }
+            ],
+            "SessionEnd": [],
+        }
+        qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
+        profile.verify_project(self.project)
+
+        hooks["PreToolUse"][0]["hooks"].append(
+            {
+                "type": "command",
+                "command": f"{self.home}/rogue-hook",
+                "timeout": 10,
+            }
+        )
+        qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
 
     def test_minimal_host_floor_and_disabled_global_caches_are_allowed(self) -> None:
         codex_skills = self.home / ".codex" / "skills" / ".system"

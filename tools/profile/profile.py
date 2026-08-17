@@ -104,9 +104,6 @@ GLOBAL_CAPABILITY_PATHS = (
     ".qoder/mcp.json",
     ".qoder/plugins",
     ".qoder/skills",
-    ".yunke/aah_hooks/config_register_state.json",
-    ".yunke/aah_hooks/hook_entry.json",
-    "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.qoder.work.connector.json",
 )
 GLOBAL_FLOOR_PATHS = frozenset({".codex/AGENTS.md", ".qoder/AGENTS.md"})
 HOST_FLOOR_TEXT = """# Agent 宿主底座
@@ -2308,15 +2305,59 @@ def _codex_config_has_active_capability(config: Mapping[str, Any]) -> bool:
     return False
 
 
-def _qoder_config_has_active_capability(config: Mapping[str, Any]) -> bool:
-    """Return whether a Qoder config actively enables model-visible capability input."""
+def _qoder_hooks_are_ignored_host_integrations(value: Any, home: Path) -> bool:
+    """Return whether Qoder Hooks contain only the ignored Yunke/R2C integrations."""
+
+    if not isinstance(value, Mapping):
+        return False
+    yunke_command = f"{home}/.yunke/aah_hooks/hook_entry --agent-type=qoder"
+    r2c_command = f"bash {home}/.r2c/scripts/qoder-cli-hook.sh"
+    for registrations in value.values():
+        if not isinstance(registrations, Sequence) or isinstance(
+            registrations, (str, bytes)
+        ):
+            return False
+        for registration in registrations:
+            if not isinstance(registration, Mapping) or set(registration) - {
+                "hooks",
+                "matcher",
+            }:
+                return False
+            actions = registration.get("hooks")
+            if not isinstance(actions, Sequence) or isinstance(actions, (str, bytes)):
+                return False
+            for action in actions:
+                if not isinstance(action, Mapping) or action.get("type") != "command":
+                    return False
+                command = action.get("command")
+                if command == yunke_command:
+                    if action.get("_yunke_managed") is not True or set(action) - {
+                        "_yunke_managed",
+                        "command",
+                        "timeout",
+                        "type",
+                    }:
+                        return False
+                elif command == r2c_command:
+                    if set(action) - {"command", "timeout", "type"}:
+                        return False
+                else:
+                    return False
+    return True
+
+
+def _qoder_config_has_active_capability(config: Mapping[str, Any], home: Path) -> bool:
+    """Return whether a Qoder config actively enables project business capability."""
 
     enabled_plugins = config.get("enabledPlugins")
     if isinstance(enabled_plugins, Mapping) and any(
         value is not False for value in enabled_plugins.values()
     ):
         return True
-    return any(config.get(key) for key in ("hooks", "mcpServers", "plugins", "skills"))
+    hooks = config.get("hooks")
+    if hooks and not _qoder_hooks_are_ignored_host_integrations(hooks, home):
+        return True
+    return any(config.get(key) for key in ("mcpServers", "plugins", "skills"))
 
 
 def _matches_host_floor(path: Path) -> bool:
@@ -2457,17 +2498,6 @@ def _orca_managed_extensions_are_inert(path: Path) -> bool:
         return False
 
 
-def _yunke_qoder_hooks_are_absent(path: Path) -> bool:
-    """Return whether Yunke has no Qoder hook registration or runtime definition."""
-
-    try:
-        config = _strict_json(path)
-    except ProfileError:
-        return False
-    agents = config.get("agents")
-    return isinstance(agents, Mapping) and not {"qoder", "qoderwork"} & set(agents)
-
-
 def _global_path_is_passive(
     relative: str,
     path: Path,
@@ -2481,11 +2511,6 @@ def _global_path_is_passive(
         return True
     if relative in GLOBAL_FLOOR_PATHS:
         return _matches_host_floor(path)
-    if relative in {
-        ".yunke/aah_hooks/config_register_state.json",
-        ".yunke/aah_hooks/hook_entry.json",
-    }:
-        return _yunke_qoder_hooks_are_absent(path)
     if relative in {".omp/agent/extensions", ".pi/agent/extensions"}:
         return _orca_managed_extensions_are_inert(path)
     codex_features = codex_config.get("features")
@@ -2540,7 +2565,7 @@ def _check_global_pollution() -> None:
         path = home / relative
         if path.is_file() and _contains_mapping_key(_strict_json(path), keys):
             violations.add(relative)
-    if qoder_config and _qoder_config_has_active_capability(qoder_config):
+    if qoder_config and _qoder_config_has_active_capability(qoder_config, home):
         violations.add(".qoder/settings.json")
     text_configs = {
         ".config/opencode/opencode.json": {"instructions", "mcp", "plugin"},
