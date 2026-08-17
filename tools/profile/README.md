@@ -1,6 +1,6 @@
 # profile —— 显式能力面、三端隔离与生效态核验
 
-`tools/profile/profile.py` 是唯一入口。它用一套严格 schema 锁定项目能力声明，用同一棵渲染树物化并启动 Codex、Qoder 或 OMP，再把声明态、配置态和实际生效态分开记录。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须同时给出 `--client` 和 `--profile`。
+`tools/profile/profile.py` 是唯一入口。它用一套严格 schema 锁定项目能力声明，用同一棵渲染树物化并启动 Codex、Qoder 或 OMP，再把声明态、配置态和实际生效态分开记录。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须同时给出 `--client` 和 `--profile`，启动命令还必须显式给出 `--auth-root`。
 
 ## 唯一 schema
 
@@ -36,14 +36,15 @@ python tools/profile/profile.py --project <project> materialize \
   --client codex --profile review --output <existing-empty-dir>
 
 python tools/profile/profile.py --project <project> launch \
-  --client qoder --profile review --receipt <new-receipt.json> -- <client-args>
+  --client qoder --profile review --auth-root <private-auth-root> \
+  --receipt <new-receipt.json> -- <client-args>
 
 python tools/profile/profile.py --project <project> probe \
   --client omp --profile review --state <existing-empty-state-dir>
 
 python tools/profile/profile.py --project <project> run \
-  --client codex --profile review --state <existing-empty-state-dir> \
-  -- exec "<prompt requesting the markers below>"
+  --client codex --profile review --auth-root <private-auth-root> \
+  --state <existing-empty-state-dir> -- exec "<prompt requesting the markers below>"
 
 python tools/profile/profile.py --project <project> diff \
   --client codex --profile review --state <state-dir-from-run>
@@ -61,13 +62,32 @@ python tools/profile/profile.py --project <project> diff \
 
 | 客户端 | 隔离根与固定启动约束 |
 | --- | --- |
-| Codex | `CODEX_HOME=<runtime>`；profile prompt 渲染为 `<runtime>/AGENTS.md` |
-| Qoder | `QODER_CONFIG_DIR=<runtime>`；清除 ambient `QODER_WORKING_DIR`，固定进程 cwd 为项目根；固定 `--config-dir`、`--strict-mcp-config`、`--mcp-config`，profile prompt 以文本传给 `--append-system-prompt` |
-| OMP | `PI_CODING_AGENT_DIR=<runtime>`、`PI_CONFIG_DIR=<runtime>`；把 `OMP_PROFILE`/`PI_PROFILE` 固定为非空 `default`，把 `PI_CONFIG_FILES` 固定为 `<runtime>/config.yml`，阻止工作目录 `.env` 回填配置根；固定 Skill allowlist、`--no-extensions`、`--no-rules` |
+| Codex | `CODEX_HOME=<runtime>`；profile prompt 渲染为 `<runtime>/AGENTS.md`；固定 `cli_auth_credentials_store = "file"`，不查询 macOS Keychain；只把认证库中的 `codex/auth.json` 暴露为 `<runtime>/auth.json` |
+| Qoder | `QODER_CONFIG_DIR=<runtime>`；清除 ambient `QODER_WORKING_DIR`，固定进程 cwd 为项目根；固定 `--config-dir`、`--strict-mcp-config`、`--mcp-config`，profile prompt 以文本传给 `--append-system-prompt`；只把认证库中的 `qoder/.auth/` 暴露为 `<runtime>/.auth/` |
+| OMP | `PI_CODING_AGENT_DIR=<runtime>`、`PI_CONFIG_DIR=<runtime>`、`HOME=<runtime>`；进程 cwd 固定为 runtime，再用受控 `--cwd <project>` 指回项目，Bun 不读取项目 `.env`；`OMP_PROFILE`/`PI_PROFILE` 固定为非空 `default`，`PI_CONFIG_FILES` 固定为 `<runtime>/config.yml`；固定 Skill allowlist、`--no-extensions`、`--no-rules`；只注入认证库中固定的 broker URL/token |
 
-启动前会移除所有 ambient 配置根和工作目录环境变量，再写入所选客户端的固定值。转发参数不能覆盖 config/profile/cwd/worktree/MCP/Skill/Hook/Plugin/Extension 根；Codex 的 `-p` 和 Qoder 的 `--worktree` 等原生别名同样被拒绝。门禁或 lock 失败发生在创建客户端进程之前。项目必须等于 Git worktree 根；项目中的 provider 原生目录、嵌套指令文件和 MCP 旁路按大小写不敏感路径语义拒绝，避免 macOS／Windows 上的大小写变体绕过。已知用户级业务能力路径及配置中的 capability-bearing key 也会被拒绝；只含模型、主题等运行参数的用户配置不算业务能力污染。
+启动前会移除所有 ambient 配置根和工作目录变量，再写入所选客户端的固定值。OMP 会清空 catalog 中的 provider/API/OAuth/endpoint/cloud credential 变量，并通配清空继承环境中的 credential-suffix 变量；同时隔离 `HOME`、禁用 AWS metadata 和桌面应用凭据借用，避免用户级 AWS/ADC、项目 `.env` 或本地 endpoint 绕过 broker，最后只覆盖写入已验证的 broker URL/token。转发参数不能覆盖 config/profile/cwd/worktree/MCP/Skill/Hook/Plugin/Extension 根；Codex 的 `-p` 和 Qoder 的 `--worktree` 等原生别名同样被拒绝。门禁、lock 或认证库校验失败发生在创建客户端进程之前；客户端退出后会再次执行全局能力门禁，阻止客户端把业务能力回写到用户目录后仍生成成功收据。项目必须等于 Git worktree 根；项目中的 provider 原生目录、嵌套指令文件和 MCP 旁路按大小写不敏感路径语义拒绝，避免 macOS／Windows 上的大小写变体绕过。已知用户级业务能力路径及配置中的 capability-bearing key 也会被拒绝；只含模型、主题等运行参数的用户配置不算业务能力污染。
+
+宿主最小底座是窄例外：`~/.codex/AGENTS.md` 与 `~/.qoder/AGENTS.md` 只有逐字匹配内置 `host-floor-v1` 正文时允许；空的全局能力根允许。Codex 自动生成的系统 Skill 只有关闭搜索、配置路径逐字对应实际路径且路径树无 symlink 时才允许；Qoder Plugin 缓存按 marketplace/plugin 身份逐项对应 `enabledPlugins = false`，未知布局或未关联条目 fail closed。Yunke 与 R2C 是负责人明确忽略的宿主集成：Qoder settings 中只有命令路径、结构和 Yunke managed marker 全部精确匹配内置合同的 Hook 才允许，任一附加字段、命令或其他 Hook 仍 fail closed；Yunke 注册状态及 QoderWork 桌面/浏览器产品不属于本工具的三端业务能力范围。Orca 自动生成且带受管标记的三项 UI/状态扩展属于不可移除的宿主运行时适配器，不计作业务能力；其他 Extension 一律拒绝。
 
 lock 校验后、启动前会重新渲染并再次核对 tree hash，并在最终创建进程前重新核对全部 lock inputs 和项目旁路，防止校验、物化与启动之间的漂移。物化树和 observer state 从文件系统根开始逐级持有 no-follow 目录描述符；只允许把 macOS `/var` 这类 root-owned 第一层系统 symlink 规范到其固定目标，其他 symlink ancestor 一律拒绝。render output、state 和 receipt 的“项目外／原生能力根外”边界按持有描述符的祖先 inode 身份判断，大小写别名不能绕过。目录项被换成 symlink 或其他 inode 时失败，写入不会跟随新路径；launcher 与 probe 从已锁的内存渲染树读取 prompt、Skill 和 MCP 元数据，不按可替换的 runtime pathname 回读。收据只保存 client/profile、adapter、inventory、lock/tree hash、参数数量、退出码和临时根清理结果；不保存参数值、环境值、输出正文或临时路径。显式收据路径的所有祖先都不得是 symlink，目标必须尚不存在；启动前用 exclusive create 预留目标，最终只通过已持有且身份复核过的文件描述符写入。收据 inode 在提交前后必须保持单一硬链接；同一路径的并发启动不能覆盖已有收据。
+
+## 持久认证库
+
+认证与业务能力分开。`--auth-root` 必须指向项目和三端原生全局能力根之外的既有私有目录：
+
+```text
+<auth-root>/
+├── codex/
+│   └── auth.json       # Codex 原生登录状态
+├── qoder/
+│   └── .auth/          # Qoder 原生登录状态目录
+└── omp/
+    ├── broker.json     # {"version":1,"url":"https://…"}；loopback 可用 http
+    └── token           # 单行 bearer token
+```
+
+认证根及其可变目录必须由当前用户拥有、具备 owner `rwx` 且不得授予 group/other 权限。Codex `auth.json` 必须是 owner 可读写、无 group/other 权限、单一硬链接的普通文件；OMP metadata/token 必须 owner 可读且同样拒绝 group/other 权限和硬链接别名。读取凭据时会核对 inode、size、mtime、ctime；并发原地刷新最多重读三次，稳定但尚未形成完整 JSON/token 的快照也会重试。Qoder 会自行维护 `.auth/` 下的事务文件，因此普通文件允许只读共享位，但拒绝 group/other 写权限、symlink、特殊文件、硬链接别名、超过 256 个目录项、16 层或 16 MiB 的树。启动期间 Codex `auth.json` 与 Qoder `.auth/` 通过临时根内的定向 symlink 连接到这套持久认证源，刷新结果直接留在认证库；symlink 不属于 profile 渲染树，临时根删除不会删除认证源。OMP 只接收已验证且无控制字符的 broker URL/token；本工具不托管或启动 broker。子进程输出返回 observer 前会按最长匹配清除 token、调用路径与规范物理路径；收据和 observer state 不记录认证路径、token 或环境值。
 
 ## `probe`、`run`、`diff` 量的不是同一层
 
@@ -98,4 +118,4 @@ Codex/Qoder/OMP 的运行时自述能力并不对称。Codex 的内置 MCP 不�
 
 Skill 是 `native-staging`，MCP 是 `native-config`。Hook 和 Plugin 的 target overlay 目前只证明“按 profile、按客户端进入隔离渲染树”，尚未完成三端原生加载验证，所以 lock 固定标为 **`opaque-staging`**；每个 Hook target 的唯一第一层根必须是 `hooks/`，每个 Plugin target 的唯一第一层根必须是 `plugins/`，不得写入另一 kind、Skill、配置或 prompt 路径。即使 batch 输出带有 Hook/Plugin marker，也只旁存为 `reported_opaque_staging`，不会升级成 effective observation。不得据 sentinel 落盘或 agent 自报宣称已经原生生效。
 
-本工具不修改用户级配置，不接管 PATH，不是通用包管理器、CAS/GC、secret broker、权限 sandbox 或 MCP supervisor，也不承诺 Qoder/OMP 的 MCP 子进程失败会阻断会话。认证文件不会从真实 home 自动复制到临时根；三端认证 staging 仍是阻断未知项，未核实前不得据本试点实施全局封存。
+本工具不修改用户级配置，不接管 PATH，不是通用包管理器、CAS/GC、权限 sandbox、secret broker 或 MCP supervisor，也不承诺 Qoder/OMP 的 MCP 子进程失败会阻断会话。全局封存必须在三端都用显式认证库完成真实登录态验证后另行实施；launcher 不会从真实 home 自动回退或复制认证。

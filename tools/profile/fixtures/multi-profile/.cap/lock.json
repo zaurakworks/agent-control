@@ -7,15 +7,15 @@
   },
   "clients": {
     "codex": {
-      "adapter_version": 6,
+      "adapter_version": 7,
       "executable": "codex"
     },
     "omp": {
-      "adapter_version": 6,
+      "adapter_version": 7,
       "executable": "omp"
     },
     "qoder": {
-      "adapter_version": 6,
+      "adapter_version": 7,
       "executable": "qoder"
     }
   },
@@ -252,7 +252,7 @@
     "implementation": {
       "clients": {
         "codex": {
-          "tree_hash": "sha256:0caff4a5fdbf6aef24ca5121f61b43a10a0e3e5a32eb3c11fa3819e935f8f250"
+          "tree_hash": "sha256:34d0d2d491540dd77de99f03ff66d180e87d2257e703fcb88b525c23d5414c16"
         },
         "omp": {
           "tree_hash": "sha256:f995d0726c231d61680fe65dfaf4a9f0353fd0df8bbd372269fdc4b45a9ca384"
@@ -279,7 +279,7 @@
     "review": {
       "clients": {
         "codex": {
-          "tree_hash": "sha256:a859edc87a64b9b543a5aec46acce9fb8cfd872954296e46dffae7efbb3d8a30"
+          "tree_hash": "sha256:a3184e9cf4bd3ee3b829b389cb63339df4c3f1171d5884ac22803ccdff8856fe"
         },
         "omp": {
           "tree_hash": "sha256:2b4d6b258740697fae6ae0118b3ac4fcb80365a06d1d9c64327cf697071839ec"

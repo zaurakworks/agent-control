@@ -12,12 +12,14 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterator, Mapping, Sequence
+from urllib.parse import urlsplit
 
 
 RENDERER_VERSION = "profile-renderer-v1"
@@ -25,7 +27,7 @@ LOCK_VERSION = 1
 MANIFEST_VERSION = 1
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
-CLIENT_ADAPTER_VERSION = 6
+CLIENT_ADAPTER_VERSION = 7
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
 CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
 PROJECT_BYPASS_DIRS = frozenset(
@@ -103,6 +105,81 @@ GLOBAL_CAPABILITY_PATHS = (
     ".qoder/plugins",
     ".qoder/skills",
 )
+GLOBAL_FLOOR_PATHS = frozenset({".codex/AGENTS.md", ".qoder/AGENTS.md"})
+HOST_FLOOR_TEXT = """# Agent 宿主底座
+
+- 业务指令与能力必须由当前 Git 项目显式声明；模板只用于生成项目内副本，不是运行时来源。
+- 全局不得启用业务 Skills、MCP、hooks、plugins、rules、agents、marketplaces 或 provider 覆盖。
+- 项目需要本机增量时，必须在项目 manifest 中显式允许；不得因目录位置自动继承。
+- 项目缺少 `AGENTS.md` 或 `.cap/manifest.toml` 时，先警告再按用户要求继续；不得从用户目录补齐业务能力。
+- 认证、运行态与 UI 偏好可以留在用户目录，但不得向模型注入业务上下文。
+- 用户当轮明确指令与平台安全约束优先。
+"""
+CODEX_CAPABILITY_FEATURES = frozenset(
+    {
+        "apps",
+        "browser_use",
+        "browser_use_external",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "goals",
+        "hooks",
+        "image_generation",
+        "in_app_browser",
+        "memories",
+        "multi_agent",
+        "multi_agent_v2",
+        "plugin_sharing",
+        "plugins",
+        "recommended_plugins",
+        "remote_plugin",
+        "skill_mcp_dependency_install",
+        "skill_search",
+        "tool_suggest",
+        "workspace_dependencies",
+    }
+)
+CODEX_RUNTIME_ONLY_FEATURES = frozenset({"prevent_idle_sleep"})
+CODEX_RUNTIME_ONLY_KEYS = frozenset(
+    {
+        "approval_policy",
+        "analytics",
+        "approvals_reviewer",
+        "cli_auth_credentials_store",
+        "feedback",
+        "desktop",
+        "features",
+        "history",
+        "model",
+        "model_reasoning_effort",
+        "model_reasoning_summary",
+        "notice",
+        "sandbox_mode",
+        "tool_output_token_limit",
+        "projects",
+        "tui",
+    }
+)
+CODEX_CAPABILITY_KEYS = frozenset(
+    {
+        "agents",
+        "apps",
+        "developer_instructions",
+        "hooks",
+        "marketplaces",
+        "mcp_servers",
+        "model_instructions_file",
+        "model_provider",
+        "model_providers",
+        "personality",
+        "plugins",
+        "skills",
+    }
+)
+ORCA_MANAGED_EXTENSION_NAMES = frozenset(
+    {"orca-agent-status.ts", "orca-prefill.ts", "orca-titlebar-spinner.ts"}
+)
+CODEX_EXPLICITLY_DISABLABLE_ROOTS = frozenset({"agents", "apps", "marketplaces"})
 GLOBAL_NATIVE_ROOTS = (
     ".agents",
     ".claude",
@@ -117,8 +194,13 @@ GLOBAL_NATIVE_ROOTS = (
 )
 AMBIENT_CONFIG_ENV = frozenset(
     {
+        "CODEX_ACCESS_TOKEN",
+        "CODEX_API_KEY",
         "CODEX_HOME",
+        "OMP_AUTH_BROKER_TOKEN",
+        "OMP_AUTH_BROKER_URL",
         "OMP_PROFILE",
+        "OPENAI_API_KEY",
         "PI_CODING_AGENT_DIR",
         "PI_CONFIG_DIR",
         "PI_CONFIG_FILES",
@@ -127,6 +209,167 @@ AMBIENT_CONFIG_ENV = frozenset(
         "QODER_WORKING_DIR",
     }
 )
+OMP_AMBIENT_AUTH_ENV = frozenset(
+    {
+        "AIAND_API_KEY",
+        "AIMLAPI_API_KEY",
+        "AI_GATEWAY_API_KEY",
+        "ALIBABA_CODING_PLAN_API_KEY",
+        "ALIBABA_TOKEN_PLAN_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_CUSTOM_HEADERS",
+        "ANTHROPIC_FOUNDRY_API_KEY",
+        "ANTHROPIC_OAUTH_TOKEN",
+        "AWS_CONFIG_FILE",
+        "ANTHROPIC_SEARCH_API_KEY",
+        "ANTHROPIC_SEARCH_BASE_URL",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+        "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+        "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+        "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+        "AWS_EC2_METADATA_DISABLED",
+        "AWS_EC2_METADATA_SERVICE_ENDPOINT",
+        "AWS_PROFILE",
+        "AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE",
+        "AWS_ROLE_ARN",
+        "AWS_ROLE_SESSION_NAME",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AWS_SHARED_CREDENTIALS_FILE",
+        "AWS_WEB_IDENTITY_TOKEN_FILE",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_API_VERSION",
+        "AZURE_OPENAI_BASE_URL",
+        "AZURE_OPENAI_DEPLOYMENT_NAME_MAP",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_RESOURCE_NAME",
+        "BAILIAN_TOKEN_PLAN_API_KEY",
+        "BASETEN_API_KEY",
+        "BRAVE_API_KEY",
+        "CEREBRAS_API_KEY",
+        "CLAUDE_CODE_USE_FOUNDRY",
+        "CLAUDE_CODE_CLIENT_CERT",
+        "CLAUDE_CODE_CLIENT_KEY",
+        "CLOUDFLARE_AI_GATEWAY_API_KEY",
+        "COPILOT_GITHUB_TOKEN",
+        "CLOUDSDK_CONFIG",
+        "COREWEAVE_API_KEY",
+        "CURSOR_ACCESS_TOKEN",
+        "CURSOR_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "DEVIN_API_KEY",
+        "EXA_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "FIREPASS_API_KEY",
+        "FIREWORKS_API_KEY",
+        "FUGU_BASE_URL",
+        "FOUNDRY_BASE_URL",
+        "FUGU_API_KEY",
+        "GEMINI_API_KEY",
+        "GITLAB_TOKEN",
+        "GCLOUD_PROJECT",
+        "GMI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_CLOUD_ACCESS_TOKEN",
+        "GOOGLE_CLOUD_API_KEY",
+        "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_CLOUD_PROJECT_ID",
+        "GOOGLE_VERTEX_LOCATION",
+        "GCP_PROJECT",
+        "GROQ_API_KEY",
+        "HF_TOKEN",
+        "HUGGINGFACE_HUB_TOKEN",
+        "JINA_API_KEY",
+        "KAGI_API_KEY",
+        "KILO_API_KEY",
+        "KIMI_API_KEY",
+        "KIMI_CODE_BASE_URL",
+        "KIMI_CODE_OAUTH_HOST",
+        "KIMI_OAUTH_HOST",
+        "KIMI_SEARCH_API_KEY",
+        "LITELLM_API_KEY",
+        "LITELLM_BASE_URL",
+        "LLAMA_CPP_API_KEY",
+        "LLAMA_CPP_BASE_URL",
+        "LM_STUDIO_API_KEY",
+        "LM_STUDIO_BASE_URL",
+        "META_API_KEY",
+        "MINIMAX_API_KEY",
+        "MINIMAX_CODE_API_KEY",
+        "MINIMAX_CODE_CN_API_KEY",
+        "MISTRAL_API_KEY",
+        "MODEL_API_KEY",
+        "MOONSHOT_API_KEY",
+        "MOONSHOT_BASE_URL",
+        "MOONSHOT_SEARCH_API_KEY",
+        "NANO_GPT_API_KEY",
+        "NOVITA_API_KEY",
+        "NVIDIA_API_KEY",
+        "NODE_EXTRA_CA_CERTS",
+        "OLLAMA_API_KEY",
+        "OLLAMA_CLOUD_API_KEY",
+        "OPENCODE_API_KEY",
+        "OPENAI_API_KEY",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_HOST",
+        "OPENAI_BASE_URL",
+        "OPENAI_CODEX_OAUTH_TOKEN",
+        "OPENROUTER_API_KEY",
+        "PARALLEL_API_KEY",
+        "PERPLEXITY_API_KEY",
+        "PERPLEXITY_COOKIES",
+        "QIANFAN_API_KEY",
+        "QWEN_OAUTH_TOKEN",
+        "QWEN_PORTAL_API_KEY",
+        "SAKANA_API_KEY",
+        "SILICONFLOW_API_KEY",
+        "SILICONFLOW_CN_API_KEY",
+        "SYNTHETIC_API_KEY",
+        "TAVILY_API_KEY",
+        "TINYFISH_API_KEY",
+        "TOGETHER_API_KEY",
+        "UMANS_AI_CODING_PLAN_API_KEY",
+        "SAKANA_BASE_URL",
+        "VENICE_API_KEY",
+        "VERCEL_AI_GATEWAY_API_KEY",
+        "VLLM_API_KEY",
+        "WAFER_SERVERLESS_API_KEY",
+        "WANDB_API_KEY",
+        "XAI_API_KEY",
+        "UMANS_WEBSEARCH_PROVIDER",
+        "XAI_OAUTH_TOKEN",
+        "XIAOMI_API_KEY",
+        "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
+        "XIAOMI_TOKEN_PLAN_CN_API_KEY",
+        "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
+        "ZAI_API_KEY",
+        "ZENMUX_API_KEY",
+        "VERTEX_LOCATION",
+        "ZHIPU_API_KEY",
+    }
+)
+OMP_AMBIENT_CREDENTIAL_SUFFIXES = (
+    "_API_KEY",
+    "_ACCESS_TOKEN",
+    "_OAUTH_TOKEN",
+    "_BEARER_TOKEN",
+    "_HUB_TOKEN",
+    "_SECRET_ACCESS_KEY",
+    "_SESSION_TOKEN",
+)
+
+
+def _is_ambient_credential_name(name: str) -> bool:
+    """Return whether an inherited variable can directly carry provider credentials."""
+
+    return name.endswith(OMP_AMBIENT_CREDENTIAL_SUFFIXES)
+
+
 FORBIDDEN_CLIENT_ARGUMENTS = {
     "codex": frozenset(
         {"-c", "-C", "-p", "--add-dir", "--cd", "--config", "--profile"}
@@ -221,6 +464,14 @@ class LaunchSpec:
 
     command: tuple[str, ...]
     environment: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class AuthBinding:
+    """Hold explicit auth environment values and strings that must be redacted."""
+
+    environment: Mapping[str, str]
+    private_values: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -398,6 +649,315 @@ def _rendered_skill_names(tree: Mapping[str, RenderedFile]) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
+def _validate_private_directory(directory: StableDirectory, context: str) -> None:
+    """Require one held credential directory to be private, writable, and user-owned."""
+
+    info = os.fstat(directory.descriptor)
+    if info.st_uid != os.geteuid():
+        raise ProfileError(f"{context} must be owned by the current user")
+    mode = stat.S_IMODE(info.st_mode)
+    if mode & 0o077:
+        raise ProfileError(f"{context} must not grant group or other access")
+    if mode & 0o700 != 0o700:
+        raise ProfileError(f"{context} must grant its owner read, write, and search")
+
+
+def _read_private_file(
+    directory: StableDirectory,
+    name: str,
+    context: str,
+    *,
+    max_bytes: int,
+    require_owner_write: bool = False,
+) -> bytes:
+    """Read one bounded private file, retrying concurrent in-place refreshes."""
+
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    for attempt in range(3):
+        try:
+            descriptor = os.open(name, flags, dir_fd=directory.descriptor)
+        except OSError as error:
+            raise ProfileError(
+                f"{context} is not a readable regular file: {error}"
+            ) from error
+        try:
+            before = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.geteuid()
+                or before.st_nlink != 1
+            ):
+                raise ProfileError(
+                    f"{context} must be a current-user regular file with one hard link"
+                )
+            mode = stat.S_IMODE(before.st_mode)
+            if mode & 0o077:
+                raise ProfileError(f"{context} must not grant group or other access")
+            if mode & 0o400 != 0o400 or (require_owner_write and mode & 0o200 != 0o200):
+                requirement = "read and write" if require_owner_write else "read"
+                raise ProfileError(f"{context} must grant its owner {requirement}")
+            content = bytearray()
+            while len(content) <= max_bytes:
+                chunk = os.read(descriptor, min(65536, max_bytes + 1 - len(content)))
+                if not chunk:
+                    break
+                content.extend(chunk)
+            if len(content) > max_bytes:
+                raise ProfileError(f"{context} exceeds {max_bytes} bytes")
+            after = os.fstat(descriptor)
+            live = os.stat(name, dir_fd=directory.descriptor, follow_symlinks=False)
+            stable_identity = _same_file_identity(
+                after, before.st_dev, before.st_ino
+            ) and _same_file_identity(live, before.st_dev, before.st_ino)
+            stable_generation = (
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_ctime_ns,
+            ) == (
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_ctime_ns,
+            ) and (
+                live.st_size,
+                live.st_mtime_ns,
+                live.st_ctime_ns,
+            ) == (
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_ctime_ns,
+            )
+            if stable_identity and stable_generation:
+                return bytes(content)
+        finally:
+            os.close(descriptor)
+        if attempt == 2:
+            break
+    raise ProfileError(f"{context} did not remain stable while it was read")
+
+
+def _read_stable_private_value(
+    directory: StableDirectory,
+    name: str,
+    context: str,
+    *,
+    max_bytes: int,
+    parse: Callable[[bytes], Any],
+    require_owner_write: bool = False,
+) -> Any:
+    """Read and parse one private value, retrying stable-but-incomplete refresh snapshots."""
+
+    last_error: ProfileError | None = None
+    for attempt in range(3):
+        payload = _read_private_file(
+            directory,
+            name,
+            context,
+            max_bytes=max_bytes,
+            require_owner_write=require_owner_write,
+        )
+        try:
+            return parse(payload)
+        except ProfileError as error:
+            last_error = error
+            if attempt < 2:
+                time.sleep(0.01 * (attempt + 1))
+    assert last_error is not None
+    raise last_error
+
+
+def _validate_private_tree(root: Path, context: str) -> None:
+    """Reject unsafe, deep, or oversized entries in one mutable auth tree."""
+
+    entry_count = 0
+    total_bytes = 0
+    pending = [(root, 0)]
+    while pending:
+        directory, depth = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                entry_count += 1
+                if entry_count > 256:
+                    raise ProfileError(f"{context} exceeds 256 directory entries")
+                info = entry.stat(follow_symlinks=False)
+                label = f"{context}/{entry.name}"
+                if info.st_uid != os.geteuid():
+                    raise ProfileError(f"{label} must be owned by the current user")
+                if stat.S_ISDIR(info.st_mode):
+                    if stat.S_IMODE(info.st_mode) & 0o077:
+                        raise ProfileError(
+                            f"{label} must not grant group or other access"
+                        )
+                    if stat.S_IMODE(info.st_mode) & 0o700 != 0o700:
+                        raise ProfileError(
+                            f"{label} must grant its owner read, write, and search"
+                        )
+                    if depth >= 16:
+                        raise ProfileError(f"{context} exceeds 16 directory levels")
+                    pending.append((Path(entry.path), depth + 1))
+                    continue
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise ProfileError(
+                        f"{label} must be a regular file with one hard link"
+                    )
+                if stat.S_IMODE(info.st_mode) & 0o022:
+                    raise ProfileError(f"{label} must not grant group or other write")
+                total_bytes += info.st_size
+                if total_bytes > 16 * 1024 * 1024:
+                    raise ProfileError(f"{context} exceeds 16 MiB")
+
+
+def _create_auth_symlink(
+    runtime: StableDirectory, name: str, target: Path, context: str
+) -> None:
+    """Expose one validated persistent credential object inside the temporary root."""
+
+    try:
+        os.symlink(str(target), name, dir_fd=runtime.descriptor)
+    except OSError as error:
+        raise ProfileError(f"could not stage {context}: {error}") from error
+
+
+def _validate_broker_url(value: Any) -> str:
+    """Return one HTTPS or loopback-HTTP auth-broker URL."""
+
+    if not isinstance(value, str) or not value:
+        raise ProfileError("OMP auth broker url must be a non-empty string")
+    if any(not character.isprintable() or character.isspace() for character in value):
+        raise ProfileError(
+            "OMP auth broker url must contain only printable non-space characters"
+        )
+    parsed = urlsplit(value)
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+    ):
+        raise ProfileError("OMP auth broker url must contain only scheme and authority")
+    loopback = parsed.hostname in {"127.0.0.1", "::1", "localhost"}
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
+        raise ProfileError("OMP auth broker url must use HTTPS or loopback HTTP")
+    if parsed.hostname is None:
+        raise ProfileError("OMP auth broker url must include a host")
+    try:
+        parsed.port
+    except ValueError as error:
+        raise ProfileError("OMP auth broker url has an invalid port") from error
+    return value.rstrip("/")
+
+
+def _parse_codex_auth(payload: bytes) -> dict[str, Any]:
+    """Parse one complete Codex auth snapshot."""
+
+    try:
+        parsed = _loads_strict_json(
+            payload.decode("utf-8"), "<auth-root>/codex/auth.json"
+        )
+    except UnicodeError as error:
+        raise ProfileError("Codex auth.json must be UTF-8 JSON") from error
+    if not isinstance(parsed, dict) or not parsed:
+        raise ProfileError("Codex auth.json must be a non-empty JSON object")
+    return parsed
+
+
+def _parse_omp_broker_metadata(payload: bytes) -> dict[str, Any]:
+    """Parse and validate one complete OMP broker metadata snapshot."""
+
+    try:
+        broker = _loads_strict_json(
+            payload.decode("utf-8"), "<auth-root>/omp/broker.json"
+        )
+    except UnicodeError as error:
+        raise ProfileError("OMP broker metadata must be UTF-8 JSON") from error
+    if not isinstance(broker, dict):
+        raise ProfileError("OMP broker metadata must be a JSON object")
+    _expect_keys(broker, {"version", "url"}, "OMP broker metadata")
+    if type(broker["version"]) is not int or broker["version"] != 1:
+        raise ProfileError("OMP broker metadata.version must be 1")
+    return {"version": 1, "url": _validate_broker_url(broker["url"])}
+
+
+def _parse_omp_broker_token(payload: bytes) -> str:
+    """Parse one complete OMP broker bearer-token snapshot."""
+
+    try:
+        token = payload.decode("ascii")
+    except UnicodeError as error:
+        raise ProfileError("OMP broker token must be ASCII") from error
+    if not token or any(not 0x21 <= ord(character) <= 0x7E for character in token):
+        raise ProfileError(
+            "OMP broker token must contain only printable non-space ASCII"
+        )
+    return token
+
+
+@contextmanager
+def _staged_auth(
+    project: Project,
+    client: str,
+    auth_root: Path | str,
+    runtime: StableDirectory,
+) -> Iterator[AuthBinding]:
+    """Stage only the selected client's explicit persistent credential source."""
+
+    root_path = Path(auth_root).expanduser().absolute()
+    with _stable_directory(root_path, "auth root") as root:
+        _require_external_directory(project, root, "auth root")
+        _validate_private_directory(root, "auth root")
+        client_path = root.path / client
+        with _stable_directory(client_path, f"{client} auth directory") as client_root:
+            _validate_private_directory(client_root, f"{client} auth directory")
+            if client == "codex":
+                _read_stable_private_value(
+                    client_root,
+                    "auth.json",
+                    "Codex auth.json",
+                    max_bytes=1024 * 1024,
+                    parse=_parse_codex_auth,
+                    require_owner_write=True,
+                )
+                _create_auth_symlink(
+                    runtime, "auth.json", client_root.path / "auth.json", "Codex auth"
+                )
+                yield AuthBinding({}, (str(root.path), str(client_root.path)))
+            elif client == "qoder":
+                auth_path = client_root.path / ".auth"
+                with _stable_directory(auth_path, "Qoder .auth") as qoder_auth:
+                    _validate_private_directory(qoder_auth, "Qoder .auth")
+                    _validate_private_tree(qoder_auth.path, "Qoder .auth")
+                    _create_auth_symlink(
+                        runtime, ".auth", qoder_auth.path, "Qoder auth directory"
+                    )
+                    yield AuthBinding({}, (str(root.path), str(qoder_auth.path)))
+                    _validate_stable_directory(qoder_auth)
+                    _validate_private_tree(qoder_auth.path, "Qoder .auth")
+            else:
+                broker = _read_stable_private_value(
+                    client_root,
+                    "broker.json",
+                    "OMP broker metadata",
+                    max_bytes=16 * 1024,
+                    parse=_parse_omp_broker_metadata,
+                )
+                token_text = _read_stable_private_value(
+                    client_root,
+                    "token",
+                    "OMP broker token",
+                    max_bytes=8192,
+                    parse=_parse_omp_broker_token,
+                )
+                yield AuthBinding(
+                    {
+                        "OMP_AUTH_BROKER_URL": broker["url"],
+                        "OMP_AUTH_BROKER_TOKEN": token_text,
+                    },
+                    (str(root.path), str(client_root.path), token_text),
+                )
+            _validate_stable_directory(client_root)
+        _validate_stable_directory(root)
+
+
 def build_launch(
     client: str,
     runtime_root: Path | str,
@@ -484,10 +1044,11 @@ def _execute_runtime(
     desired: Mapping[str, Any],
     forwarded_args: Sequence[str],
     *,
+    auth_root: Path | str,
     runner: Callable[..., Any],
     capture_output: bool,
 ) -> tuple[int, str, str]:
-    """Render and invoke one client through the sole strict runtime path."""
+    """Render, bind explicit auth, and invoke one client through the strict path."""
 
     output_hash = desired["profiles"][profile.name]["clients"][client]["tree_hash"]
     with tempfile.TemporaryDirectory(
@@ -499,44 +1060,81 @@ def _execute_runtime(
             raise ProfileError("rendered output drifted after lock verification")
         with _stable_directory(runtime_root, "runtime root") as runtime_directory:
             _materialize_tree(runtime_directory, tree)
-            spec = build_launch(client, runtime_directory.path, tree, forwarded_args)
-            environment = os.environ.copy()
-            for name in AMBIENT_CONFIG_ENV:
-                environment.pop(name, None)
-            environment.update(spec.environment)
-            run_options: dict[str, Any] = {
-                "cwd": str(project.root),
-                "env": environment,
-                "check": False,
-            }
-            if capture_output:
-                run_options.update(
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
+            with _staged_auth(
+                project, client, auth_root, runtime_directory
+            ) as auth_binding:
+                spec = build_launch(
+                    client, runtime_directory.path, tree, forwarded_args
                 )
-            _check_project_pollution(project.root)
-            if _input_records(project) != desired["inputs"]:
-                raise ProfileError("locked inputs drifted after lock verification")
-            _validate_stable_directory(runtime_directory)
-            completed = runner(list(spec.command), **run_options)
-            return_code = getattr(completed, "returncode", None)
-            if type(return_code) is not int:
-                raise ProfileError(
-                    "client runner did not return an integer return code"
-                )
-            stdout = getattr(completed, "stdout", "") or ""
-            stderr = getattr(completed, "stderr", "") or ""
-            runtime_spellings = {
-                str(runtime_root),
-                runtime_root.as_posix(),
-                str(runtime_directory.path),
-                runtime_directory.path.as_posix(),
-            }
-            for spelling in runtime_spellings:
-                stdout = stdout.replace(spelling, "<runtime>")
-                stderr = stderr.replace(spelling, "<runtime>")
+                if client == "omp":
+                    spec = LaunchSpec(
+                        (
+                            spec.command[0],
+                            "--cwd",
+                            str(project.root),
+                            *spec.command[1:],
+                        ),
+                        spec.environment,
+                    )
+                environment = os.environ.copy()
+                for name in AMBIENT_CONFIG_ENV:
+                    environment.pop(name, None)
+                if client == "omp":
+                    for name in set(OMP_AMBIENT_AUTH_ENV) | {
+                        candidate
+                        for candidate in environment
+                        if _is_ambient_credential_name(candidate)
+                    }:
+                        environment[name] = ""
+                    environment["AWS_EC2_METADATA_DISABLED"] = "true"
+                    environment["HOME"] = str(runtime_directory.path)
+                    environment["PI_AUTH_NO_BORROW"] = "1"
+                environment.update(spec.environment)
+                environment.update(auth_binding.environment)
+                run_options: dict[str, Any] = {
+                    "cwd": str(
+                        runtime_directory.path if client == "omp" else project.root
+                    ),
+                    "env": environment,
+                    "check": False,
+                }
+                if capture_output:
+                    run_options.update(
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+                _check_project_pollution(project.root)
+                _check_global_pollution()
+                if _input_records(project) != desired["inputs"]:
+                    raise ProfileError("locked inputs drifted after lock verification")
+                _validate_stable_directory(runtime_directory)
+                completed = runner(list(spec.command), **run_options)
+                _check_global_pollution()
+                return_code = getattr(completed, "returncode", None)
+                if type(return_code) is not int:
+                    raise ProfileError(
+                        "client runner did not return an integer return code"
+                    )
+                stdout = getattr(completed, "stdout", "") or ""
+                stderr = getattr(completed, "stderr", "") or ""
+                private_spellings = {
+                    str(runtime_root),
+                    runtime_root.as_posix(),
+                    str(runtime_directory.path),
+                    runtime_directory.path.as_posix(),
+                    str(Path(auth_root).expanduser().absolute()),
+                    Path(auth_root).expanduser().absolute().as_posix(),
+                    *auth_binding.private_values,
+                }
+                for spelling in sorted(
+                    (value for value in private_spellings if value),
+                    key=len,
+                    reverse=True,
+                ):
+                    stdout = stdout.replace(spelling, "<private>")
+                    stderr = stderr.replace(spelling, "<private>")
     return return_code, stdout, stderr
 
 
@@ -572,10 +1170,11 @@ def run_client(
     profile_name: str,
     forwarded_args: Sequence[str] = (),
     *,
+    auth_root: Path | str,
     receipt_path: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
 ) -> int:
-    """Launch one interactive client in a verified temporary root and clean it up."""
+    """Launch one authenticated client in a verified temporary root and clean it up."""
 
     project, profile, desired, args = _prepare_execution(
         project_root, client, profile_name, forwarded_args
@@ -594,6 +1193,7 @@ def run_client(
             profile,
             desired,
             args,
+            auth_root=auth_root,
             runner=runner or subprocess.run,
             capture_output=False,
         )
@@ -974,6 +1574,7 @@ def run_observed(
     state_root: Path | str,
     forwarded_args: Sequence[str] = (),
     *,
+    auth_root: Path | str,
     receipt_path: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
 ) -> int:
@@ -1006,6 +1607,7 @@ def run_observed(
             profile,
             desired,
             args,
+            auth_root=auth_root,
             runner=runner or subprocess.run,
             capture_output=True,
         )
@@ -1242,6 +1844,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.client,
                 args.profile,
                 forwarded,
+                auth_root=args.auth_root,
                 receipt_path=args.receipt,
             )
         return run_observed(
@@ -1250,6 +1853,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.profile,
             args.state,
             forwarded,
+            auth_root=args.auth_root,
             receipt_path=args.receipt,
         )
     except (ProfileError, OSError) as error:
@@ -1260,6 +1864,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _add_selection(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--client", required=True, choices=CLIENTS)
     parser.add_argument("--profile", required=True)
+
+
+def _add_auth(parser: argparse.ArgumentParser) -> None:
+    """Require one explicit persistent auth vault for runtime commands."""
+
+    parser.add_argument(
+        "--auth-root",
+        required=True,
+        help="private directory containing codex/, qoder/, and omp/ credentials",
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1283,10 +1897,12 @@ def _build_parser() -> argparse.ArgumentParser:
     diff.add_argument("--state", required=True)
     launch = subparsers.add_parser("launch")
     _add_selection(launch)
+    _add_auth(launch)
     launch.add_argument("--receipt")
     launch.add_argument("client_args", nargs=argparse.REMAINDER)
     run = subparsers.add_parser("run")
     _add_selection(run)
+    _add_auth(run)
     run.add_argument("--state", required=True)
     run.add_argument("--receipt")
     run.add_argument("client_args", nargs=argparse.REMAINDER)
@@ -1603,25 +2219,337 @@ def _check_project_pollution(root: Path) -> None:
         )
 
 
+def _codex_capability_root_is_disabled(value: Any) -> bool:
+    """Return whether a capability root or all of its named entries are disabled."""
+
+    if not isinstance(value, Mapping) or not value:
+        return False
+    if value.get("enabled") is False:
+        return True
+    return all(
+        isinstance(entry, Mapping) and entry.get("enabled") is False
+        for entry in value.values()
+    )
+
+
+def _codex_config_has_active_capability(config: Mapping[str, Any]) -> bool:
+    """Return whether a Codex config actively enables model-visible capability input."""
+
+    for key in CODEX_CAPABILITY_KEYS - {"hooks", "plugins", "skills"}:
+        value = config.get(key)
+        if not value:
+            continue
+        if (
+            key in CODEX_EXPLICITLY_DISABLABLE_ROOTS
+            and _codex_capability_root_is_disabled(value)
+        ):
+            continue
+        return True
+    projects = config.get("projects")
+    if projects and (
+        not isinstance(projects, Mapping)
+        or any(
+            not isinstance(value, Mapping)
+            or set(value) - {"trust_level"}
+            or not isinstance(value.get("trust_level"), str)
+            for value in projects.values()
+        )
+    ):
+        return True
+    if any(
+        value
+        for key, value in config.items()
+        if key not in CODEX_RUNTIME_ONLY_KEYS and key not in CODEX_CAPABILITY_KEYS
+    ):
+        return True
+    hooks = config.get("hooks")
+    if hooks and (
+        not isinstance(hooks, Mapping) or any(key != "state" for key in hooks)
+    ):
+        return True
+    features = config.get("features")
+    if features and not isinstance(features, Mapping):
+        return True
+    if isinstance(features, Mapping):
+        for key, value in features.items():
+            if key in CODEX_CAPABILITY_FEATURES:
+                if value is True:
+                    return True
+                if value is not False:
+                    return True
+            elif key not in CODEX_RUNTIME_ONLY_FEATURES and value not in (False, None):
+                return True
+    plugins = config.get("plugins")
+    if plugins and (
+        not isinstance(plugins, Mapping)
+        or any(
+            not isinstance(value, Mapping) or value.get("enabled") is not False
+            for value in plugins.values()
+        )
+    ):
+        return True
+    skills = config.get("skills")
+    if isinstance(skills, Mapping):
+        if any(key != "config" for key in skills):
+            return True
+        entries = skills.get("config", ())
+        if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+            return True
+        if any(
+            not isinstance(entry, Mapping) or entry.get("enabled") is not False
+            for entry in entries
+        ):
+            return True
+    elif skills:
+        return True
+    return False
+
+
+def _qoder_hooks_are_ignored_host_integrations(value: Any, home: Path) -> bool:
+    """Return whether Qoder Hooks contain only the ignored Yunke/R2C integrations."""
+
+    if not isinstance(value, Mapping):
+        return False
+    yunke_command = f"{home}/.yunke/aah_hooks/hook_entry --agent-type=qoder"
+    r2c_command = f"bash {home}/.r2c/scripts/qoder-cli-hook.sh"
+    for registrations in value.values():
+        if not isinstance(registrations, Sequence) or isinstance(
+            registrations, (str, bytes)
+        ):
+            return False
+        for registration in registrations:
+            if not isinstance(registration, Mapping) or set(registration) - {
+                "hooks",
+                "matcher",
+            }:
+                return False
+            actions = registration.get("hooks")
+            if not isinstance(actions, Sequence) or isinstance(actions, (str, bytes)):
+                return False
+            for action in actions:
+                if not isinstance(action, Mapping) or action.get("type") != "command":
+                    return False
+                command = action.get("command")
+                if command == yunke_command:
+                    if action.get("_yunke_managed") is not True or set(action) - {
+                        "_yunke_managed",
+                        "command",
+                        "timeout",
+                        "type",
+                    }:
+                        return False
+                elif command == r2c_command:
+                    if set(action) - {"command", "timeout", "type"}:
+                        return False
+                else:
+                    return False
+    return True
+
+
+def _qoder_config_has_active_capability(config: Mapping[str, Any], home: Path) -> bool:
+    """Return whether a Qoder config actively enables project business capability."""
+
+    enabled_plugins = config.get("enabledPlugins")
+    if isinstance(enabled_plugins, Mapping) and any(
+        value is not False for value in enabled_plugins.values()
+    ):
+        return True
+    hooks = config.get("hooks")
+    if hooks and not _qoder_hooks_are_ignored_host_integrations(hooks, home):
+        return True
+    return any(config.get(key) for key in ("mcpServers", "plugins", "skills"))
+
+
+def _matches_host_floor(path: Path) -> bool:
+    """Return whether one global instruction entry is exactly the inert host floor."""
+
+    try:
+        return path.is_file() and path.read_text(encoding="utf-8") == HOST_FLOOR_TEXT
+    except (OSError, UnicodeError):
+        return False
+
+
+def _path_has_symlink_component(path: Path) -> bool:
+    """Return whether an absolute path traverses a symlink at any component."""
+
+    current = Path(path.anchor)
+    try:
+        for part in path.parts[1:]:
+            current /= part
+            if current.is_symlink():
+                return True
+    except OSError:
+        return True
+    return False
+
+
+def _tree_has_symlink(root: Path) -> bool:
+    """Return whether a materialized capability tree contains any symlink."""
+
+    try:
+        return root.is_symlink() or any(item.is_symlink() for item in root.rglob("*"))
+    except OSError:
+        return True
+
+
+def _codex_system_skills_are_disabled(
+    path: Path, config: Mapping[str, Any], home: Path
+) -> bool:
+    """Return whether every materialized Codex system Skill is explicitly disabled."""
+
+    features = config.get("features")
+    if not isinstance(features, Mapping) or features.get("skill_search") is not False:
+        return False
+    skills = config.get("skills")
+    if not isinstance(skills, Mapping):
+        return False
+    entries = skills.get("config")
+    if not isinstance(entries, Sequence) or isinstance(entries, (str, bytes)):
+        return False
+    if _tree_has_symlink(path):
+        return False
+    disabled: set[Path] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping) or entry.get("enabled") is not False:
+            continue
+        raw_path = entry.get("path")
+        if not isinstance(raw_path, str) or not raw_path:
+            continue
+        entry_path = Path(raw_path).expanduser()
+        if not entry_path.is_absolute():
+            entry_path = home / ".codex" / entry_path
+        entry_path = Path(os.path.abspath(entry_path))
+        if _path_has_symlink_component(entry_path):
+            continue
+        disabled.add(entry_path)
+    materialized = {Path(os.path.abspath(skill)) for skill in path.rglob("SKILL.md")}
+    return materialized.issubset(disabled)
+
+
+def _qoder_plugin_cache_is_disabled(path: Path, config: Mapping[str, Any]) -> bool:
+    """Return whether every materialized Qoder plugin is explicitly disabled."""
+
+    enabled = config.get("enabledPlugins")
+    if (
+        not isinstance(enabled, Mapping)
+        or not enabled
+        or any(value is not False for value in enabled.values())
+        or _tree_has_symlink(path)
+    ):
+        return False
+    try:
+        root_entries = list(path.iterdir())
+    except OSError:
+        return False
+    if any(
+        item.name not in {"cache", "data"} or not item.is_dir() for item in root_entries
+    ):
+        return False
+    data = path / "data"
+    if data.exists():
+        try:
+            data_entries = list(data.iterdir())
+            if any(
+                item.name != "security-scan" or not item.is_dir() or any(item.iterdir())
+                for item in data_entries
+            ):
+                return False
+        except OSError:
+            return False
+    cache = path / "cache"
+    if not cache.is_dir():
+        return False
+    for marketplace in cache.iterdir():
+        if not marketplace.is_dir():
+            return False
+        children = list(marketplace.iterdir())
+        if marketplace.name.startswith("qoder-enterprise-"):
+            if any(
+                item.name != "update.lock" or not item.is_file() for item in children
+            ):
+                return False
+            continue
+        for plugin in children:
+            if not plugin.is_dir():
+                return False
+            if enabled.get(f"{plugin.name}@{marketplace.name}") is not False:
+                return False
+    return True
+
+
+def _orca_managed_extensions_are_inert(path: Path) -> bool:
+    """Return whether a client extension root contains only Orca runtime adapters."""
+
+    if _tree_has_symlink(path):
+        return False
+    try:
+        entries = list(path.iterdir())
+        if not entries or any(
+            not item.is_file() or item.name not in ORCA_MANAGED_EXTENSION_NAMES
+            for item in entries
+        ):
+            return False
+        for item in entries:
+            with item.open(encoding="utf-8") as stream:
+                if stream.readline(128).rstrip() != "// @orca-managed-pi-extension":
+                    return False
+        return True
+    except (OSError, UnicodeError):
+        return False
+
+
+def _global_path_is_passive(
+    relative: str,
+    path: Path,
+    home: Path,
+    codex_config: Mapping[str, Any],
+    qoder_config: Mapping[str, Any],
+) -> bool:
+    """Return whether an existing global path is an inert floor, empty root, or cache."""
+
+    if path.is_dir() and not any(path.iterdir()):
+        return True
+    if relative in GLOBAL_FLOOR_PATHS:
+        return _matches_host_floor(path)
+    if relative in {".omp/agent/extensions", ".pi/agent/extensions"}:
+        return _orca_managed_extensions_are_inert(path)
+    codex_features = codex_config.get("features")
+    if relative == ".codex/hooks":
+        return (
+            isinstance(codex_features, Mapping) and codex_features.get("hooks") is False
+        )
+    if relative == ".codex/plugins":
+        return (
+            isinstance(codex_features, Mapping)
+            and codex_features.get("plugins") is False
+            and not _codex_config_has_active_capability(
+                {**codex_config, "skills": {}, "hooks": {}}
+            )
+        )
+    if relative == ".codex/skills":
+        return _codex_system_skills_are_disabled(path, codex_config, home)
+    if relative == ".qoder/plugins":
+        return _qoder_plugin_cache_is_disabled(path, qoder_config)
+    return False
+
+
 def _check_global_pollution() -> None:
     home = Path.home()
+    codex_config_path = home / ".codex" / "config.toml"
+    codex_config = _read_toml(codex_config_path) if codex_config_path.is_file() else {}
+    qoder_config_path = home / ".qoder" / "settings.json"
+    qoder_config = (
+        _strict_json(qoder_config_path) if qoder_config_path.is_file() else {}
+    )
     violations = {
         relative
         for relative in set(GLOBAL_CAPABILITY_PATHS)
         if os.path.lexists(home / relative)
+        and not _global_path_is_passive(
+            relative, home / relative, home, codex_config, qoder_config
+        )
     }
-    codex_config = home / ".codex" / "config.toml"
-    if codex_config.is_file() and _contains_mapping_key(
-        _read_toml(codex_config),
-        {
-            "developer_instructions",
-            "hooks",
-            "mcp_servers",
-            "model_instructions_file",
-            "plugins",
-            "skills",
-        },
-    ):
+    if codex_config and _codex_config_has_active_capability(codex_config):
         violations.add(".codex/config.toml")
     json_configs = {
         ".claude.json": {"enabledPlugins", "hooks", "mcpServers", "plugins", "skills"},
@@ -1632,18 +2560,13 @@ def _check_global_pollution() -> None:
             "plugins",
             "skills",
         },
-        ".qoder/settings.json": {
-            "enabledPlugins",
-            "hooks",
-            "mcpServers",
-            "plugins",
-            "skills",
-        },
     }
     for relative, keys in json_configs.items():
         path = home / relative
         if path.is_file() and _contains_mapping_key(_strict_json(path), keys):
             violations.add(relative)
+    if qoder_config and _qoder_config_has_active_capability(qoder_config, home):
+        violations.add(".qoder/settings.json")
     text_configs = {
         ".config/opencode/opencode.json": {"instructions", "mcp", "plugin"},
         ".omp/agent/config.yml": {
@@ -1845,7 +2768,7 @@ def _profile_prompt(profile: Profile) -> bytes:
 
 
 def _codex_config(definitions: Sequence[McpDefinition]) -> bytes:
-    lines: list[str] = []
+    lines = ['cli_auth_credentials_store = "file"']
     for definition in definitions:
         if lines:
             lines.append("")
