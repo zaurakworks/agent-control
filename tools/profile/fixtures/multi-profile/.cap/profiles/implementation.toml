@@ -1,0 +1,6 @@
+version = 1
+prompt = ".cap/prompts/implementation.md"
+skills = ["implementation-skill"]
+mcps = ["implementation-mcp"]
+hooks = ["implementation-hook"]
+plugins = ["implementation-plugin"]

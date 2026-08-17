@@ -1,11 +1,2 @@
-# 运行产物，不进版本控制。
-# 物化出来的 home 默认就在仓库外（见 profile.py 的 homes_root），
-# 这里再挡一道，是为了万一有人把 [homes] root 指回仓库里。
-homes/
-out.md
-last-run.log
-system-prompt.md
-declared.json
-effective.json
-probed.json
+# 物化树、observer state 和收据必须显式放在受管项目之外。
 __pycache__/

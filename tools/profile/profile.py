@@ -1,698 +1,2350 @@
-"""profile — 把一个声明的 agent 状态物化成可运行的 home，跑完再比对实际生效态。
-
-用法:
-    python profile.py materialize <profile-dir>
-    python profile.py probe       <profile-dir>              # 秒级，无模型调用
-    python profile.py run         <profile-dir> --task <t.md>  # 分钟级，要 token
-    python profile.py diff        <profile-dir>
-
-设计要点:
-  declared  = manifest.toml，进 git，可 diff 可 tag
-  effective = 每次运行捕获，跟 declared 比对，抓漂移
-只有 declared 是锁不住的；只有 effective 是没法回滚的。要两半。
-
-两个量具，量的不是同一个东西，都要：
-  probe = 配置面。CLI 只读子命令 + 文件系统。日常用这个。
-  run   = 生效面。唯一能测到"运行时实际看得见什么"的仪器，贵，用于定期校准。
-已实测的偏差方向：Claude 侧 probe 多报（看不到 --strict-mcp-config 的效果），
-Codex 侧 probe 少报（内置 codex_apps 不进配置表）。差值本身是信号，不是噪声。
-"""
+#!/usr/bin/env python3
+"""Lock, render, launch, and observe explicit project capability profiles."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
-import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import tomllib
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 
-# tools/profile/profile.py -> tools/profile -> tools -> 仓库根
-REPO = Path(__file__).resolve().parents[2]
-
-
-def expand(s: str, home: Path | None = None) -> str:
-    """展开 manifest 里的路径令牌。
-
-    manifest 进 git，所以不能写死某台机器的绝对路径。
-      <repo>      仓库根
-      <skills>    skill 树（= <repo>/.claude/skills）
-      <userhome>  真实用户目录。只在两处用到：播种凭据，以及声明那些
-                  明确管不了、住在真实 home 里的东西。
-      <home>      本次物化出来的 home —— 只有运行时才知道，所以要传进来。
-    """
-    s = (s.replace("<repo>", str(REPO))
-          .replace("<skills>", str(REPO / ".claude" / "skills"))
-          .replace("<userhome>", str(Path.home())))
-    return s if home is None else s.replace("<home>", str(home))
-
-
-def load_manifest(profile_dir: Path) -> dict:
-    path = profile_dir / "manifest.toml"
-    if not path.exists():
-        sys.exit(f"没有 manifest: {path}")
-    with path.open("rb") as fh:
-        return tomllib.load(fh)
-
-
-def gc_old_homes(homes_root: Path, keep: int = 3) -> None:
-    """尽力清理旧的物化 home，保留最近 keep 个。
-
-    删不掉就跳过 —— Windows 的句柄残留是常态，不该让 GC 失败挡住新的物化。
-    这是"尽力"不是"保证"，所以不抛异常。
-    """
-    if not homes_root.exists():
-        return
-    dirs = sorted((d for d in homes_root.iterdir() if d.is_dir()), reverse=True)
-    for old in dirs[keep:]:
-        try:
-            shutil.rmtree(old)
-        except OSError:
-            pass  # 有句柄占着，下次再说
-
-
-def homes_root(profile_dir: Path, manifest: dict) -> Path:
-    """物化 home 的根目录 —— 默认在仓库之外。
-
-    两个理由，都不是洁癖：
-      1. CLAUDE.md / AGENTS.md 按 cwd 及其祖先发现。home 放在仓库里，
-         仓库根就是它的祖先，本仓那 12 KB 入口会进每一次运行的上下文。
-      2. home 里有播种进去的凭据。放在仓库外，"不小心提交"这件事在物理上不可能，
-         而不是靠一条 .gitignore 撑着。
-    """
-    root = manifest.get("homes", {}).get("root")
-    if root:
-        return Path(expand(root))
-    base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".cache")
-    return base / "agent-control-profiles" / profile_dir.name
-
-
-def workdir_of(profile_dir: Path, manifest: dict, home: Path) -> Path:
-    """agent 的工作目录。默认既不在仓库里，也不在物化 home 里。
-
-    三个约束叠出来只剩这一个位置：
-      1. 不能在仓库里 —— CLAUDE.md / AGENTS.md 按 cwd 及其祖先发现，
-         仓库根一旦成为祖先，本仓那 12 KB 入口会进每一次运行的上下文。
-      2. 不能是物化 home 本身 —— home 就是 CODEX_HOME，Codex 的 workspace-write
-         沙箱拒绝 agent 往自己的配置目录写（实测 out.md 写入被拒，整轮无交付）。
-      3. 得在 cwd 内 —— 同一个沙箱只放行 cwd 内的读写，任务文件也得拷进来。
-    """
-    spec = manifest.get("run", {}).get("workdir", "<work>")
-    if spec != "<work>":
-        return Path(expand(spec, home))
-    return homes_root(profile_dir, manifest).parent / f"{profile_dir.name}-work"
-
-
-def provider_of(manifest: dict) -> str:
-    return manifest.get("model", {}).get("provider", "claude")
-
-
-def write_codex_config(home: Path, manifest: dict) -> dict:
-    """生成最小 config.toml。
-
-    刻意不复制真实的 14 KB config.toml —— 那里面有内联 Authorization 头、
-    MCP 定义和历史沉积。声明态就该是声明出来的，不是继承来的。
-    """
-    m = manifest.get("model", {})
-    s = manifest.get("settings", {})
-    cfg = {
-        "model": m.get("id", "gpt-5.6-sol"),
-        "sandbox_mode": s.get("sandboxMode", "workspace-write"),
-        "network_access": s.get("networkAccess", True),
-        "windows_sandbox": s.get("windowsSandbox", "unelevated"),
+RENDERER_VERSION = "profile-renderer-v1"
+LOCK_VERSION = 1
+MANIFEST_VERSION = 1
+CLIENTS = ("codex", "qoder", "omp")
+CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
+CLIENT_ADAPTER_VERSION = 6
+IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
+CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
+PROJECT_BYPASS_DIRS = frozenset(
+    {
+        ".agents",
+        ".claude",
+        ".codeium",
+        ".codex",
+        ".cursor",
+        ".gemini",
+        ".omp",
+        ".qoder",
+        ".vscode",
+        ".windsurf",
     }
-    (home / "config.toml").write_text(
-        f'model = "{cfg["model"]}"\n'
-        f'sandbox_mode = "{cfg["sandbox_mode"]}"\n\n'
-        f"[sandbox_workspace_write]\n"
-        f'network_access = {"true" if cfg["network_access"] else "false"}\n\n'
-        f"[windows]\n"
-        f'sandbox = "{cfg["windows_sandbox"]}"\n',
-        encoding="utf-8",
-    )
-    return cfg
-
-
-def materialize(profile_dir: Path, manifest: dict) -> Path:
-    """按 manifest 建一个干净的配置 home。每次全新重建，不做增量。
-
-    claude → CLAUDE_CONFIG_DIR   codex → CODEX_HOME
-    两者都是整个家目录重定向，所以白名单是物理的：不在名单里的 skill 根本不存在。
-    """
-    # 每次物化建一个带时间戳的新 home，不复用也不删旧的。
-    #
-    # 原因不是洁癖：Windows 上 CLI 建的 projects/ sessions/ 在进程退出后
-    # 仍被短暂持有，rmtree 会以 WinError 145 失败（重试 4 次也没用）。
-    # 时间戳目录让这个问题根本不出现，副作用是每次物化都成为独立可追溯的产物。
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    root = homes_root(profile_dir, manifest)
-    home = root / stamp
-    (home / "skills").mkdir(parents=True)
-    gc_old_homes(root, keep=3)
-
-    # 1. 白名单 skill —— 不在名单里的物理上不存在，比 skillOverrides 黑名单更强
-    skills_cfg = manifest.get("skills", {})
-    src_root = Path(expand(skills_cfg.get("source", "")))
-    copied: list[str] = []
-    for name in skills_cfg.get("allow", []):
-        src = src_root / name
-        if not src.is_dir():
-            sys.exit(f"白名单里的 skill 不存在: {src}")
-        shutil.copytree(src, home / "skills" / name)
-        copied.append(name)
-
-    # 2. 播种凭据 —— 显式列出，可审计
-    seed = manifest.get("seed", {})
-    seeded: list[str] = []
-    if seed:
-        seed_root = Path(expand(seed.get("from", "")))
-        for rel in seed.get("files", []):
-            src = seed_root / rel
-            if not src.exists():
-                sys.exit(f"要播种的文件不存在: {src}")
-            shutil.copy2(src, home / rel)
-            seeded.append(rel)
-
-    # 3. provider 各自的配置文件
-    s = manifest.get("settings", {})
-    if provider_of(manifest) == "codex":
-        settings = write_codex_config(home, manifest)
-    else:
-        settings = {
-            "skillListingBudgetFraction": s.get("skillListingBudgetFraction", 0.02),
-            "permissions": {"defaultMode": s.get("permissionsDefaultMode", "default")},
-            "enabledPlugins": {p: True for p in manifest.get("plugins", {}).get("enabled", [])},
-            # 内置 skill 在二进制里，白名单管不到；只能黑名单逐个关
-            "skillOverrides": {k: "off" for k in manifest.get("skills", {}).get("deny", [])},
+)
+PROJECT_BYPASS_FILES = frozenset(
+    {
+        "AGENTS.md",
+        "AGENTS.override.md",
+        "CLAUDE.md",
+        "CLAUDE.local.md",
+        "QODER.md",
+        "QODER.local.md",
+    }
+)
+PROJECT_BYPASS_PATHS = frozenset(
+    {
+        ".mcp.json",
+        "mcp.json",
+        ".claude/.mcp.json",
+        ".claude/mcp.json",
+        ".cursor/mcp.json",
+        ".gemini/settings.json",
+        ".vscode/mcp.json",
+        ".windsurf/mcp_config.json",
+        "opencode.json",
+    }
+)
+GLOBAL_CAPABILITY_PATHS = (
+    ".agents/hooks",
+    ".agents/plugins",
+    ".agents/skills",
+    ".claude/mcp.json",
+    ".codeium/windsurf/mcp_config.json",
+    ".codex/AGENTS.md",
+    ".codex/AGENTS.override.md",
+    ".codex/hooks",
+    ".codex/hooks.json",
+    ".codex/plugins",
+    ".codex/skills",
+    ".cursor/mcp.json",
+    ".mcp.json",
+    ".omp/AGENTS.md",
+    ".omp/hooks",
+    ".omp/mcp.json",
+    ".omp/plugins",
+    ".omp/skills",
+    ".omp/agent/AGENTS.md",
+    ".omp/agent/extensions",
+    ".omp/agent/hooks",
+    ".omp/agent/mcp.json",
+    ".omp/agent/.mcp.json",
+    ".omp/agent/plugins",
+    ".omp/agent/skills",
+    ".pi/agent/AGENTS.md",
+    ".pi/agent/extensions",
+    ".pi/agent/hooks",
+    ".pi/agent/mcp.json",
+    ".pi/agent/skills",
+    ".qoder/AGENTS.md",
+    ".qoder/QODER.md",
+    ".qoder/hooks",
+    ".qoder/mcp.json",
+    ".qoder/plugins",
+    ".qoder/skills",
+)
+GLOBAL_NATIVE_ROOTS = (
+    ".agents",
+    ".claude",
+    ".codeium",
+    ".codex",
+    ".config/opencode",
+    ".cursor",
+    ".gemini",
+    ".omp",
+    ".pi",
+    ".qoder",
+)
+AMBIENT_CONFIG_ENV = frozenset(
+    {
+        "CODEX_HOME",
+        "OMP_PROFILE",
+        "PI_CODING_AGENT_DIR",
+        "PI_CONFIG_DIR",
+        "PI_CONFIG_FILES",
+        "PI_PROFILE",
+        "QODER_CONFIG_DIR",
+        "QODER_WORKING_DIR",
+    }
+)
+FORBIDDEN_CLIENT_ARGUMENTS = {
+    "codex": frozenset(
+        {"-c", "-C", "-p", "--add-dir", "--cd", "--config", "--profile"}
+    ),
+    "qoder": frozenset(
+        {
+            "-w",
+            "--add-dir",
+            "--allowed-mcp-server-names",
+            "--append-system-prompt",
+            "--config-dir",
+            "--mcp-config",
+            "--plugin-dir",
+            "--settings",
+            "--strict-mcp-config",
+            "--system-prompt",
+            "--cwd",
+            "--worktree",
         }
-        (home / "settings.json").write_text(
-            json.dumps(settings, indent=2, ensure_ascii=False), encoding="utf-8"
+    ),
+    "omp": frozenset(
+        {
+            "--add-dir",
+            "-e",
+            "--append-system-prompt",
+            "--config",
+            "--extension",
+            "--cwd",
+            "--from-claude",
+            "--from-codex",
+            "--hook",
+            "--no-skills",
+            "--plugin-dir",
+            "--trusted-extension",
+            "--profile",
+            "--skills",
+            "--system-prompt",
+        }
+    ),
+}
+
+
+class ProfileError(Exception):
+    """Report a deterministic validation or launch-preparation failure."""
+
+
+@dataclass(frozen=True)
+class McpDefinition:
+    """Hold one validated, client-neutral stdio MCP definition."""
+
+    name: str
+    command: str
+    args: tuple[str, ...]
+    env: Mapping[str, str]
+    source: Path
+
+
+@dataclass(frozen=True)
+class Profile:
+    """Hold one explicit, flat capability closure."""
+
+    name: str
+    source: Path
+    prompt: Path
+    skills: tuple[str, ...]
+    mcps: tuple[str, ...]
+    hooks: tuple[str, ...]
+    plugins: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Project:
+    """Hold a fully validated profile project manifest and its closures."""
+
+    root: Path
+    manifest: Path
+    profiles: Mapping[str, Profile]
+    mcps: Mapping[str, McpDefinition]
+
+
+@dataclass(frozen=True)
+class RenderedFile:
+    """Hold normalized output bytes and permission bits for one rendered file."""
+
+    content: bytes
+    mode: int = 0o644
+
+
+@dataclass(frozen=True)
+class LaunchSpec:
+    """Describe a client command and its isolated-root environment override."""
+
+    command: tuple[str, ...]
+    environment: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class ReceiptReservation:
+    """Hold a no-clobber receipt inode and its stable parent directory."""
+
+    path: Path
+    parent_descriptor: int
+    descriptor: int
+    parent_device: int
+    parent_inode: int
+    device: int
+    inode: int
+
+
+@dataclass(frozen=True)
+class StableDirectory:
+    """Hold a directory and every no-follow descriptor from the filesystem root to it."""
+
+    path: Path
+    parts: tuple[str, ...]
+    descriptors: tuple[int, ...]
+
+    @property
+    def descriptor(self) -> int:
+        """Return the descriptor for the final directory."""
+
+        return self.descriptors[-1]
+
+
+def load_project(project_root: Path | str) -> Project:
+    """Load a project manifest, profiles, and capabilities with strict schemas."""
+
+    root = Path(project_root).expanduser().resolve(strict=True)
+    if not root.is_dir():
+        raise ProfileError(f"project root is not a directory: {root}")
+    root_instructions = _resolve_file(root, "AGENTS.md", "root instructions")
+    _read_nonempty_text(root_instructions, "root instructions")
+    manifest_path = _resolve_file(root, ".cap/manifest.toml", "manifest")
+    manifest = _read_toml(manifest_path)
+    _expect_keys(manifest, {"version", "profiles"}, "manifest")
+    if type(manifest["version"]) is not int or manifest["version"] != MANIFEST_VERSION:
+        raise ProfileError(f"manifest.version must be {MANIFEST_VERSION}")
+    raw_profiles = manifest["profiles"]
+    if not isinstance(raw_profiles, dict) or not raw_profiles:
+        raise ProfileError("manifest.profiles must be a non-empty table")
+
+    profiles: dict[str, Profile] = {}
+    for name, raw_path in sorted(raw_profiles.items()):
+        _validate_identifier(name, "profile name")
+        if not isinstance(raw_path, str):
+            raise ProfileError(f"manifest.profiles.{name} must be a path string")
+        source = _resolve_file(root, raw_path, f"profile {name}")
+        _require_under_cap(root, source, f"profile {name}")
+        profile_data = _read_toml(source)
+        _expect_keys(
+            profile_data,
+            {"version", "prompt", "skills", "mcps", "hooks", "plugins"},
+            f"profile {name}",
+        )
+        if type(profile_data["version"]) is not int or profile_data["version"] != 1:
+            raise ProfileError(f"profile {name}.version must be 1")
+        raw_prompt = profile_data["prompt"]
+        if not isinstance(raw_prompt, str):
+            raise ProfileError(f"profile {name}.prompt must be a path string")
+        prompt = _resolve_file(root, raw_prompt, f"profile {name} prompt")
+        _require_under_cap(root, prompt, f"profile {name} prompt")
+        profiles[name] = Profile(
+            name=name,
+            source=source,
+            prompt=prompt,
+            skills=_identifier_list(profile_data["skills"], f"profile {name}.skills"),
+            mcps=_identifier_list(profile_data["mcps"], f"profile {name}.mcps"),
+            hooks=_identifier_list(profile_data["hooks"], f"profile {name}.hooks"),
+            plugins=_identifier_list(
+                profile_data["plugins"], f"profile {name}.plugins"
+            ),
         )
 
-    declared = {
-        "profile": manifest["profile"],
-        "provider": provider_of(manifest),
-        "model": manifest.get("model", {}),
-        "skills_allow": copied,
-        "skills_deny": manifest.get("skills", {}).get("deny", []),
-        # MCP 与上下文文件：这两个维度物化时无法强制，只能声明+事后比对。
-        # 写出来是为了让"没管住"变成可见的漂移，而不是不可见的盲区。
-        "mcp_allow": manifest.get("mcp", {}).get("allow", []),
-        "context_allow": [expand(x, home) for x in manifest.get("context", {}).get("allow", [])],
-        "plugins_enabled": manifest.get("plugins", {}).get("enabled", []),
-        "seeded_files": seeded,
-        "settings": settings,
-        # 这个 profile 明确管不了的维度。假装管得了才是危险的。
-        # 声明为管不了的东西也要展开：其中的路径同样不能写死这台机器
-        "uncontrollable": {
-            k: ([expand(x, home) for x in v] if k == "context" and isinstance(v, list) else v)
-            for k, v in manifest.get("uncontrollable", {}).items()
-        },
-        # 每个维度由哪个量具负责。默认 run（读 agent 自报）。
-        # 声明成 probe 的维度，diff 不再把"自报里没有"当成观测不足 —— 因为压根
-        # 就没指望自报能看见它。这不是放宽，是把量具指到看得见的那一个上。
-        "measured_by": {
-            "mcp": manifest.get("mcp", {}).get("measured_by", "run"),
-            "context": manifest.get("context", {}).get("measured_by", "run"),
-        },
-        "home": str(home),
-        "materialized_at": datetime.now(timezone.utc).isoformat(),
+    expected = {
+        "skills": {item for profile in profiles.values() for item in profile.skills},
+        "mcp": {item for profile in profiles.values() for item in profile.mcps},
+        "hooks": {item for profile in profiles.values() for item in profile.hooks},
+        "plugins": {item for profile in profiles.values() for item in profile.plugins},
     }
-    (profile_dir / "declared.json").write_text(
-        json.dumps(declared, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    return home
+    mcps = _validate_capability_store(root, expected)
+    return Project(root=root, manifest=manifest_path, profiles=profiles, mcps=mcps)
 
 
-def build_prompt_file(profile_dir: Path, manifest: dict) -> Path:
-    """把完整的阶段提示词一次性拼好，走 --append-system-prompt-file。
+def create_lock(project_root: Path | str) -> dict[str, Any]:
+    """Create the deterministic content and renderer lock for every profile/client pair."""
 
-    锚点 1-4（四阶段逐字共用）+ 阶段文件（首行是本阶段的锚点第 5 条）。
-    可选再加自述段。
-
-    上一版只注入锚点，让模型运行时自己去加载 stage skill、再自己去读对应那一份
-    —— 两跳，每跳都是模型的自由裁量，而真正的完成判据全在第二跳之后。跳成功了
-    四次，但那是运气不是机制。合并之后反而更小：SKILL.md 的路由表存在的唯一目的
-    就是告诉模型"再去读一次"，注入式提示词里它没有意义。
-
-    规则仍然只有一份来源：这里读的就是 .claude/skills/stage/ 下那几个文件，
-    交互式会话按名加载的也是同一批。profile 目录里不留副本。
-    """
-    p = manifest.get("prompt", {})
-    src = Path(expand("<skills>")) / "stage"
-    parts: list[str] = []
-
-    anchor = src / "anchor.md"
-    if not anchor.is_file():
-        sys.exit(f"锚点文件不存在: {anchor}")
-    parts.append(anchor.read_text(encoding="utf-8"))
-
-    stage = p.get("stage")
-    if stage:
-        f = src / "references" / f"{stage}.md"
-        if not f.is_file():
-            sys.exit(f"阶段文件不存在: {f}")
-        parts.append(f.read_text(encoding="utf-8"))
-
-    # 自述段是量具，不是产品规则。默认不注入 —— 带上它，每次交付都会拖一段
-    # 运维输出。只有要核验漂移时才打开，而那时 diff 才有数据可比。
-    if p.get("self_report"):
-        f = src / "self-report.md"
-        if not f.is_file():
-            sys.exit(f"自述文件不存在: {f}")
-        parts.append(f.read_text(encoding="utf-8"))
-
-    out = profile_dir / "system-prompt.md"
-    # 锚点与阶段文件之间不加分隔线：第 5 条是锚点那个编号列表的延续，
-    # 中间横一道线会把一份清单读成两份。自述段是另一回事，它要分开。
-    body = "\n".join(parts[:2] if stage else parts[:1])
-    if p.get("self_report") and len(parts) > 2:
-        body += "\n\n---\n\n" + parts[-1]
-    out.write_text(body, encoding="utf-8")
-    return out
+    project = load_project(project_root)
+    _check_project_pollution(project.root)
+    payload = _desired_lock(project)
+    lock_path = project.root / ".cap" / "lock.json"
+    if lock_path.is_symlink():
+        raise ProfileError("lock file must not be a symlink")
+    _atomic_write(lock_path, _canonical_json(payload), mode=0o644)
+    return payload
 
 
-def sh(cmd: list[str], env: dict, timeout: int = 90) -> str:
-    """跑一个只读的 CLI 子命令。失败不抛——探针缺一项是 unknown，不是崩溃。"""
+def verify_project(project_root: Path | str) -> dict[str, Any]:
+    """Enforce global/project gates and verify the checked-in lock without rendering."""
+
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    return desired
+
+
+def materialize_profile(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    output_root: Path | str,
+) -> str:
+    """Verify and render one profile into an explicit, existing empty directory."""
+
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    _validate_client(client)
+    output = Path(output_root).expanduser().absolute()
+    with _stable_directory(output, "render output") as output_directory:
+        _require_external_directory(project, output_directory, "render output")
+        if os.listdir(output_directory.descriptor):
+            raise ProfileError("render output directory must be empty")
+        tree = _render_tree(project, client, profile)
+        tree_hash = _tree_hash(tree)
+        expected_hash = desired["profiles"][profile_name]["clients"][client][
+            "tree_hash"
+        ]
+        if tree_hash != expected_hash:
+            raise ProfileError("rendered output drifted after lock verification")
+        _materialize_tree(output_directory, tree)
+        return tree_hash
+
+
+def _rendered_text(
+    tree: Mapping[str, RenderedFile],
+    relative: str,
+    context: str,
+    *,
+    require_nonempty: bool = True,
+) -> str:
+    """Decode one UTF-8 file directly from the immutable rendered tree."""
+
     try:
-        p = subprocess.run(
-            cmd, env=env, capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=timeout,
+        value = tree[relative].content.decode("utf-8").strip()
+    except (KeyError, UnicodeError) as error:
+        raise ProfileError(
+            f"{context} must be rendered UTF-8 text: {relative}"
+        ) from error
+    if require_nonempty and not value:
+        raise ProfileError(f"{context} must be non-empty")
+    return value
+
+
+def _rendered_skill_names(tree: Mapping[str, RenderedFile]) -> tuple[str, ...]:
+    """Return validated top-level skill names directly from the rendered tree."""
+
+    names = {
+        parts[1]
+        for relative in tree
+        if len(parts := PurePosixPath(relative).parts) >= 3 and parts[0] == "skills"
+    }
+    for name in names:
+        _validate_identifier(name, "rendered skill name")
+    return tuple(sorted(names))
+
+
+def build_launch(
+    client: str,
+    runtime_root: Path | str,
+    rendered_tree: Mapping[str, RenderedFile],
+    forwarded_args: Sequence[str] = (),
+) -> LaunchSpec:
+    """Build one fixed launch from a stable root name and its immutable rendered tree."""
+
+    _validate_client(client)
+    root = Path(runtime_root).absolute()
+    args = tuple(forwarded_args)
+    _validate_forwarded_args(client, args)
+    executable = CLIENT_EXECUTABLES[client]
+    if client == "codex":
+        return LaunchSpec((executable, *args), {"CODEX_HOME": str(root)})
+    prompt = _rendered_text(
+        rendered_tree, "system-prompt.md", "rendered profile prompt"
+    )
+    if client == "qoder":
+        command = (
+            executable,
+            "--config-dir",
+            str(root),
+            "--strict-mcp-config",
+            "--mcp-config",
+            str(root / "mcp.json"),
+            "--append-system-prompt",
+            prompt,
+            *args,
         )
-        return (p.stdout or "") + (p.stderr or "")
-    except (OSError, subprocess.SubprocessError) as e:
-        return f"__PROBE_FAILED__ {e}"
-
-
-def probe_static(profile_dir: Path, manifest: dict, home: Path) -> dict:
-    """不调模型，只问 CLI 和文件系统。秒级。
-
-    这是日常该用的量具。跑 agent 问"你看得见什么"要几分钟和一堆 token，
-    而且自报的标识符还不稳定（同一批连接器两次运行一次报 id 一次报显示名）。
-
-    但静态探针和运行时**量的不是同一个东西**，两个方向都会错：
-      - Claude: `mcp list` 不接受 --strict-mcp-config，会**多报**（配置面 ≠ 生效面）
-      - Codex:  `mcp list` 看不见内置的 codex_apps，会**少报**
-    所以 probe 不能取代 run，只能降低 run 的频率。差值本身是要看的信号。
-    """
-    provider = provider_of(manifest)
-    env = dict(os.environ)
-    env["CODEX_HOME" if provider == "codex" else "CLAUDE_CONFIG_DIR"] = str(home)
-
-    # --- skill：磁盘可数，内置的数不到 ---
-    skills_disk = sorted(
-        p.name for p in (home / "skills").iterdir()
-        if p.is_dir() and not p.name.startswith(".")
-    ) if (home / "skills").exists() else []
-
-    # --- MCP / plugin：CLI 子命令 ---
-    if provider == "codex":
-        mcp_raw, plug_raw = sh(["codex", "mcp", "list"], env), sh(["codex", "plugin", "list"], env)
-    else:
-        mcp_raw, plug_raw = sh(["claude", "mcp", "list"], env), sh(["claude", "plugin", "list"], env)
-
-    def names(raw: str, empty_markers: tuple[str, ...]) -> list[str] | None:
-        if raw.startswith("__PROBE_FAILED__"):
-            return None
-        if any(m in raw for m in empty_markers):
-            return []
-        out = []
-        for line in raw.splitlines():
-            s = line.strip()
-            # 形如 "claude.ai Google Drive: https://… - ✔ Connected"
-            if ":" in s and ("http" in s or " - " in s) and not s.startswith(("WARNING", "Checking")):
-                out.append(s.split(":", 1)[0].strip())
-        return sorted(set(out))
-
-    mcp = names(mcp_raw, ("No MCP servers configured",))
-    plugins = names(plug_raw, ("No plugins installed", "No marketplace plugins found"))
-
-    # --- 上下文文件：按发现规则枚举候选，逐个测存在性 ---
-    # 没有 CLI 能问（claude doctor 不含记忆路径），但规则是确定的，文件系统能答。
-    memory = "AGENTS.md" if provider == "codex" else "CLAUDE.md"
-    cands = [home / memory]
-    # 真实用户目录的入口，只有 Claude 要算 —— 两边的证据是相反的：
-    #   Claude: ~/.claude/CLAUDE.md 在 CLAUDE_CONFIG_DIR 重定向后**仍然**加载
-    #           （四个变体都拦不住，含重定向 HOME+USERPROFILE）。
-    #   Codex:  CODEX_HOME 重定向后 ~/.codex 整个不再被读，那份 AGENTS.md 是
-    #           假候选。把它算进来，probe 会报一个永远无法确认的越界。
-    if provider != "codex":
-        cands.append(Path.home() / ".claude" / memory)
-    d = workdir_of(profile_dir, manifest, home)
-    for _ in range(6):  # cwd 及其祖先
-        cands.append(d / memory)
-        if d.parent == d:
-            break
-        d = d.parent
-    ctx = sorted({str(c) for c in cands if c.is_file()})
-
-    probed = {
-        "probed_at": datetime.now(timezone.utc).isoformat(),
-        "home": str(home),
-        "method": "静态：CLI 只读子命令 + 文件系统。无模型调用。",
-        "skills_disk": skills_disk,
-        "skills_builtin": "unknown —— 内置于 CLI 二进制，没有列举接口，只能靠 run 自报",
-        "mcp_configured": mcp,
-        "plugins": plugins,
-        "context_candidates_present": ctx,
-        "caveat": "配置面，非生效面。--strict-mcp-config 之类的运行期开关不体现在这里。",
-    }
-    (profile_dir / "probed.json").write_text(
-        json.dumps(probed, indent=2, ensure_ascii=False), encoding="utf-8"
+        return LaunchSpec(command, {"QODER_CONFIG_DIR": str(root)})
+    skill_names = _rendered_skill_names(rendered_tree)
+    skill_arguments = (
+        ("--skills", ",".join(skill_names)) if skill_names else ("--no-skills",)
     )
-    return probed
+    command = (
+        executable,
+        "--config",
+        str(root / "config.yml"),
+        "--append-system-prompt",
+        prompt + "\n",
+        *skill_arguments,
+        "--no-extensions",
+        "--no-rules",
+        *args,
+    )
+    return LaunchSpec(
+        command,
+        {
+            "OMP_PROFILE": "default",
+            "PI_CODING_AGENT_DIR": str(root),
+            "PI_CONFIG_DIR": str(root),
+            "PI_CONFIG_FILES": str(root / "config.yml"),
+            "PI_PROFILE": "default",
+        },
+    )
 
 
-def probe(profile_dir: Path, manifest: dict) -> int:
-    # 复用最近一次物化的 home，不重新物化。
-    # 每次 probe 都新建一个 home，会让 declared 和 effective 指向不同的时间戳目录，
-    # 上一次 run 的记录就整个报成漂移 —— probe 是只读量具，不该改变被测对象。
-    homes = homes_root(profile_dir, manifest)
-    existing = sorted((d for d in homes.iterdir() if d.is_dir()), reverse=True) if homes.exists() else []
-    home = existing[0] if existing else materialize(profile_dir, manifest)
-    p = probe_static(profile_dir, manifest, home)
-    # probe 和 diff 必须认同一份声明，否则两个量具会给出矛盾的判断。
-    u = manifest.get("uncontrollable", {})
-    allow = set(manifest.get("skills", {}).get("allow", [])) | set(u.get("skills", []))
-    mcp_unctl = set(u.get("mcp", []))
-    mcp_wildcard = "*" in mcp_unctl
-    mcp_allow = set(manifest.get("mcp", {}).get("allow", [])) | mcp_unctl
-    ctx_allow = {
-        norm_path(expand(x, home))
-        for x in list(manifest.get("context", {}).get("allow", [])) + list(u.get("context", []))
+def _prepare_execution(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    forwarded_args: Sequence[str],
+) -> tuple[Project, Profile, dict[str, Any], tuple[str, ...]]:
+    """Validate every launch precondition before a client process can be created."""
+
+    project = load_project(project_root)
+    _require_git_root(project.root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    _validate_client(client)
+    args = tuple(forwarded_args)
+    _validate_forwarded_args(client, args)
+    return project, profile, desired, args
+
+
+def _execute_runtime(
+    project: Project,
+    client: str,
+    profile: Profile,
+    desired: Mapping[str, Any],
+    forwarded_args: Sequence[str],
+    *,
+    runner: Callable[..., Any],
+    capture_output: bool,
+) -> tuple[int, str, str]:
+    """Render and invoke one client through the sole strict runtime path."""
+
+    output_hash = desired["profiles"][profile.name]["clients"][client]["tree_hash"]
+    with tempfile.TemporaryDirectory(
+        prefix=f"profile-{client}-{profile.name}-"
+    ) as temporary:
+        runtime_root = Path(temporary)
+        tree = _render_tree(project, client, profile)
+        if _tree_hash(tree) != output_hash:
+            raise ProfileError("rendered output drifted after lock verification")
+        with _stable_directory(runtime_root, "runtime root") as runtime_directory:
+            _materialize_tree(runtime_directory, tree)
+            spec = build_launch(client, runtime_directory.path, tree, forwarded_args)
+            environment = os.environ.copy()
+            for name in AMBIENT_CONFIG_ENV:
+                environment.pop(name, None)
+            environment.update(spec.environment)
+            run_options: dict[str, Any] = {
+                "cwd": str(project.root),
+                "env": environment,
+                "check": False,
+            }
+            if capture_output:
+                run_options.update(
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+            _check_project_pollution(project.root)
+            if _input_records(project) != desired["inputs"]:
+                raise ProfileError("locked inputs drifted after lock verification")
+            _validate_stable_directory(runtime_directory)
+            completed = runner(list(spec.command), **run_options)
+            return_code = getattr(completed, "returncode", None)
+            if type(return_code) is not int:
+                raise ProfileError(
+                    "client runner did not return an integer return code"
+                )
+            stdout = getattr(completed, "stdout", "") or ""
+            stderr = getattr(completed, "stderr", "") or ""
+            runtime_spellings = {
+                str(runtime_root),
+                runtime_root.as_posix(),
+                str(runtime_directory.path),
+                runtime_directory.path.as_posix(),
+            }
+            for spelling in runtime_spellings:
+                stdout = stdout.replace(spelling, "<runtime>")
+                stderr = stderr.replace(spelling, "<runtime>")
+    return return_code, stdout, stderr
+
+
+def _receipt_payload(
+    client: str,
+    profile: Profile,
+    desired: Mapping[str, Any],
+    forwarded_args: Sequence[str],
+    return_code: int,
+) -> dict[str, Any]:
+    """Build a receipt that records identity and hashes without arguments or secrets."""
+
+    return {
+        "version": 1,
+        "client": client,
+        "profile": profile.name,
+        "executable": CLIENT_EXECUTABLES[client],
+        "forwarded_argument_count": len(forwarded_args),
+        "lock_hash": f"sha256:{_sha256(_canonical_json(desired))}",
+        "output_tree_hash": desired["profiles"][profile.name]["clients"][client][
+            "tree_hash"
+        ],
+        "adapter_version": CLIENT_ADAPTER_VERSION,
+        "inventory": _profile_inventory(profile),
+        "exit_code": return_code,
+        "temporary_root_removed": True,
     }
 
-    # 上一次 run 的自报，用来给静态候选定性。
-    # 探针只能证明"文件在那儿"，证明不了"运行时加载了它" —— 两者差得很远：
-    # ~/.codex/AGENTS.md 存在，但 CODEX_HOME 重定向后运行时根本不看它；
-    # ~/.claude/CLAUDE.md 存在，且 CLAUDE_CONFIG_DIR 重定向后**仍然**加载。
-    # 这个不对称只有 run 能测出来，probe 只能引用它。
-    ef = profile_dir / "effective.json"
-    confirmed = None
-    if ef.exists():
-        loaded = json.loads(ef.read_text(encoding="utf-8")).get("context_files")
-        if loaded is not None:
-            confirmed = {norm_path(x) for x in loaded}
 
-    print(f"profile : {manifest['profile']['name']}@{manifest['profile']['version']}  ({p['method']})")
-    rc = 0
-    for label, observed, declared, by_path in (
-        ("skill(磁盘)", p["skills_disk"], allow, False),
-        ("MCP(配置面)", p["mcp_configured"], mcp_allow, False),
-        ("上下文文件(候选)", p["context_candidates_present"], ctx_allow, True),
-    ):
-        if observed is None:
-            print(f"  {label}: unknown（探针失败）")
-            rc = max(rc, 2)
-            continue
-        key = norm_path if by_path else (lambda x: x)
-        extra = sorted(x for x in observed if key(x) not in {key(y) for y in declared})
-        # MCP 是运行期开关能拦的：配置面有，不代表生效面有。
-        # probe 看不到 --strict-mcp-config 的效果，所以这里只能标注，不能判漂移。
-        if label.startswith("MCP") and extra and mcp_wildcard:
-            print(f"  {label}: {observed}  ⚠ 整维度已声明为不可控（无关闭开关，且自报名字不稳定）")
-            continue
-        if label.startswith("MCP") and extra and manifest.get("mcp", {}).get("strict"):
-            print(f"  {label}: {observed}  ⚠ 配置面有 {len(extra)} 个，"
-                  f"但 strict=true 会在运行期全部拦掉（已由 run 确认为 []）")
-            continue
-        # 先分类再定表头。表头写 ❌ 而结论是通过，会让人信错一边。
-        lines, worst = [], 0
-        for x in extra:
-            if not by_path:
-                lines.append((x, "")); worst = max(worst, 1)
-            elif confirmed is None:
-                lines.append((x, "  ← 未确认（还没有 run 的自报可比）")); worst = max(worst, 2)
-            elif norm_path(x) in confirmed:
-                lines.append((x, "  ← 上次 run 确认已加载")); worst = max(worst, 1)
-            else:
-                lines.append((x, "  ← 候选存在，但上次 run 未加载它，不计漂移"))
-        mark = {0: "✅", 1: f"❌ 越界 {len(extra)}", 2: f"? 未确认 {len(extra)}"}[worst]
-        print(f"  {label}: {observed or '(空)'}  {mark}")
-        for x, tag in lines:
-            print(f"      + {x}{tag}")
-        rc = max(rc, worst)
-    print(f"  plugin: {p['plugins'] if p['plugins'] is not None else 'unknown'}")
-    print(f"  内置 skill: {p['skills_builtin']}")
-    print(f"\n注意: {p['caveat']}")
-    return rc
+def run_client(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    forwarded_args: Sequence[str] = (),
+    *,
+    receipt_path: Path | str | None = None,
+    runner: Callable[..., Any] | None = None,
+) -> int:
+    """Launch one interactive client in a verified temporary root and clean it up."""
 
-
-def run(profile_dir: Path, manifest: dict, task: Path) -> int:
-    home = materialize(profile_dir, manifest)
-    sysprompt = build_prompt_file(profile_dir, manifest)
-
-    env = dict(os.environ)
-    provider = provider_of(manifest)
-    model = manifest.get("model", {}).get("id", "sonnet")
-
-    # 工作目录默认是物化 home，不是 profile 目录。
-    # profile 目录住在仓库里，而 CLAUDE.md / AGENTS.md 是按 cwd 及其祖先发现的 ——
-    # 用 profile 目录当 cwd，本仓那 12 KB 入口会进每一次运行的上下文，
-    # 量具自己污染被测对象。需要在某个项目里干活的 profile 显式声明 workdir。
-    workdir = workdir_of(profile_dir, manifest, home)
-    workdir.mkdir(parents=True, exist_ok=True)
-
-    # 任务文件拷进 workdir 再指过去，不指仓库里的原件。
-    # Codex 的 workspace-write 沙箱只放行 cwd 内的读写：任务留在仓库里，
-    # 三次读取尝试全部挂起无输出，agent 只能如实报 unknown，整轮观测作废。
-    task_in_wd = workdir / "task.md"
-    shutil.copy2(task, task_in_wd)
-    pointer = f"Read {task_in_wd.as_posix()} and follow it exactly."
-
-    if provider == "codex":
-        # Codex 没有 --append-system-prompt，靠 CODEX_HOME/AGENTS.md 承载锚点
-        env["CODEX_HOME"] = str(home)
-        shutil.copy2(sysprompt, home / "AGENTS.md")
-        cmd = [
-            "codex", "exec", "-m", model,
-            "-s", manifest.get("settings", {}).get("sandboxMode", "workspace-write"),
-            "-c", "sandbox_workspace_write.network_access=true",
-            "--skip-git-repo-check", pointer,
-        ]
-    else:
-        env["CLAUDE_CONFIG_DIR"] = str(home)
-        cmd = [
-            "claude", "-p", pointer,
-            "--append-system-prompt-file", str(sysprompt),
-            "--model", model,
-        ]
-        # MCP 是能被机制拦的：--strict-mcp-config + 不给 --mcp-config = 一个都不加载。
-        # 上一轮账号级连接器（claude.ai Google Drive）漏进来，是因为没关，不是关不掉。
-        # 能拦的就拦，不要写进提示词。
-        if manifest.get("mcp", {}).get("strict"):
-            cmd.append("--strict-mcp-config")
-
-    # 交付物先删。跑挂了留着旧的，解析器会拿上一轮的答案当本轮结果——
-    # 那是最坏的一种失败：看起来通过了。
-    artifact = workdir / "out.md"
-    artifact.unlink(missing_ok=True)
-
-    started = datetime.now(timezone.utc)
-    proc = subprocess.run(
-        cmd, env=env, cwd=str(workdir), capture_output=True, text=True, encoding="utf-8"
+    project, profile, desired, args = _prepare_execution(
+        project_root, client, profile_name, forwarded_args
     )
-    ended = datetime.now(timezone.utc)
+    receipt_target = (
+        _prepare_receipt_path(receipt_path) if receipt_path is not None else None
+    )
+    reservation: ReceiptReservation | None = None
+    if receipt_target is not None:
+        reservation = _reserve_receipt(project, receipt_target)
+    committed = False
+    try:
+        return_code, _, _ = _execute_runtime(
+            project,
+            client,
+            profile,
+            desired,
+            args,
+            runner=runner or subprocess.run,
+            capture_output=False,
+        )
+        receipt_bytes = _canonical_json(
+            _receipt_payload(client, profile, desired, args, return_code)
+        )
+        if reservation is None:
+            sys.stdout.buffer.write(receipt_bytes)
+        else:
+            _commit_receipt(reservation, receipt_bytes)
+            committed = True
+        return return_code if return_code >= 0 else 128 + abs(return_code)
+    finally:
+        if reservation is not None:
+            _release_receipt(reservation, remove=not committed)
 
-    if artifact.exists():
-        shutil.copy2(artifact, profile_dir / "out.md")  # homes/ 会被 GC，交付物要留下
 
-    log = profile_dir / "last-run.log"
-    log.write_text((proc.stdout or "") + "\n--- stderr ---\n" + (proc.stderr or ""), encoding="utf-8")
+def list_profiles(project_root: Path | str) -> tuple[str, ...]:
+    """Return locked explicit profile names in deterministic order without choosing a default."""
 
-    # 三处都要看：
-    #   stdout —— Claude 的最终消息
-    #   stderr —— codex exec 把进度和文件写入回显送这里
-    #   out.md —— 阶段合同要求交付物是文件，标记行写在交付物里而不是最终消息里，
-    #             这是符合合同的行为；只解析 stdout 会把它整个漏掉（表现为 unknown）
-    text = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    if artifact.exists():
-        text += "\n" + artifact.read_text(encoding="utf-8", errors="replace")
-    capture_effective(profile_dir, home, text, started, ended, proc.returncode, cmd)
-    print(f"退出码 {proc.returncode}  耗时 {(ended - started).total_seconds():.0f}s  日志 {log}")
-    return proc.returncode
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    _verify_lock(project, _desired_lock(project))
+    return tuple(sorted(project.profiles))
+
+
+def explain_profile(project_root: Path | str, profile_name: str) -> dict[str, Any]:
+    """Return one locked profile's flat closure and normalized output hashes for all clients."""
+
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    return {
+        "profile": profile.name,
+        "prompt": profile.prompt.relative_to(project.root).as_posix(),
+        "inventory": _profile_inventory(profile),
+        "clients": desired["profiles"][profile.name]["clients"],
+    }
+
+
+OBSERVATION_DIMENSIONS = ("skills", "mcps", "context", "hooks", "plugins")
+REPORT_MARKERS = {
+    "skills": "SKILLS-AVAILABLE",
+    "mcps": "MCP-AVAILABLE",
+    "context": "CONTEXT-FILES",
+    "hooks": "HOOKS-AVAILABLE",
+    "plugins": "PLUGINS-AVAILABLE",
+}
 
 
 def parse_reported(text: str, marker: str) -> list[str] | None:
-    """从产出里抓 `SKILLS-AVAILABLE: a, b, c` 这类行。抓不到返回 None（= unknown）。
+    """Parse one self-report marker, preserving unknown separately from observed none."""
 
-    None 和 [] 必须区分：None 是"没观测到"，[] 是"观测到确实为空"。
-    把 None 当成 [] 正是上一版报假阴性的原因。
-    """
-    # 从后往前找。提示词模板里也有这个标记，而它总是出现在答案之前——
-    # 取第一个匹配会读到模板（"逗号分隔的全部可用 skill 名"），不是答案。
     for line in reversed(text.splitlines()):
-        s = line.strip().lstrip("+-").strip().strip("`").strip()
-        if not s.upper().startswith(marker + ":"):
+        candidate = line.strip().lstrip("+-").strip().strip("`").strip()
+        if not candidate.upper().startswith(marker + ":"):
             continue
-        body = s.split(":", 1)[1].strip().strip("`").strip()
-        # 模板占位符的守卫：真答案不会长这样
-        if any(t in body for t in ("逗号分隔", "name1", "<", "…", "...")):
-            continue
-        # agent 自己声明观测失败 —— 和"确实为空"必须分开
+        body = candidate.split(":", 1)[1].strip().strip("`").strip()
         if body.lower() in {"unknown", "未知"}:
             return None
         if body.lower() in {"none", "无", ""}:
             return []
-        return [x.strip().strip("`") for x in body.split(",") if x.strip()]
+        return [item.strip().strip("`") for item in body.split(",") if item.strip()]
     return None
 
 
-_STAMP = re.compile(r"/homes/\d{8}t\d{6}z/")
+def _directory_open_flags() -> int:
+    """Return fail-closed flags for opening one directory component."""
+
+    flags = os.O_RDONLY
+    for name in ("O_CLOEXEC", "O_DIRECTORY", "O_NOFOLLOW"):
+        flags |= getattr(os, name, 0)
+    return flags
 
 
-def norm_path(p: str) -> str:
-    """路径比对用的归一化。Windows 大小写不敏感，且反斜杠正斜杠混用。
+def _same_file_identity(info: os.stat_result, device: int, inode: int) -> bool:
+    """Return whether one stat result names the expected filesystem object."""
 
-    还要把物化 home 的时间戳折掉：homes/ 下每次物化一个新目录，
-    declared 里记的是本次的，effective 里记的是那次运行的，两者本就不同。
-    不折掉的话，任何一次重新物化都会让上一次运行的记录整个报成漂移 ——
-    那是量具的坐标系问题，不是被测对象变了。
-    """
-    s = p.strip().strip("`").replace("\\", "/").rstrip("/").lower()
-    return _STAMP.sub("/homes/<stamp>/", s)
+    return info.st_dev == device and info.st_ino == inode
 
 
-# 三个受检维度。每个都是 (声明键, 运行时观测键, 中文名, 是否按路径比对)
-DIMENSIONS = [
-    ("skills_allow", "skills_available", "skill", False),
-    ("mcp_allow", "mcp_available", "MCP", False),
-    ("context_allow", "context_files", "上下文文件", True),
-]
+def _validate_stable_directory(directory: StableDirectory) -> None:
+    """Verify that every held directory still occupies its original parent entry."""
+
+    try:
+        root_info = os.fstat(directory.descriptors[0])
+        if not stat.S_ISDIR(root_info.st_mode):
+            raise ProfileError("stable directory filesystem root is not a directory")
+        for index, name in enumerate(directory.parts):
+            parent_descriptor = directory.descriptors[index]
+            descriptor = directory.descriptors[index + 1]
+            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            held = os.fstat(descriptor)
+            if (
+                not stat.S_ISDIR(live.st_mode)
+                or not stat.S_ISDIR(held.st_mode)
+                or not _same_file_identity(live, held.st_dev, held.st_ino)
+            ):
+                raise ProfileError(f"stable directory changed: {directory.path}")
+    except (OSError, NotImplementedError) as error:
+        raise ProfileError(
+            f"stable directory is no longer accessible: {error}"
+        ) from error
 
 
-def capture_effective(profile_dir, home, stdout, started, ended, rc, cmd) -> None:
-    """实际生效态。
+def _normalize_root_alias(path: Path, context: str) -> Path:
+    """Normalize only a root-owned first-component symlink such as macOS /var."""
 
-    运行时可用清单只能由 agent 自报——磁盘证明不了它。
-    磁盘只作辅助：它能证明"我放了什么进去"，证明不了"运行时看得见什么"。
+    absolute = path.expanduser().absolute()
+    if absolute.anchor != os.sep:
+        raise ProfileError(f"{context} requires POSIX component-safe directory handles")
+    if len(absolute.parts) < 2:
+        return absolute
+    first = Path(os.sep) / absolute.parts[1]
+    try:
+        info = os.lstat(first)
+        if not stat.S_ISLNK(info.st_mode):
+            return absolute
+        if getattr(info, "st_uid", -1) != 0:
+            raise ProfileError(f"{context} contains a non-root-owned symlink ancestor")
+        target = first.resolve(strict=True)
+    except ProfileError:
+        raise
+    except OSError as error:
+        raise ProfileError(f"{context} root alias is not stable: {error}") from error
+    return target.joinpath(*absolute.parts[2:])
 
-    MCP 与上下文文件两个维度**只有自报这一个仪器**，没有任何磁盘旁证。
-    证据等级因此低于 skill：skill 至少能跟 home/skills/ 交叉验证。
-    """
-    on_disk = sorted(p.name for p in (home / "skills").iterdir()) if (home / "skills").exists() else []
 
-    effective = {
-        "started_at": started.isoformat(),
-        "ended_at": ended.isoformat(),
-        "duration_s": round((ended - started).total_seconds()),
-        "exit_code": rc,
-        "command": cmd,
-        "skills_on_disk": on_disk,                              # 辅助，非判据
-        "skills_available": parse_reported(stdout, "SKILLS-AVAILABLE"),  # None = unknown
-        "skills_loaded": parse_reported(stdout, "SKILLS-LOADED"),
-        "mcp_available": parse_reported(stdout, "MCP-AVAILABLE"),
-        "context_files": parse_reported(stdout, "CONTEXT-FILES"),
-        "evidence": "agent 自报；MCP 与上下文文件无磁盘旁证",
+def _open_stable_directory(path: Path, context: str) -> StableDirectory:
+    """Open a lexical path one no-follow component at a time."""
+
+    absolute = _normalize_root_alias(path, context)
+    descriptors: list[int] = []
+    parts = tuple(absolute.parts[1:])
+    try:
+        descriptors.append(os.open(os.sep, _directory_open_flags()))
+        for part in parts:
+            descriptors.append(
+                os.open(part, _directory_open_flags(), dir_fd=descriptors[-1])
+            )
+        directory = StableDirectory(absolute, parts, tuple(descriptors))
+        _validate_stable_directory(directory)
+        return directory
+    except (OSError, NotImplementedError) as error:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise ProfileError(
+            f"{context} must be an existing non-symlink directory: {error}"
+        ) from error
+    except BaseException:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+
+
+def _close_stable_directory(directory: StableDirectory) -> None:
+    """Close every descriptor held for one stable directory chain."""
+
+    for descriptor in reversed(directory.descriptors):
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+
+
+@contextmanager
+def _stable_directory(path: Path, context: str) -> Iterator[StableDirectory]:
+    """Yield one component-safe directory handle and verify its path before closing."""
+
+    directory = _open_stable_directory(path, context)
+    try:
+        yield directory
+    except BaseException:
+        raise
+    else:
+        _validate_stable_directory(directory)
+    finally:
+        _close_stable_directory(directory)
+
+
+def _stable_directory_is_within(directory: StableDirectory, root: Path) -> bool:
+    """Return whether a held directory is the same as or below one physical root."""
+
+    root_directory = _open_stable_directory(root, "restricted root")
+    try:
+        root_info = os.fstat(root_directory.descriptor)
+        return any(
+            _same_file_identity(
+                os.fstat(descriptor), root_info.st_dev, root_info.st_ino
+            )
+            for descriptor in directory.descriptors
+        )
+    finally:
+        _close_stable_directory(root_directory)
+
+
+def _stable_directory_is_same(directory: StableDirectory, other: Path) -> bool:
+    """Return whether a held directory is the same physical directory as one path."""
+
+    other_directory = _open_stable_directory(other, "restricted root")
+    try:
+        other_info = os.fstat(other_directory.descriptor)
+        current_info = os.fstat(directory.descriptor)
+        return _same_file_identity(current_info, other_info.st_dev, other_info.st_ino)
+    finally:
+        _close_stable_directory(other_directory)
+
+
+def _require_external_directory(
+    project: Project, directory: StableDirectory, context: str
+) -> None:
+    """Reject a held output directory inside the project or native capability roots."""
+
+    if _stable_directory_is_within(directory, project.root):
+        raise ProfileError(f"{context} must be outside the project root")
+    home = Path.home().absolute()
+    if _stable_directory_is_same(directory, home):
+        raise ProfileError(f"{context} must be outside global capability roots")
+    for relative in GLOBAL_NATIVE_ROOTS:
+        native_root = home / relative
+        if native_root.exists() and _stable_directory_is_within(directory, native_root):
+            raise ProfileError(f"{context} must be outside global capability roots")
+
+
+def _state_root(
+    project: Project, value: Path | str, *, require_empty: bool
+) -> StableDirectory:
+    """Open an explicit observation directory without remembering a prior selection."""
+
+    candidate = Path(value).expanduser().absolute()
+    directory = _open_stable_directory(candidate, "state directory")
+    try:
+        _require_external_directory(project, directory, "state directory")
+        if require_empty and os.listdir(directory.descriptor):
+            raise ProfileError("state directory must be empty")
+        _validate_stable_directory(directory)
+        return directory
+    except BaseException:
+        _close_stable_directory(directory)
+        raise
+
+
+def _declared_snapshot(
+    project: Project,
+    client: str,
+    profile: Profile,
+    desired: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Describe the selected declaration and its normalized client render."""
+
+    context = [str(project.root / "AGENTS.md")]
+    if client == "codex":
+        context.append("<runtime>/AGENTS.md")
+    return {
+        "version": 1,
+        "client": client,
+        "profile": profile.name,
+        "renderer_version": RENDERER_VERSION,
+        "adapter_version": CLIENT_ADAPTER_VERSION,
+        "lock_hash": f"sha256:{_sha256(_canonical_json(desired))}",
+        "output_tree_hash": desired["profiles"][profile.name]["clients"][client][
+            "tree_hash"
+        ],
+        "inventory": _profile_inventory(profile),
+        "context": context,
+        "capability_semantics": desired["capability_semantics"],
     }
-    (profile_dir / "effective.json").write_text(
-        json.dumps(effective, indent=2, ensure_ascii=False), encoding="utf-8"
+
+
+def _configured_mcp_names(tree: Mapping[str, RenderedFile], client: str) -> list[str]:
+    """Read native MCP server names directly from the immutable rendered tree."""
+
+    if client == "codex":
+        try:
+            data = tomllib.loads(
+                _rendered_text(
+                    tree,
+                    "config.toml",
+                    "rendered Codex configuration",
+                    require_nonempty=False,
+                )
+            )
+        except tomllib.TOMLDecodeError as error:
+            raise ProfileError(
+                f"rendered Codex configuration is invalid: {error}"
+            ) from error
+        servers = data.get("mcp_servers", {})
+    else:
+        relative = "mcp.json"
+        data = _loads_strict_json(
+            _rendered_text(tree, relative, "rendered MCP configuration"),
+            f"<rendered-tree>/{relative}",
+        )
+        servers = data.get("mcpServers", {}) if isinstance(data, dict) else None
+    if not isinstance(servers, dict):
+        raise ProfileError("rendered MCP configuration has an invalid server table")
+    return sorted(servers)
+
+
+def probe_profile(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    state_root: Path | str,
+) -> dict[str, Any]:
+    """Observe the rendered configuration plane without invoking an agent or model."""
+
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    _validate_client(client)
+    state = _state_root(project, state_root, require_empty=True)
+    try:
+        expected_hash = desired["profiles"][profile.name]["clients"][client][
+            "tree_hash"
+        ]
+        with tempfile.TemporaryDirectory(
+            prefix=f"profile-probe-{client}-{profile.name}-"
+        ) as temporary:
+            runtime_root = Path(temporary)
+            tree = _render_tree(project, client, profile)
+            if _tree_hash(tree) != expected_hash:
+                raise ProfileError("rendered output drifted after lock verification")
+            with _stable_directory(
+                runtime_root, "probe runtime root"
+            ) as runtime_directory:
+                _materialize_tree(runtime_directory, tree)
+                skills = list(_rendered_skill_names(tree))
+                mcps = _configured_mcp_names(tree, client)
+        declared = _declared_snapshot(project, client, profile, desired)
+        probed = {
+            "version": 1,
+            "client": client,
+            "profile": profile.name,
+            "plane": "configured",
+            "probed_at": datetime.now(timezone.utc).isoformat(),
+            "observed": {
+                "skills": skills,
+                "mcps": mcps,
+                "context": None,
+                "hooks": None,
+                "plugins": None,
+            },
+            "candidates": {"context": declared["context"]},
+            "staged": {
+                "hooks": list(profile.hooks),
+                "plugins": list(profile.plugins),
+            },
+            "caveats": [
+                "context candidates are not proof that the client loaded them",
+                "hooks and plugins are opaque-staging until native loading is verified",
+                "configured state is not effective runtime state",
+            ],
+        }
+        _materialize_tree(
+            state,
+            {
+                "declared.json": RenderedFile(_canonical_json(declared)),
+                "probed.json": RenderedFile(_canonical_json(probed)),
+            },
+        )
+        return probed
+    finally:
+        _close_stable_directory(state)
+
+
+def run_observed(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    state_root: Path | str,
+    forwarded_args: Sequence[str] = (),
+    *,
+    receipt_path: Path | str | None = None,
+    runner: Callable[..., Any] | None = None,
+) -> int:
+    """Run one batch client, capture self-reported effective state, and clean its root."""
+
+    project, profile, desired, args = _prepare_execution(
+        project_root, client, profile_name, forwarded_args
+    )
+    state = _state_root(project, state_root, require_empty=True)
+    reservation: ReceiptReservation | None = None
+    committed = False
+    try:
+        receipt_target = _prepare_receipt_path(
+            receipt_path or state.path / "receipt.json"
+        )
+        reservation = _reserve_receipt(
+            project,
+            receipt_target,
+            parent_directory=state if receipt_target.parent == state.path else None,
+        )
+        declared = _declared_snapshot(project, client, profile, desired)
+        _materialize_tree(
+            state,
+            {"declared.json": RenderedFile(_canonical_json(declared))},
+        )
+        started = datetime.now(timezone.utc)
+        return_code, stdout, stderr = _execute_runtime(
+            project,
+            client,
+            profile,
+            desired,
+            args,
+            runner=runner or subprocess.run,
+            capture_output=True,
+        )
+        ended = datetime.now(timezone.utc)
+        text = stdout + "\n" + stderr
+        reported = {
+            dimension: parse_reported(text, REPORT_MARKERS[dimension])
+            for dimension in OBSERVATION_DIMENSIONS
+        }
+        client_limited = {
+            "codex": {"mcps", "context"},
+            "qoder": set(),
+            "omp": {"mcps"},
+        }[client]
+        forced_unknown = {"hooks", "plugins"} | client_limited
+        effective = {
+            "version": 1,
+            "client": client,
+            "profile": profile.name,
+            "plane": "effective",
+            "started_at": started.isoformat(),
+            "ended_at": ended.isoformat(),
+            "duration_s": round((ended - started).total_seconds()),
+            "exit_code": return_code,
+            "forwarded_argument_count": len(args),
+            "observed": {
+                dimension: None if dimension in forced_unknown else reported[dimension]
+                for dimension in OBSERVATION_DIMENSIONS
+            },
+            "reported_opaque_staging": {
+                dimension: reported[dimension] for dimension in ("hooks", "plugins")
+            },
+            "reported_client_limited": {
+                dimension: reported[dimension] for dimension in sorted(client_limited)
+            },
+            "evidence": (
+                "client output self-report; missing or explicit unknown markers remain unknown; "
+                "hook/plugin reports remain opaque-staging; client-limited dimensions are retained "
+                "only as unreliable reports rather than effective observations"
+            ),
+        }
+        _materialize_tree(
+            state,
+            {"effective.json": RenderedFile(_canonical_json(effective))},
+        )
+        _commit_receipt(
+            reservation,
+            _canonical_json(
+                _receipt_payload(client, profile, desired, args, return_code)
+            ),
+        )
+        committed = True
+        if stdout:
+            print(stdout, end="" if stdout.endswith("\n") else "\n")
+        if stderr:
+            print(stderr, end="" if stderr.endswith("\n") else "\n", file=sys.stderr)
+        return return_code if return_code >= 0 else 128 + abs(return_code)
+    finally:
+        if reservation is not None:
+            _release_receipt(reservation, remove=not committed)
+        _close_stable_directory(state)
+
+
+def _observation_key(dimension: str, value: str) -> str:
+    if dimension != "context":
+        return value.strip()
+    normalized = value.strip().strip("`").replace("\\", "/").rstrip("/")
+    return os.path.normcase(normalized)
+
+
+def diff_profile(
+    project_root: Path | str,
+    client: str,
+    profile_name: str,
+    state_root: Path | str,
+) -> int:
+    """Compare one immutable declaration with the separately captured effective state."""
+
+    project = load_project(project_root)
+    _check_global_pollution()
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    _validate_client(client)
+    state = _state_root(project, state_root, require_empty=False)
+    try:
+        try:
+            declared = _strict_json_from_directory(state, "declared.json")
+            effective = _strict_json_from_directory(state, "effective.json")
+        except ProfileError as error:
+            if "state file missing:" in str(error):
+                raise ProfileError(
+                    "diff requires declared.json and effective.json from one observed run"
+                ) from error
+            raise
+        current = _declared_snapshot(project, client, profile, desired)
+        if declared != current:
+            raise ProfileError(
+                "declared observation no longer matches the selected locked profile"
+            )
+        if (
+            not isinstance(effective, dict)
+            or effective.get("client") != client
+            or effective.get("profile") != profile.name
+        ):
+            raise ProfileError(
+                "effective observation belongs to a different client or profile"
+            )
+        observed_by_dimension = effective.get("observed")
+        if not isinstance(observed_by_dimension, dict):
+            raise ProfileError("effective observation has no observed dimension table")
+        expected = {
+            "skills": list(profile.skills),
+            "mcps": list(profile.mcps),
+            "context": list(current["context"]),
+            "hooks": list(profile.hooks),
+            "plugins": list(profile.plugins),
+        }
+        problems: list[str] = []
+        unknowns: list[str] = []
+        print(f"profile: {profile.name}  client: {client}")
+        for dimension in OBSERVATION_DIMENSIONS:
+            observed = observed_by_dimension.get(dimension)
+            effective_text = observed if observed is not None else "unknown"
+            print(
+                f"[{dimension}] declared={expected[dimension] or '(none)'} "
+                f"effective={effective_text}"
+            )
+            if observed is None:
+                unknowns.append(
+                    f"{dimension}: unknown; absence of evidence is not observed none"
+                )
+                continue
+            if not isinstance(observed, list) or any(
+                not isinstance(item, str) for item in observed
+            ):
+                raise ProfileError(
+                    f"effective observation {dimension} must be an array or null"
+                )
+            expected_keys = {
+                _observation_key(dimension, item): item for item in expected[dimension]
+            }
+            observed_keys = {
+                _observation_key(dimension, item): item for item in observed
+            }
+            missing = sorted(
+                expected_keys[key]
+                for key in expected_keys.keys() - observed_keys.keys()
+            )
+            extra = sorted(
+                observed_keys[key]
+                for key in observed_keys.keys() - expected_keys.keys()
+            )
+            if missing:
+                problems.append(f"{dimension} missing: {missing}")
+            if extra:
+                problems.append(f"{dimension} outside declaration: {extra}")
+        if effective.get("exit_code") != 0:
+            problems.append(f"client exit code was {effective.get('exit_code')}")
+        if unknowns:
+            print("unknown:")
+            for item in unknowns:
+                print(f"  ? {item}")
+        if problems:
+            print("drift:")
+            for item in problems:
+                print(f"  - {item}")
+            return 1
+        if unknowns:
+            print("result: unknown; one or more effective dimensions were not observed")
+            return 2
+        print("result: no observed drift")
+        return 0
+    finally:
+        _close_stable_directory(state)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the sole profile command-line interface and return its process exit code."""
+
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    try:
+        project = Path(args.project)
+        if args.command == "lock":
+            payload = create_lock(project)
+            _print_json(
+                {
+                    "status": "locked",
+                    "lock_hash": f"sha256:{_sha256(_canonical_json(payload))}",
+                }
+            )
+            return 0
+        if args.command == "verify":
+            payload = verify_project(project)
+            _print_json(
+                {
+                    "status": "ok",
+                    "lock_hash": f"sha256:{_sha256(_canonical_json(payload))}",
+                }
+            )
+            return 0
+        if args.command == "list":
+            _print_json({"profiles": list(list_profiles(project))})
+            return 0
+        if args.command == "explain":
+            _print_json(explain_profile(project, args.profile))
+            return 0
+        if args.command == "materialize":
+            tree_hash = materialize_profile(
+                project, args.client, args.profile, args.output
+            )
+            _print_json(
+                {
+                    "status": "materialized",
+                    "client": args.client,
+                    "profile": args.profile,
+                    "tree_hash": tree_hash,
+                }
+            )
+            return 0
+        if args.command == "probe":
+            _print_json(probe_profile(project, args.client, args.profile, args.state))
+            return 0
+        if args.command == "diff":
+            return diff_profile(project, args.client, args.profile, args.state)
+        forwarded = list(args.client_args)
+        if forwarded and forwarded[0] == "--":
+            forwarded.pop(0)
+        if args.command == "launch":
+            return run_client(
+                project,
+                args.client,
+                args.profile,
+                forwarded,
+                receipt_path=args.receipt,
+            )
+        return run_observed(
+            project,
+            args.client,
+            args.profile,
+            args.state,
+            forwarded,
+            receipt_path=args.receipt,
+        )
+    except (ProfileError, OSError) as error:
+        print(f"profile: error: {error}", file=sys.stderr)
+        return 2
+
+
+def _add_selection(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--client", required=True, choices=CLIENTS)
+    parser.add_argument("--profile", required=True)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="profile")
+    parser.add_argument(
+        "--project", default=".", help="project root containing .cap/manifest.toml"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for name in ("lock", "verify", "list"):
+        subparsers.add_parser(name)
+    explain = subparsers.add_parser("explain")
+    explain.add_argument("--profile", required=True)
+    materialize = subparsers.add_parser("materialize")
+    _add_selection(materialize)
+    materialize.add_argument("--output", required=True)
+    probe = subparsers.add_parser("probe")
+    _add_selection(probe)
+    probe.add_argument("--state", required=True)
+    diff = subparsers.add_parser("diff")
+    _add_selection(diff)
+    diff.add_argument("--state", required=True)
+    launch = subparsers.add_parser("launch")
+    _add_selection(launch)
+    launch.add_argument("--receipt")
+    launch.add_argument("client_args", nargs=argparse.REMAINDER)
+    run = subparsers.add_parser("run")
+    _add_selection(run)
+    run.add_argument("--state", required=True)
+    run.add_argument("--receipt")
+    run.add_argument("client_args", nargs=argparse.REMAINDER)
+    return parser
+
+
+def _read_toml(path: Path) -> dict[str, Any]:
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise ProfileError(f"invalid TOML {path}: {error}") from error
+    if not isinstance(data, dict):
+        raise ProfileError(f"TOML root must be a table: {path}")
+    return data
+
+
+def _loads_strict_json(text: str, context: str) -> Any:
+    """Parse strict JSON text with duplicate-key and non-finite-number rejection."""
+
+    def pairs_hook(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ProfileError(f"duplicate JSON key {key!r} in {context}")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> Any:
+        raise ProfileError(f"non-finite JSON number {value!r} in {context}")
+
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=pairs_hook,
+            parse_constant=reject_constant,
+        )
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ProfileError(f"invalid JSON {context}: {error}") from error
+
+
+def _strict_json(path: Path) -> Any:
+    """Read and parse one strict JSON file by path."""
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ProfileError(f"invalid JSON {path}: {error}") from error
+    return _loads_strict_json(text, str(path))
+
+
+def _strict_json_from_directory(directory: StableDirectory, name: str) -> Any:
+    """Read one strict JSON file relative to a held directory without following links."""
+
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+    for flag_name in ("O_CLOEXEC", "O_NOFOLLOW"):
+        flags |= getattr(os, flag_name, 0)
+    try:
+        _validate_stable_directory(directory)
+        try:
+            descriptor = os.open(name, flags, dir_fd=directory.descriptor)
+        except FileNotFoundError as error:
+            raise ProfileError(f"state file missing: {name}") from error
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ProfileError(f"state file must be a private regular file: {name}")
+            with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                descriptor = -1
+                text = stream.read()
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+        live = os.stat(name, dir_fd=directory.descriptor, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(live.st_mode)
+            or live.st_nlink != 1
+            or not _same_file_identity(live, info.st_dev, info.st_ino)
+        ):
+            raise ProfileError(f"state file changed while reading: {name}")
+        _validate_stable_directory(directory)
+    except ProfileError:
+        raise
+    except (OSError, NotImplementedError, UnicodeError) as error:
+        raise ProfileError(f"invalid JSON {directory.path / name}: {error}") from error
+    return _loads_strict_json(text, str(directory.path / name))
+
+
+def _expect_keys(data: Mapping[str, Any], expected: set[str], context: str) -> None:
+    actual = set(data)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    if missing or extra:
+        raise ProfileError(f"{context} keys mismatch: missing={missing}, extra={extra}")
+
+
+def _validate_identifier(value: Any, context: str) -> str:
+    if not isinstance(value, str) or not IDENTIFIER.fullmatch(value):
+        raise ProfileError(f"{context} must match {IDENTIFIER.pattern}: {value!r}")
+    return value
+
+
+def _identifier_list(value: Any, context: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ProfileError(f"{context} must be an array")
+    result = tuple(_validate_identifier(item, context) for item in value)
+    if len(result) != len(set(result)):
+        raise ProfileError(f"{context} contains duplicates")
+    return result
+
+
+def _safe_relative(value: str, context: str) -> PurePosixPath:
+    if not value or "\\" in value:
+        raise ProfileError(
+            f"{context} must be a normalized POSIX relative path: {value!r}"
+        )
+    path = PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or path.as_posix() != value
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise ProfileError(
+            f"{context} must be a normalized POSIX relative path: {value!r}"
+        )
+    return path
+
+
+def _resolve_file(root: Path, value: str, context: str) -> Path:
+    relative = _safe_relative(value, context)
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ProfileError(f"{context} must not traverse a symlink: {value}")
+    try:
+        resolved = current.resolve(strict=True)
+    except OSError as error:
+        raise ProfileError(f"{context} does not exist: {value}") from error
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        raise ProfileError(f"{context} must resolve to a regular project file: {value}")
+    return resolved
+
+
+def _require_under_cap(root: Path, path: Path, context: str) -> None:
+    cap_root = root / ".cap"
+    if not path.is_relative_to(cap_root):
+        raise ProfileError(f"{context} must be stored under .cap")
+
+
+def _validate_capability_store(
+    root: Path, expected: Mapping[str, set[str]]
+) -> dict[str, McpDefinition]:
+    base = root / ".cap" / "capabilities"
+    _require_directory(base, "capability store")
+    children = {item.name for item in base.iterdir()}
+    if children != set(CAPABILITY_KINDS):
+        raise ProfileError(
+            f"capability store kinds mismatch: missing={sorted(set(CAPABILITY_KINDS) - children)}, "
+            f"extra={sorted(children - set(CAPABILITY_KINDS))}"
+        )
+    mcps: dict[str, McpDefinition] = {}
+    for kind in CAPABILITY_KINDS:
+        kind_root = base / kind
+        _require_directory(kind_root, f"capability kind {kind}")
+        if kind == "mcp":
+            actual = set()
+            for item in sorted(kind_root.iterdir(), key=lambda path: path.name):
+                if item.is_symlink() or not item.is_file() or item.suffix != ".json":
+                    raise ProfileError(
+                        f"mcp store contains invalid entry: {item.relative_to(root)}"
+                    )
+                name = item.stem
+                _validate_identifier(name, "mcp capability name")
+                actual.add(name)
+                mcps[name] = _load_mcp(item, name)
+        else:
+            actual = set()
+            for item in sorted(kind_root.iterdir(), key=lambda path: path.name):
+                if item.is_symlink() or not item.is_dir():
+                    raise ProfileError(
+                        f"{kind} store contains invalid entry: {item.relative_to(root)}"
+                    )
+                _validate_identifier(item.name, f"{kind} capability name")
+                actual.add(item.name)
+                _validate_capability_tree(root, kind, item)
+        if actual != expected[kind]:
+            raise ProfileError(
+                f"{kind} inventory mismatch: missing={sorted(expected[kind] - actual)}, "
+                f"unreferenced={sorted(actual - expected[kind])}"
+            )
+    return mcps
+
+
+def _require_directory(path: Path, context: str) -> None:
+    if path.is_symlink() or not path.exists() or not path.is_dir():
+        raise ProfileError(f"{context} must be a non-symlink directory: {path}")
+
+
+def _validate_capability_tree(root: Path, kind: str, capability: Path) -> None:
+    entries = sorted(
+        capability.rglob("*"), key=lambda path: path.relative_to(root).as_posix()
+    )
+    for item in entries:
+        if item.is_symlink() or not (item.is_file() or item.is_dir()):
+            raise ProfileError(
+                f"capability tree contains unsupported entry: {item.relative_to(root)}"
+            )
+    if kind == "skills":
+        if not (capability / "SKILL.md").is_file():
+            raise ProfileError(
+                f"skill capability lacks SKILL.md: {capability.relative_to(root)}"
+            )
+        if not any(item.is_file() for item in entries):
+            raise ProfileError(
+                f"skill capability is empty: {capability.relative_to(root)}"
+            )
+        return
+    direct = {item.name for item in capability.iterdir()}
+    if direct != {"targets"}:
+        raise ProfileError(
+            f"{kind} capability must contain only targets/: {capability.relative_to(root)}"
+        )
+    targets = capability / "targets"
+    _require_directory(targets, f"{kind} targets")
+    target_names = {item.name for item in targets.iterdir()}
+    if not target_names or not target_names.issubset(set(CLIENTS)):
+        raise ProfileError(
+            f"{kind} targets must be a non-empty subset of {list(CLIENTS)}"
+        )
+    for target in targets.iterdir():
+        _require_directory(target, f"{kind} target {target.name}")
+        direct = {item.name for item in target.iterdir()}
+        if direct != {kind}:
+            raise ProfileError(
+                f"{kind} target {target.name} must contain only {kind}/: "
+                f"{target.relative_to(root)}"
+            )
+        namespace = target / kind
+        _require_directory(namespace, f"{kind} target {target.name} namespace")
+        if not any(item.is_file() for item in namespace.rglob("*")):
+            raise ProfileError(f"{kind} target is empty: {target.relative_to(root)}")
+
+
+def _load_mcp(path: Path, expected_name: str) -> McpDefinition:
+    data = _strict_json(path)
+    if not isinstance(data, dict):
+        raise ProfileError(f"MCP definition must be an object: {path}")
+    _expect_keys(
+        data, {"version", "name", "command", "args", "env"}, f"MCP {expected_name}"
+    )
+    if type(data["version"]) is not int or data["version"] != 1:
+        raise ProfileError(f"MCP {expected_name}.version must be 1")
+    if data["name"] != expected_name:
+        raise ProfileError(f"MCP {expected_name}.name must equal its file name")
+    if (
+        not isinstance(data["command"], str)
+        or not data["command"]
+        or "\x00" in data["command"]
+    ):
+        raise ProfileError(
+            f"MCP {expected_name}.command must be a non-empty NUL-free string"
+        )
+    args = data["args"]
+    if not isinstance(args, list) or any(
+        not isinstance(item, str) or "\x00" in item for item in args
+    ):
+        raise ProfileError(
+            f"MCP {expected_name}.args must be an array of NUL-free strings"
+        )
+    env = data["env"]
+    if not isinstance(env, dict) or any(
+        not isinstance(key, str)
+        or not key
+        or "\x00" in key
+        or not isinstance(value, str)
+        or "\x00" in value
+        for key, value in env.items()
+    ):
+        raise ProfileError(f"MCP {expected_name}.env must be a string-to-string object")
+    return McpDefinition(
+        expected_name, data["command"], tuple(args), dict(sorted(env.items())), path
     )
 
 
-def diff(profile_dir: Path) -> int:
-    d = profile_dir / "declared.json"
-    e = profile_dir / "effective.json"
-    if not d.exists() or not e.exists():
-        sys.exit("先跑一次 run，才有 declared / effective 可比")
-    declared = json.loads(d.read_text(encoding="utf-8"))
-    effective = json.loads(e.read_text(encoding="utf-8"))
+def _path_key(value: str) -> str:
+    """Normalize one relative path spelling for conservative cross-platform comparisons."""
 
-    problems: list[str] = []
-    unknowns: list[str] = []
-    blind = False  # 有任何一个维度观测不到，整体结论就不能是"无漂移"
+    return os.path.normcase(value.replace("\\", "/")).casefold()
 
-    print(f"profile   : {declared['profile']['name']}@{declared['profile']['version']}")
-    print(f"provider  : {declared.get('provider')}   模型: {declared['model'].get('id')}")
 
-    for allow_key, obs_key, label, by_path in DIMENSIONS:
-        allow = declared.get(allow_key, [])
-        unctl = declared.get("uncontrollable", {}).get(allow_key.replace("_allow", ""), [])
-        observed = effective.get(obs_key)
-
-        # "*" = 整个维度不可控。给 Codex 的 MCP 用：既没有关闭开关，运行时自报的
-        # 名字也不稳定 —— 三次运行给出三份不同清单，第三次还多出三个没见过的对象。
-        # 逐个枚举名字会让每次运行都报一次假漂移，那比不报更糟：告警一旦总是响，
-        # 就等于没有告警。整维度声明要求 *_reason 写清为什么，且观测到的东西照常
-        # 打印出来 —— 看得见，但不判失败。
-        wildcard = "*" in unctl
-
-        key = norm_path if by_path else (lambda x: x.strip())
-        ok = {key(x) for x in list(allow) + list(unctl)}
-
-        print(f"\n[{label}]")
-        print(f"  声明允许  : {sorted(allow) or '(空)'}")
-        print(f"  声明不可控: {sorted(unctl) or '(未声明)'}")
-        print(f"  运行时观测: {observed if observed is not None else 'unknown'}")
-
-        dim = allow_key.replace("_allow", "")
-        by = declared.get("measured_by", {}).get(dim, "run")
-        if observed is None:
-            if by == "probe":
-                unknowns.append(f"{label}: 本维度由 probe 测量，run 的自报看不见它，符合预期")
-            else:
-                blind = True
-                unknowns.append(f"{label}: unknown —— 产出里没有对应标记行。**不能据此判定无漂移**")
+def _check_project_pollution(root: Path) -> None:
+    violations: list[str] = []
+    bypass_dirs = {_path_key(value) for value in PROJECT_BYPASS_DIRS}
+    bypass_files = {_path_key(value) for value in PROJECT_BYPASS_FILES}
+    bypass_paths = {_path_key(value) for value in PROJECT_BYPASS_PATHS}
+    for item in sorted(
+        root.rglob("*"), key=lambda path: path.relative_to(root).as_posix()
+    ):
+        relative = item.relative_to(root)
+        relative_text = relative.as_posix()
+        if relative.parts[0] in {".cap", ".git"}:
             continue
-        extra = [] if wildcard else sorted(x for x in observed if key(x) not in ok)
-        if wildcard and observed:
-            unknowns.append(f"{label} 整维度已声明为不可控，本次出现 {len(observed)} 个：{observed}")
-        if extra:
-            problems.append(f"{label} 越界 ({len(extra)}): {extra}")
-        expected_unctl = sorted(x for x in observed if key(x) in {key(u) for u in unctl})
-        if expected_unctl:
-            unknowns.append(f"{label} 已声明为不可控、按预期出现: {expected_unctl}")
-
-    print(f"\nskill 实际加载: {effective.get('skills_loaded') if effective.get('skills_loaded') is not None else 'unknown'}")
-    print(f"skill 落盘(辅助): {effective['skills_on_disk']}")
-    print(f"耗时: {effective['duration_s']}s   证据: {effective.get('evidence', 'agent 自报')}")
-
-    if effective["exit_code"] != 0:
-        problems.append(f"退出码非零: {effective['exit_code']}")
-
-    if unknowns:
-        print("\n未知:")
-        for u in unknowns:
-            print(f"  ? {u}")
-    if problems:
-        print("\n漂移:")
-        for p in problems:
-            print(f"  - {p}")
-        return 1
-    if blind:
-        print("\n结论: 无法判定（有维度观测不足）")
-        return 2
-    print("\n三个维度均无漂移 ✅")
-    return 0
+        if any(_path_key(part) in bypass_dirs for part in relative.parts):
+            violations.append(relative_text)
+            continue
+        if _path_key(relative_text) in bypass_paths:
+            violations.append(relative_text)
+            continue
+        if _path_key(item.name) in bypass_files and relative_text != "AGENTS.md":
+            violations.append(relative_text)
+    if violations:
+        raise ProfileError(
+            f"project capability bypass detected: {', '.join(violations)}"
+        )
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["materialize", "probe", "run", "diff"])
-    ap.add_argument("profile_dir", type=Path)
-    ap.add_argument("--task", type=Path)
-    args = ap.parse_args()
+def _check_global_pollution() -> None:
+    home = Path.home()
+    violations = {
+        relative
+        for relative in set(GLOBAL_CAPABILITY_PATHS)
+        if os.path.lexists(home / relative)
+    }
+    codex_config = home / ".codex" / "config.toml"
+    if codex_config.is_file() and _contains_mapping_key(
+        _read_toml(codex_config),
+        {
+            "developer_instructions",
+            "hooks",
+            "mcp_servers",
+            "model_instructions_file",
+            "plugins",
+            "skills",
+        },
+    ):
+        violations.add(".codex/config.toml")
+    json_configs = {
+        ".claude.json": {"enabledPlugins", "hooks", "mcpServers", "plugins", "skills"},
+        ".gemini/settings.json": {
+            "extensions",
+            "hooks",
+            "mcpServers",
+            "plugins",
+            "skills",
+        },
+        ".qoder/settings.json": {
+            "enabledPlugins",
+            "hooks",
+            "mcpServers",
+            "plugins",
+            "skills",
+        },
+    }
+    for relative, keys in json_configs.items():
+        path = home / relative
+        if path.is_file() and _contains_mapping_key(_strict_json(path), keys):
+            violations.add(relative)
+    text_configs = {
+        ".config/opencode/opencode.json": {"instructions", "mcp", "plugin"},
+        ".omp/agent/config.yml": {
+            "extensions",
+            "hooks",
+            "mcp",
+            "mcpServers",
+            "plugins",
+            "rules",
+            "skills",
+        },
+        ".pi/agent/config.yml": {
+            "extensions",
+            "hooks",
+            "mcp",
+            "mcpServers",
+            "plugins",
+            "rules",
+            "skills",
+        },
+    }
+    for relative, keys in text_configs.items():
+        path = home / relative
+        if path.is_file() and _text_has_top_level_key(path, keys):
+            violations.add(relative)
+    if violations:
+        raise ProfileError(
+            f"global capability pollution detected: {', '.join(sorted(violations))}"
+        )
 
-    pd = args.profile_dir.resolve()
-    if args.cmd == "diff":
-        return diff(pd)
 
-    manifest = load_manifest(pd)
-    if args.cmd == "probe":
-        return probe(pd, manifest)
-    if args.cmd == "materialize":
-        home = materialize(pd, manifest)
-        print(f"已物化: {home}")
-        return 0
+def _desired_lock(project: Project) -> dict[str, Any]:
+    profiles: dict[str, Any] = {}
+    for name, profile in sorted(project.profiles.items()):
+        clients = {
+            client: {"tree_hash": _tree_hash(_render_tree(project, client, profile))}
+            for client in CLIENTS
+        }
+        profiles[name] = {"inventory": _profile_inventory(profile), "clients": clients}
+    return {
+        "version": LOCK_VERSION,
+        "renderer_version": RENDERER_VERSION,
+        "clients": {
+            client: {
+                "adapter_version": CLIENT_ADAPTER_VERSION,
+                "executable": CLIENT_EXECUTABLES[client],
+            }
+            for client in CLIENTS
+        },
+        "capability_semantics": {
+            "skills": "native-staging",
+            "mcp": "native-config",
+            "hooks": "opaque-staging",
+            "plugins": "opaque-staging",
+        },
+        "inputs": _input_records(project),
+        "profiles": profiles,
+    }
 
-    if not args.task:
-        sys.exit("run 需要 --task")
-    return run(pd, manifest, args.task)
+
+def _profile_inventory(profile: Profile) -> dict[str, list[str]]:
+    return {
+        "skills": list(profile.skills),
+        "mcps": list(profile.mcps),
+        "hooks": list(profile.hooks),
+        "plugins": list(profile.plugins),
+    }
+
+
+def _input_records(project: Project) -> dict[str, Any]:
+    paths: set[Path] = {project.manifest, project.root / "AGENTS.md"}
+    for profile in project.profiles.values():
+        paths.update({profile.source, profile.prompt})
+    capability_root = project.root / ".cap" / "capabilities"
+    paths.add(capability_root)
+    paths.update(capability_root.rglob("*"))
+    records: dict[str, Any] = {}
+    for path in sorted(
+        paths, key=lambda item: item.relative_to(project.root).as_posix()
+    ):
+        relative = path.relative_to(project.root).as_posix()
+        if path.is_symlink():
+            raise ProfileError(f"lock input must not be a symlink: {relative}")
+        if path.is_dir():
+            records[relative] = {"type": "directory"}
+        elif path.is_file():
+            records[relative] = {
+                "type": "file",
+                "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                "sha256": _sha256(path.read_bytes()),
+            }
+        else:
+            raise ProfileError(
+                f"lock input is not a regular file or directory: {relative}"
+            )
+    return records
+
+
+def _verify_lock(project: Project, desired: Mapping[str, Any]) -> None:
+    lock_path = project.root / ".cap" / "lock.json"
+    if lock_path.is_symlink() or not lock_path.is_file():
+        raise ProfileError("missing regular .cap/lock.json; run profile lock")
+    actual = _strict_json(lock_path)
+    if actual != desired:
+        raise ProfileError(
+            "capability lock drift detected; run profile lock after reviewing changes"
+        )
+
+
+def _render_tree(
+    project: Project, client: str, profile: Profile
+) -> dict[str, RenderedFile]:
+    _validate_client(client)
+    tree: dict[str, RenderedFile] = {}
+    folded_paths: dict[str, str] = {}
+
+    def put(path: str, rendered: RenderedFile, source: str) -> None:
+        relative = _safe_relative(path, f"render path from {source}").as_posix()
+        folded = relative.casefold()
+        if relative in tree or folded in folded_paths:
+            prior = folded_paths.get(folded, relative)
+            raise ProfileError(
+                f"render path conflict: {relative} from {source} conflicts with {prior}"
+            )
+        tree[relative] = rendered
+        folded_paths[folded] = relative
+
+    prompt = _profile_prompt(profile)
+    mcp_definitions = [project.mcps[name] for name in profile.mcps]
+    if client == "codex":
+        put(
+            "config.toml",
+            RenderedFile(_codex_config(mcp_definitions)),
+            "codex renderer",
+        )
+        put("AGENTS.md", RenderedFile(prompt), "codex renderer")
+    elif client == "qoder":
+        put("settings.json", RenderedFile(b"{}\n"), "qoder renderer")
+        put("mcp.json", RenderedFile(_qoder_mcp(mcp_definitions)), "qoder renderer")
+        put("system-prompt.md", RenderedFile(prompt), "qoder renderer")
+    else:
+        put("config.yml", RenderedFile(b"{}\n"), "omp renderer")
+        put("mcp.json", RenderedFile(_omp_mcp(mcp_definitions)), "omp renderer")
+        put("system-prompt.md", RenderedFile(prompt), "omp renderer")
+
+    skills_root = project.root / ".cap" / "capabilities" / "skills"
+    for skill in profile.skills:
+        source_root = skills_root / skill
+        for source in sorted(
+            source_root.rglob("*"),
+            key=lambda path: path.relative_to(source_root).as_posix(),
+        ):
+            if source.is_file():
+                relative = source.relative_to(source_root).as_posix()
+                put(
+                    f"skills/{skill}/{relative}",
+                    RenderedFile(
+                        source.read_bytes(), stat.S_IMODE(source.stat().st_mode)
+                    ),
+                    f"skill {skill}",
+                )
+
+    capability_root = project.root / ".cap" / "capabilities"
+    for kind, names in (("hooks", profile.hooks), ("plugins", profile.plugins)):
+        for name in names:
+            target = capability_root / kind / name / "targets" / client
+            if not target.is_dir() or target.is_symlink():
+                raise ProfileError(f"{kind[:-1]} {name} lacks required {client} target")
+            for source in sorted(
+                target.rglob("*"), key=lambda path: path.relative_to(target).as_posix()
+            ):
+                if source.is_file():
+                    relative = source.relative_to(target).as_posix()
+                    put(
+                        relative,
+                        RenderedFile(
+                            source.read_bytes(), stat.S_IMODE(source.stat().st_mode)
+                        ),
+                        f"{kind[:-1]} {name}",
+                    )
+    return dict(sorted(tree.items()))
+
+
+def _read_nonempty_text(path: Path, context: str) -> str:
+    """Read one required non-empty UTF-8 project source file."""
+
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError) as error:
+        raise ProfileError(f"{context} must be readable UTF-8 text: {error}") from error
+    if not value:
+        raise ProfileError(f"{context} must be non-empty")
+    return value
+
+
+def _profile_prompt(profile: Profile) -> bytes:
+    text = _read_nonempty_text(profile.prompt, f"profile {profile.name} prompt")
+    return f"{text}\n".encode("utf-8")
+
+
+def _codex_config(definitions: Sequence[McpDefinition]) -> bytes:
+    lines: list[str] = []
+    for definition in definitions:
+        if lines:
+            lines.append("")
+        lines.extend(
+            [
+                f"[mcp_servers.{definition.name}]",
+                f"command = {_toml_string(definition.command)}",
+                f"args = {_toml_array(definition.args)}",
+                "required = true",
+            ]
+        )
+        if definition.env:
+            lines.append("")
+            lines.append(f"[mcp_servers.{definition.name}.env]")
+            for key, value in sorted(definition.env.items()):
+                lines.append(f"{_toml_key(key)} = {_toml_string(value)}")
+    return (("\n".join(lines) + "\n") if lines else "").encode("utf-8")
+
+
+def _qoder_mcp(definitions: Sequence[McpDefinition]) -> bytes:
+    servers = {
+        definition.name: {
+            "command": definition.command,
+            "args": list(definition.args),
+            "env": dict(definition.env),
+        }
+        for definition in definitions
+    }
+    return _canonical_json({"mcpServers": servers})
+
+
+def _omp_mcp(definitions: Sequence[McpDefinition]) -> bytes:
+    servers = {
+        definition.name: {
+            "type": "stdio",
+            "command": definition.command,
+            "args": list(definition.args),
+            "env": dict(definition.env),
+        }
+        for definition in definitions
+    }
+    return _canonical_json({"mcpServers": servers})
+
+
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_array(values: Sequence[str]) -> str:
+    return "[" + ", ".join(_toml_string(value) for value in values) + "]"
+
+
+def _toml_key(value: str) -> str:
+    return value if re.fullmatch(r"[A-Za-z0-9_-]+", value) else _toml_string(value)
+
+
+def _tree_hash(tree: Mapping[str, RenderedFile]) -> str:
+    records = {
+        path: {
+            "mode": f"{rendered.mode:04o}",
+            "sha256": _sha256(rendered.content),
+        }
+        for path, rendered in sorted(tree.items())
+    }
+    return f"sha256:{_sha256(_canonical_json(records))}"
+
+
+def _write_all(descriptor: int, content: bytes) -> None:
+    """Write every byte to one already-open file descriptor."""
+
+    remaining = memoryview(content)
+    while remaining:
+        written = os.write(descriptor, remaining)
+        if written <= 0:
+            raise OSError("file write made no progress")
+        remaining = remaining[written:]
+
+
+def _materialize_tree(
+    directory: StableDirectory, tree: Mapping[str, RenderedFile]
+) -> None:
+    """Materialize files relative to held no-follow directory descriptors."""
+
+    directories: dict[tuple[str, ...], int] = {(): directory.descriptor}
+    created_descriptors: list[int] = []
+    directory_records: list[tuple[int, str, int, int, int]] = []
+    file_records: list[tuple[int, str, int, int]] = []
+    try:
+        _validate_stable_directory(directory)
+        for relative, rendered in sorted(tree.items()):
+            relative_path = PurePosixPath(relative)
+            if (
+                relative_path.is_absolute()
+                or not relative_path.parts
+                or any(part in {"", ".", ".."} for part in relative_path.parts)
+            ):
+                raise ProfileError(
+                    f"render path must be normalized and relative: {relative}"
+                )
+            parent_key: tuple[str, ...] = ()
+            parent_descriptor = directory.descriptor
+            for part in relative_path.parts[:-1]:
+                child_key = (*parent_key, part)
+                child_descriptor = directories.get(child_key)
+                if child_descriptor is None:
+                    try:
+                        os.mkdir(part, 0o700, dir_fd=parent_descriptor)
+                    except FileExistsError as error:
+                        raise ProfileError(
+                            f"materialize directory appeared concurrently: {'/'.join(child_key)}"
+                        ) from error
+                    child_descriptor = os.open(
+                        part,
+                        _directory_open_flags(),
+                        dir_fd=parent_descriptor,
+                    )
+                    child_info = os.fstat(child_descriptor)
+                    live_info = os.stat(
+                        part, dir_fd=parent_descriptor, follow_symlinks=False
+                    )
+                    if not stat.S_ISDIR(child_info.st_mode) or not _same_file_identity(
+                        live_info, child_info.st_dev, child_info.st_ino
+                    ):
+                        os.close(child_descriptor)
+                        raise ProfileError(
+                            f"materialize directory changed: {'/'.join(child_key)}"
+                        )
+                    directories[child_key] = child_descriptor
+                    created_descriptors.append(child_descriptor)
+                    directory_records.append(
+                        (
+                            parent_descriptor,
+                            part,
+                            child_descriptor,
+                            child_info.st_dev,
+                            child_info.st_ino,
+                        )
+                    )
+                parent_key = child_key
+                parent_descriptor = child_descriptor
+            file_name = relative_path.parts[-1]
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            for name in ("O_CLOEXEC", "O_NOFOLLOW"):
+                flags |= getattr(os, name, 0)
+            descriptor = os.open(
+                file_name,
+                flags,
+                rendered.mode,
+                dir_fd=parent_descriptor,
+            )
+            try:
+                os.fchmod(descriptor, rendered.mode)
+                _write_all(descriptor, rendered.content)
+                os.fsync(descriptor)
+                info = os.fstat(descriptor)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise ProfileError(f"materialized file is not private: {relative}")
+                file_records.append(
+                    (parent_descriptor, file_name, info.st_dev, info.st_ino)
+                )
+            finally:
+                os.close(descriptor)
+        for parent_descriptor, name, descriptor, device, inode in directory_records:
+            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            held = os.fstat(descriptor)
+            if not _same_file_identity(live, device, inode) or not _same_file_identity(
+                held, device, inode
+            ):
+                raise ProfileError(f"materialized directory changed: {name}")
+        for parent_descriptor, name, device, inode in file_records:
+            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(live.st_mode)
+                or live.st_nlink != 1
+                or not _same_file_identity(live, device, inode)
+            ):
+                raise ProfileError(f"materialized file changed: {name}")
+        for descriptor in created_descriptors:
+            os.fsync(descriptor)
+        os.fsync(directory.descriptor)
+        _validate_stable_directory(directory)
+    except ProfileError:
+        raise
+    except (OSError, NotImplementedError) as error:
+        raise ProfileError(f"could not materialize tree: {error}") from error
+    finally:
+        for descriptor in reversed(created_descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _select_profile(project: Project, profile_name: str) -> Profile:
+    if not profile_name:
+        raise ProfileError("profile is required; there is no default profile")
+    try:
+        return project.profiles[profile_name]
+    except KeyError as error:
+        raise ProfileError(f"unknown profile: {profile_name}") from error
+
+
+def _validate_client(client: str) -> None:
+    if client not in CLIENTS:
+        raise ProfileError(f"unknown client: {client}")
+
+
+def _validate_forwarded_args(client: str, args: Sequence[str]) -> None:
+    forbidden = FORBIDDEN_CLIENT_ARGUMENTS[client]
+    for argument in args:
+        if not isinstance(argument, str) or "\x00" in argument:
+            raise ProfileError("forwarded arguments must be NUL-free strings")
+        key = argument.split("=", 1)[0]
+        compact_prefixes = {
+            "codex": ("-c", "-C", "-p"),
+            "qoder": ("-w",),
+            "omp": ("-e",),
+        }[client]
+        compact_override = any(
+            argument.startswith(prefix) for prefix in compact_prefixes
+        )
+        if key in forbidden or compact_override:
+            raise ProfileError(
+                f"forwarded argument may override the {client} capability root: {argument}"
+            )
+
+
+def _require_git_root(root: Path) -> None:
+    completed = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise ProfileError("run requires the profile project to be a Git worktree root")
+    try:
+        discovered = Path(completed.stdout.strip()).resolve(strict=True)
+    except OSError as error:
+        raise ProfileError("Git reported an invalid worktree root") from error
+    if discovered != root:
+        raise ProfileError(
+            f"profile project must equal the Git worktree root; discovered {discovered}"
+        )
+
+
+def _contains_mapping_key(value: Any, keys: set[str]) -> bool:
+    """Return whether a nested mapping contains any capability-bearing key."""
+
+    if isinstance(value, Mapping):
+        return any(
+            key in keys or _contains_mapping_key(item, keys)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_mapping_key(item, keys) for item in value)
+    return False
+
+
+def _text_has_top_level_key(path: Path, keys: set[str]) -> bool:
+    """Detect capability-bearing top-level keys in YAML or JSONC configuration."""
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ProfileError(
+            f"global config must be readable UTF-8 text: {path}: {error}"
+        ) from error
+    stripped = text.lstrip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            alternatives = "|".join(re.escape(key) for key in sorted(keys))
+            return (
+                re.search(
+                    rf"(?m)^[ \t]*(?:\"(?:{alternatives})\"|'(?:{alternatives})'|(?:{alternatives}))\s*:",
+                    text,
+                )
+                is not None
+            )
+        return isinstance(data, dict) and any(key in data for key in keys)
+    alternatives = "|".join(re.escape(key) for key in sorted(keys))
+    return (
+        re.search(
+            rf"(?m)^(?:\"(?:{alternatives})\"|'(?:{alternatives})'|(?:{alternatives}))\s*:",
+            text,
+        )
+        is not None
+    )
+
+
+def _prepare_receipt_path(value: Path | str) -> Path:
+    """Normalize one lexical receipt target without resolving mutable ancestors."""
+
+    path = Path(value).expanduser().absolute()
+    if not path.name:
+        raise ProfileError("receipt target must name a file")
+    parent = _normalize_root_alias(path.parent, "receipt parent")
+    return parent / path.name
+
+
+def _reserve_receipt(
+    project: Project,
+    path: Path,
+    *,
+    parent_directory: StableDirectory | None = None,
+) -> ReceiptReservation:
+    """Exclusively create an external receipt through a stable parent descriptor."""
+
+    if parent_directory is not None:
+        if path.parent != parent_directory.path:
+            raise ProfileError("receipt parent handle does not match the target path")
+        _validate_stable_directory(parent_directory)
+        _require_external_directory(project, parent_directory, "receipt")
+        parent_descriptor = os.dup(parent_directory.descriptor)
+        os.set_inheritable(parent_descriptor, False)
+        parent_info = os.fstat(parent_descriptor)
+    else:
+        with _stable_directory(path.parent, "receipt parent") as stable_parent:
+            _require_external_directory(project, stable_parent, "receipt")
+            parent_descriptor = os.dup(stable_parent.descriptor)
+            os.set_inheritable(parent_descriptor, False)
+            parent_info = os.fstat(parent_descriptor)
+    descriptor: int | None = None
+    try:
+        live_parent = os.stat(path.parent, follow_symlinks=False)
+        if not stat.S_ISDIR(live_parent.st_mode) or not _same_file_identity(
+            live_parent, parent_info.st_dev, parent_info.st_ino
+        ):
+            raise ProfileError("receipt parent changed before reservation")
+
+        target_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        for name in ("O_CLOEXEC", "O_NOFOLLOW"):
+            target_flags |= getattr(os, name, 0)
+        try:
+            descriptor = os.open(
+                path.name,
+                target_flags,
+                0o600,
+                dir_fd=parent_descriptor,
+            )
+        except FileExistsError as error:
+            raise ProfileError(f"receipt target already exists: {path}") from error
+        except (OSError, NotImplementedError) as error:
+            raise ProfileError(f"could not reserve receipt target: {error}") from error
+        os.fchmod(descriptor, 0o600)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ProfileError("reserved receipt must be a private regular file")
+        return ReceiptReservation(
+            path=path,
+            parent_descriptor=parent_descriptor,
+            descriptor=descriptor,
+            parent_device=parent_info.st_dev,
+            parent_inode=parent_info.st_ino,
+            device=info.st_dev,
+            inode=info.st_ino,
+        )
+    except BaseException:
+        try:
+            if descriptor is not None:
+                _unlink_reserved_receipt(
+                    parent_descriptor,
+                    descriptor,
+                    path.name,
+                )
+        finally:
+            try:
+                if descriptor is not None:
+                    os.close(descriptor)
+            finally:
+                os.close(parent_descriptor)
+        raise
+
+
+def _validate_receipt_reservation(reservation: ReceiptReservation) -> None:
+    try:
+        if any(
+            candidate.is_symlink()
+            for candidate in (reservation.path.parent, *reservation.path.parent.parents)
+        ):
+            raise ProfileError("receipt parent changed to a symlink")
+        parent_info = os.stat(reservation.path.parent, follow_symlinks=False)
+        target_info = os.stat(
+            reservation.path.name,
+            dir_fd=reservation.parent_descriptor,
+            follow_symlinks=False,
+        )
+        descriptor_info = os.fstat(reservation.descriptor)
+    except (OSError, NotImplementedError) as error:
+        raise ProfileError(
+            f"receipt reservation is no longer stable: {error}"
+        ) from error
+    if not stat.S_ISDIR(parent_info.st_mode) or not _same_file_identity(
+        parent_info,
+        reservation.parent_device,
+        reservation.parent_inode,
+    ):
+        raise ProfileError("receipt parent changed after reservation")
+    if (
+        target_info.st_nlink != 1
+        or descriptor_info.st_nlink != 1
+        or not stat.S_ISREG(target_info.st_mode)
+        or not stat.S_ISREG(descriptor_info.st_mode)
+        or not _same_file_identity(
+            target_info,
+            reservation.device,
+            reservation.inode,
+        )
+        or not _same_file_identity(
+            descriptor_info,
+            reservation.device,
+            reservation.inode,
+        )
+    ):
+        raise ProfileError("receipt target changed or gained a hard-link alias")
+
+
+def _commit_receipt(reservation: ReceiptReservation, content: bytes) -> None:
+    """Commit bytes to the reserved inode without resolving the receipt path again."""
+
+    _validate_receipt_reservation(reservation)
+    try:
+        os.lseek(reservation.descriptor, 0, os.SEEK_SET)
+        os.ftruncate(reservation.descriptor, 0)
+        _write_all(reservation.descriptor, content)
+        os.fsync(reservation.descriptor)
+    except OSError as error:
+        raise ProfileError(f"could not commit receipt: {error}") from error
+    _validate_receipt_reservation(reservation)
+
+
+def _unlink_reserved_receipt(
+    parent_descriptor: int,
+    descriptor: int,
+    name: str,
+) -> None:
+    try:
+        target_info = os.stat(
+            name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        descriptor_info = os.fstat(descriptor)
+        if (target_info.st_dev, target_info.st_ino) == (
+            descriptor_info.st_dev,
+            descriptor_info.st_ino,
+        ):
+            os.unlink(name, dir_fd=parent_descriptor)
+    except (FileNotFoundError, NotImplementedError):
+        return
+
+
+def _release_receipt(reservation: ReceiptReservation, *, remove: bool) -> None:
+    try:
+        if remove:
+            _unlink_reserved_receipt(
+                reservation.parent_descriptor,
+                reservation.descriptor,
+                reservation.path.name,
+            )
+    finally:
+        try:
+            os.close(reservation.descriptor)
+        finally:
+            os.close(reservation.parent_descriptor)
+
+
+def _atomic_write(path: Path, content: bytes, *, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", dir=path.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _canonical_json(value: Any) -> bytes:
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode("utf-8")
+
+
+def _sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _print_json(value: Any) -> None:
+    sys.stdout.buffer.write(_canonical_json(value))
 
 
 if __name__ == "__main__":

@@ -48,8 +48,8 @@ Session 的职责由负责人当前明确指令、公开自足的 Issue 合同�
 - `entrypoints/agent-system.md`：本仓项目级 Agent 行为入口；不作为用户级全局提示词安装源；
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
 - `CLAUDE.md`：Claude Code 导入同一份入口规则，并在本仓内加载 `entrypoints/agent-system.md`；用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面；
-- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状）。它既是 Claude Code 在本仓内的直接可用资产，也是 profile 物化到 `CLAUDE_CONFIG_DIR` 与 `CODEX_HOME` 时的**唯一来源**；两个 Provider 共用同一份，不各存一份；
-- [`tools/profile/`](./tools/profile/)：把一份声明的 agent 状态物化成可运行的配置 home，跑完再比对实际生效态，用于锁定某个状态并核验它没漂。声明（`manifest.toml`）进版本控制，物化产物和凭据落在仓库之外。两个量具：`probe` 秒级查配置面，`run` 跑一次 agent 查生效面，两者会在两个方向上不一致，差值是信号。边界与已验证的不可控项见 [`tools/profile/README.md`](./tools/profile/README.md)。
+- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状），供本仓内支持该发现约定的客户端直接使用；
+- [`tools/profile/`](./tools/profile/)：Codex／Qoder／OMP 项目能力面的唯一声明、content+mode lock、渲染、隔离启动和生效态核验入口；profile 必须显式选择，运行根与无 secret 收据落在仓库之外，边界见 [`tools/profile/README.md`](./tools/profile/README.md)。
 
 私有旧仓、迁移索引、历史记录、分析和实验只提供来源；公共产品政策必须在本仓自足表达，历史材料不能反向产生当前授权。
 

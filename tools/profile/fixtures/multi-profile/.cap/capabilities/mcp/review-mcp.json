@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "review-mcp",
+  "command": "python3",
+  "args": ["-c", "print('review-mcp-sentinel')"],
+  "env": {
+    "CAPRUN_SENTINEL": "review-mcp"
+  }
+}
