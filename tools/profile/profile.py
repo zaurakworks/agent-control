@@ -1036,6 +1036,16 @@ def _prepare_execution(
     _validate_forwarded_args(client, args)
     return project, profile, desired, args
 
+def _prepare_workdir(value: Path | str | None, default: Path) -> Path:
+    """Resolve the client working directory without using mutable profile state."""
+
+    if value is None:
+        return default
+    path = Path(value).expanduser().resolve(strict=True)
+    if path.is_symlink() or not path.is_dir():
+        raise ProfileError(f"workdir must be a non-symlink directory: {path}")
+    return path
+
 
 def _execute_runtime(
     project: Project,
@@ -1047,6 +1057,7 @@ def _execute_runtime(
     auth_root: Path | str,
     runner: Callable[..., Any],
     capture_output: bool,
+    workdir: Path | str | None = None,
 ) -> tuple[int, str, str]:
     """Render, bind explicit auth, and invoke one client through the strict path."""
 
@@ -1066,12 +1077,13 @@ def _execute_runtime(
                 spec = build_launch(
                     client, runtime_directory.path, tree, forwarded_args
                 )
+                target_workdir = _prepare_workdir(workdir, project.root)
                 if client == "omp":
                     spec = LaunchSpec(
                         (
                             spec.command[0],
                             "--cwd",
-                            str(project.root),
+                            str(target_workdir),
                             *spec.command[1:],
                         ),
                         spec.environment,
@@ -1093,7 +1105,7 @@ def _execute_runtime(
                 environment.update(auth_binding.environment)
                 run_options: dict[str, Any] = {
                     "cwd": str(
-                        runtime_directory.path if client == "omp" else project.root
+                        runtime_directory.path if client == "omp" else target_workdir
                     ),
                     "env": environment,
                     "check": False,
@@ -1152,14 +1164,14 @@ def _receipt_payload(
         "client": client,
         "profile": profile.name,
         "executable": CLIENT_EXECUTABLES[client],
+        "exit_code": return_code,
         "forwarded_argument_count": len(forwarded_args),
+        "inventory": _profile_inventory(profile),
         "lock_hash": f"sha256:{_sha256(_canonical_json(desired))}",
         "output_tree_hash": desired["profiles"][profile.name]["clients"][client][
             "tree_hash"
         ],
         "adapter_version": CLIENT_ADAPTER_VERSION,
-        "inventory": _profile_inventory(profile),
-        "exit_code": return_code,
         "temporary_root_removed": True,
     }
 
@@ -1172,6 +1184,7 @@ def run_client(
     *,
     auth_root: Path | str,
     receipt_path: Path | str | None = None,
+    workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
 ) -> int:
     """Launch one authenticated client in a verified temporary root and clean it up."""
@@ -1196,6 +1209,7 @@ def run_client(
             auth_root=auth_root,
             runner=runner or subprocess.run,
             capture_output=False,
+            workdir=workdir,
         )
         receipt_bytes = _canonical_json(
             _receipt_payload(client, profile, desired, args, return_code)
@@ -1576,6 +1590,7 @@ def run_observed(
     *,
     auth_root: Path | str,
     receipt_path: Path | str | None = None,
+    workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
 ) -> int:
     """Run one batch client, capture self-reported effective state, and clean its root."""
@@ -1610,6 +1625,7 @@ def run_observed(
             auth_root=auth_root,
             runner=runner or subprocess.run,
             capture_output=True,
+            workdir=workdir,
         )
         ended = datetime.now(timezone.utc)
         text = stdout + "\n" + stderr
@@ -1846,6 +1862,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 forwarded,
                 auth_root=args.auth_root,
                 receipt_path=args.receipt,
+                workdir=args.workdir,
             )
         return run_observed(
             project,
@@ -1855,6 +1872,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forwarded,
             auth_root=args.auth_root,
             receipt_path=args.receipt,
+            workdir=args.workdir,
         )
     except (ProfileError, OSError) as error:
         print(f"profile: error: {error}", file=sys.stderr)
@@ -1899,12 +1917,14 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_selection(launch)
     _add_auth(launch)
     launch.add_argument("--receipt")
+    launch.add_argument("--workdir")
     launch.add_argument("client_args", nargs=argparse.REMAINDER)
     run = subparsers.add_parser("run")
     _add_selection(run)
     _add_auth(run)
     run.add_argument("--state", required=True)
     run.add_argument("--receipt")
+    run.add_argument("--workdir")
     run.add_argument("client_args", nargs=argparse.REMAINDER)
     return parser
 
