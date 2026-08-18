@@ -1372,6 +1372,7 @@ class LaunchTests(ProfileTestCase):
                     runner=checking_runner,
                 )
 
+    @unittest.skipUnless(shutil.which("bun"), "bun is required for the dotenv boundary probe")
     def test_omp_empty_auth_mask_blocks_project_dotenv_reload(self) -> None:
         (self.project / ".env").write_text(
             "ANTHROPIC_API_KEY=dotenv-secret\n"
