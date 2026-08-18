@@ -1,0 +1,186 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-18T19:52:05Z",
+  "project": "/Users/a123/work/worktrees/agent-assembly-general",
+  "profile_tool": "/Users/a123/work/worktrees/agent-control/67-real-home-base-profile/tools/profile/profile.py",
+  "declared": {
+    "work": {
+      "chain": [
+        "real-home",
+        "work"
+      ],
+      "layer_digest": "sha256:f4430e859a508985c7bb484d1d1557e2251a33d598ac3cc510e363b1e3d8f2bd",
+      "skills": [
+        "openspec-apply-change",
+        "openspec-archive-change",
+        "openspec-explore",
+        "openspec-propose",
+        "openspec-sync-specs",
+        "openspec-update-change"
+      ],
+      "hooks": [],
+      "mcps": [],
+      "plugins": [],
+      "portable_tree_hashes": {
+        "codex": "sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984",
+        "qoder": "sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c",
+        "omp": "sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b"
+      }
+    },
+    "general": {
+      "chain": [
+        "real-home",
+        "work",
+        "general"
+      ],
+      "layer_digest": "sha256:c9beecab11a2fbe9f0fb3b4a57a42e5b152caa98e3c175c094ee3eda4b8d3cad",
+      "skills": [
+        "openspec-apply-change",
+        "openspec-archive-change",
+        "openspec-explore",
+        "openspec-propose",
+        "openspec-sync-specs",
+        "openspec-update-change"
+      ],
+      "hooks": [],
+      "mcps": [],
+      "plugins": [],
+      "portable_tree_hashes": {
+        "codex": "sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f",
+        "qoder": "sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28",
+        "omp": "sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b"
+      }
+    },
+    "assembly-helper": {
+      "chain": [
+        "real-home",
+        "work",
+        "assembly-helper"
+      ],
+      "layer_digest": "sha256:08c84b0370e16f4c910138036832b404f9821dece8d43f0658f7b75fec938b51",
+      "skills": [
+        "agent-behavior-evaluation",
+        "agent-prompt-design",
+        "agent-skill-design",
+        "assembly-helper",
+        "capability-lifecycle",
+        "capability-profile-closure",
+        "openspec-apply-change",
+        "openspec-archive-change",
+        "openspec-explore",
+        "openspec-propose",
+        "openspec-sync-specs",
+        "openspec-update-change",
+        "spec-change-pack"
+      ],
+      "hooks": [],
+      "mcps": [],
+      "plugins": [],
+      "portable_tree_hashes": {
+        "codex": "sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c",
+        "qoder": "sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14",
+        "omp": "sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208"
+      }
+    }
+  },
+  "cli": {
+    "help_sha256": "60cf1cc4a8aaf1852ad436c688d8162a2679984926acf1872bdb3867aec7f40c",
+    "commands": [
+      "skills-validate",
+      "migrate-omp-runtime",
+      "agents",
+      "profiles",
+      "clients",
+      "show",
+      "use",
+      "run",
+      "render",
+      "lock",
+      "verify"
+    ]
+  },
+  "static_safety_gates": {
+    "memory_backend": "off",
+    "mcp_enable_project_config": false,
+    "disabled_mcp_servers": [
+      "codegraph"
+    ],
+    "skill_sources_disabled": [
+      "Codex user",
+      "Claude user",
+      "Claude project",
+      "Pi user",
+      "Pi project",
+      "Agents user",
+      "Agents project"
+    ],
+    "fixed_omp_flags": [
+      "--config",
+      "--append-system-prompt",
+      "--extension",
+      "--no-extensions",
+      "--skills|--no-skills",
+      "--no-rules"
+    ],
+    "environment": [
+      "ambient config variables removed",
+      "ambient credential variables blanked",
+      "OMP auth broker variables removed",
+      "AWS metadata disabled",
+      "PI auth borrowing disabled",
+      "real HOME retained",
+      "PI config and agent roots explicitly bound"
+    ]
+  },
+  "tests": {
+    "python_unittest": {
+      "command": "python3 -m unittest tests/test_cap.py",
+      "result": "pass",
+      "count": 28
+    },
+    "skill_metadata": {
+      "command": "python3 tools/cap.py skills-validate",
+      "result": "pass",
+      "skill_count": 13,
+      "standard_conformance": "ok"
+    }
+  },
+  "configured_and_effective": {
+    "pre_approval_blocker": "active real-home drift detected: .codex/config.toml; .codex/skills passive digest also changed while projected capability membership stayed unchanged",
+    "cap_verify": {
+      "result": "pass",
+      "lock_hash": "sha256:482e4c9658cec7399536dd3a9d975a9c1024625a62829665dc56fc2691f2e2ff"
+    },
+    "omp_generations": {
+      "work": {
+        "effective_render_hash": "sha256:f608c36289615ce4e80f4ca9f02f32946824c8dadc91cca6e125a47694b115e4",
+        "project_source_digest": "sha256:5d6d8f61770ea6f7a0e552b9f35b56e0aa57140509d906081e2e7e999c2d6f8c"
+      },
+      "general": {
+        "effective_render_hash": "sha256:c5e2e8cb23c2f4a6d5fb54a24b6b8c88f7820268d9c505ce969d92fd1cfe82b6",
+        "project_source_digest": "sha256:5ba61fa79111589c747ddf5ce481f5a37857d48c7a953b060034c3cb4e5c3825"
+      },
+      "assembly-helper": {
+        "effective_render_hash": "sha256:c21c722e1c9c5a2fa473ac94e216a8ec74dd766a4630be637b10935d76394531",
+        "project_source_digest": "sha256:1294f772fc20da1b74467af4980746d3a52f182b908b11a0c5284aba876198b6"
+      }
+    },
+    "runtime_id": "default",
+    "fixed_flags": [
+      "--no-extensions",
+      "--no-rules"
+    ],
+    "real_client_effective_state": "unknown; render/configuration baseline only"
+  },
+  "approval": {
+    "decision": "approved by user in this conversation",
+    "manifest_effective_digest": "sha256:b7ef4c0228c940a5259acd290ceb68bf5c86d84d3aa5aa27b06e626793a7afb9",
+    "manifest_inventory_digest": "sha256:c5ada13da017082ea18e5907baf8d96243d78d8a82f36ca4cd742037999964a2",
+    "workspace_pin": "approved",
+    "bindings": {
+      "work": "sha256:834ae72e3ce246051bd889216632b3b0b3d936cded9cb7db552b1575e712e80c",
+      "general": "sha256:7d9a435b7712645b76e451cf1cf72f5671c03c896c0e131e9f30f44c625c5c1d",
+      "assembly-helper": "sha256:8d8f00e4984791a0cbfb5f274e8f095c75b2e3c64f2c67e3ba1a515addcea921"
+    }
+  }
+}

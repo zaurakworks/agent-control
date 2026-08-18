@@ -1,3 +1,16 @@
 __pycache__/
 *.pyc
 build/
+.venv/
+dist/
+*.egg-info/
+node_modules/
+*.py[cod]
+.cap-rendered/
+*.receipt.json
+*.state/
+*.clean-home/
+*.agent-homes/
+*.runs/
+*.log
+.DS_Store

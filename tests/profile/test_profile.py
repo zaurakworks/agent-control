@@ -1,0 +1,2184 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+import tempfile
+import subprocess
+import threading
+import tomllib
+import unittest
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+from agent_system.profile import cli as profile
+
+
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "multi-profile"
+
+def copy_fixture(target: Path) -> Path:
+    shutil.copytree(FIXTURE, target)
+    (target / "CONTEXT.md").replace(target / "AGENTS.md")
+    return target
+
+
+
+class ProfileTestCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.project = self.root / "project"
+        copy_fixture(self.project)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.home_patch = mock.patch.dict(os.environ, {"HOME": str(self.home)})
+        self.home_patch.start()
+        self.addCleanup(self.home_patch.stop)
+        self.auth_root = self.root / "auth"
+        self.auth_root.mkdir(mode=0o700)
+        codex_auth = self.auth_root / "codex"
+        codex_auth.mkdir(mode=0o700)
+        (codex_auth / "auth.json").write_text(
+            '{"auth_mode":"chatgpt","tokens":{"access_token":"test"}}',
+            encoding="utf-8",
+        )
+        qoder_auth = self.auth_root / "qoder" / ".auth"
+        qoder_auth.mkdir(parents=True, mode=0o700)
+        (qoder_auth / "user").write_text('{"id":"test"}', encoding="utf-8")
+        omp_auth = self.auth_root / "omp"
+        omp_auth.mkdir(mode=0o700)
+        (omp_auth / "broker.json").write_text(
+            '{"version":1,"url":"http://127.0.0.1:43129"}',
+            encoding="utf-8",
+        )
+        (omp_auth / "token").write_text("test-broker-token", encoding="utf-8")
+        for credential in self.auth_root.rglob("*"):
+            credential.chmod(0o700 if credential.is_dir() else 0o600)
+
+    def output_directory(self, name: str) -> Path:
+        """Create and return one empty render output directory."""
+
+        output = self.root / name
+        output.mkdir()
+        return output
+
+
+class MaterializationTests(ProfileTestCase):
+    def test_renders_both_profiles_for_all_clients_without_cross_profile_capabilities(
+        self,
+    ) -> None:
+        for profile_name in ("review", "implementation"):
+            other = "implementation" if profile_name == "review" else "review"
+            for client in profile.CLIENTS:
+                with self.subTest(profile=profile_name, client=client):
+                    output = self.output_directory(f"{profile_name}-{client}")
+                    tree_hash = profile.materialize_profile(
+                        self.project, client, profile_name, output
+                    )
+                    self.assertTrue(tree_hash.startswith("sha256:"))
+                    rendered = "\n".join(
+                        path.relative_to(output).as_posix()
+                        + "\n"
+                        + path.read_text(encoding="utf-8")
+                        for path in sorted(output.rglob("*"))
+                        if path.is_file()
+                    )
+                    self.assertIn(f"{profile_name}-skill-sentinel", rendered)
+                    self.assertIn(f"{profile_name}-mcp-sentinel", rendered)
+                    self.assertIn(f"{profile_name}-hook-{client}-sentinel", rendered)
+                    self.assertIn(f"{profile_name}-plugin-{client}-sentinel", rendered)
+                    self.assertNotIn(f"{other}-skill", rendered)
+                    self.assertNotIn(f"{other}-mcp", rendered)
+                    self.assertNotIn(f"{other}-hook", rendered)
+                    self.assertNotIn(f"{other}-plugin", rendered)
+
+    def test_renders_native_mcp_shapes_and_fixed_environment_values(self) -> None:
+        codex = self.output_directory("codex")
+        qoder = self.output_directory("qoder")
+        omp = self.output_directory("omp")
+        profile.materialize_profile(self.project, "codex", "review", codex)
+        profile.materialize_profile(self.project, "qoder", "review", qoder)
+        profile.materialize_profile(self.project, "omp", "review", omp)
+
+        codex_config = tomllib.loads(
+            (codex / "config.toml").read_text(encoding="utf-8")
+        )
+        codex_server = codex_config["mcp_servers"]["review-mcp"]
+        self.assertTrue(codex_server["required"])
+        self.assertEqual(codex_server["env"], {"CAPRUN_SENTINEL": "review-mcp"})
+
+        qoder_config = json.loads((qoder / "mcp.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            qoder_config["mcpServers"]["review-mcp"]["env"],
+            {"CAPRUN_SENTINEL": "review-mcp"},
+        )
+        omp_config = json.loads((omp / "mcp.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(omp_config["mcpServers"]["review-mcp"]["type"], "stdio")
+        self.assertEqual(
+            omp_config["mcpServers"]["review-mcp"]["env"],
+            {"CAPRUN_SENTINEL": "review-mcp"},
+        )
+        for prompt_file in (
+            codex / "AGENTS.md",
+            qoder / "system-prompt.md",
+            omp / "system-prompt.md",
+        ):
+            prompt = prompt_file.read_text(encoding="utf-8")
+            self.assertIn("Review session profile", prompt)
+            self.assertNotIn("Multi-profile fixture baseline", prompt)
+
+    def test_case_alias_cannot_place_outputs_inside_project(self) -> None:
+        alias_text = str(self.project).replace("/private/var/", "/private/VAR/", 1)
+        alias_root = Path(alias_text)
+        if alias_root == self.project or not alias_root.exists():
+            self.skipTest("test requires a case-insensitive /private/var filesystem")
+        if not os.path.samefile(alias_root, self.project):
+            self.skipTest("test requires a case-insensitive /private/var filesystem")
+
+        output = self.project / "case-output"
+        output.mkdir()
+        output_alias = alias_root / output.name
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.materialize_profile(self.project, "codex", "review", output_alias)
+
+        state = self.project / "case-state"
+        state.mkdir()
+        state_alias = alias_root / state.name
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.probe_profile(self.project, "codex", "review", state_alias)
+
+        receipt_parent = self.project / "case-receipt"
+        receipt_parent.mkdir()
+        runner = mock.Mock()
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=alias_root / receipt_parent.name / "receipt.json",
+                runner=runner,
+                auth_root=self.auth_root,
+            )
+        runner.assert_not_called()
+
+    def test_concurrent_profiles_render_to_independent_trees(self) -> None:
+        review = self.output_directory("concurrent-review")
+        implementation = self.output_directory("concurrent-implementation")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            review_future = executor.submit(
+                profile.materialize_profile, self.project, "qoder", "review", review
+            )
+            implementation_future = executor.submit(
+                profile.materialize_profile,
+                self.project,
+                "qoder",
+                "implementation",
+                implementation,
+            )
+        self.assertNotEqual(review_future.result(), implementation_future.result())
+        self.assertTrue((review / "skills" / "review-skill" / "SKILL.md").is_file())
+        self.assertFalse((review / "skills" / "implementation-skill").exists())
+        self.assertTrue(
+            (implementation / "skills" / "implementation-skill" / "SKILL.md").is_file()
+        )
+        self.assertFalse((implementation / "skills" / "review-skill").exists())
+
+    def test_render_rejects_symlink_ancestor(self) -> None:
+        target = self.root / "ancestor-target"
+        output = target / "output"
+        output.mkdir(parents=True)
+        linked_ancestor = self.root / "linked-ancestor"
+        linked_ancestor.symlink_to(target, target_is_directory=True)
+        with self.assertRaisesRegex(profile.ProfileError, "non-symlink directory"):
+            profile.materialize_profile(
+                self.project, "codex", "review", linked_ancestor / "output"
+            )
+
+    def test_render_requires_an_existing_empty_non_symlink_directory(self) -> None:
+        missing = self.root / "missing"
+        with self.assertRaisesRegex(profile.ProfileError, "existing non-symlink"):
+            profile.materialize_profile(self.project, "codex", "review", missing)
+        occupied = self.output_directory("occupied")
+        (occupied / "keep.txt").write_text("occupied", encoding="utf-8")
+        with self.assertRaisesRegex(profile.ProfileError, "must be empty"):
+            profile.materialize_profile(self.project, "codex", "review", occupied)
+
+    def test_render_rejects_output_inside_project(self) -> None:
+        output = self.project / "runtime"
+        output.mkdir()
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.materialize_profile(self.project, "codex", "review", output)
+        self.assertEqual(list(output.iterdir()), [])
+
+    def test_render_rejects_global_native_root(self) -> None:
+        output = self.home / ".codex"
+        output.mkdir()
+        with self.assertRaisesRegex(
+            profile.ProfileError, "outside global capability roots"
+        ):
+            profile.materialize_profile(self.project, "codex", "review", output)
+        self.assertEqual(list(output.iterdir()), [])
+
+    def test_render_directory_swap_cannot_redirect_materialized_files(self) -> None:
+        output = self.output_directory("stable-output")
+        moved = self.root / "moved-output"
+        redirect = self.root / "redirect-output"
+        redirect.mkdir()
+        original_mkdir = os.mkdir
+        swapped = False
+
+        def swapping_mkdir(
+            path: str | bytes,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            nonlocal swapped
+            if dir_fd is not None and not swapped:
+                output.rename(moved)
+                output.symlink_to(redirect, target_is_directory=True)
+                swapped = True
+            original_mkdir(path, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(profile.os, "mkdir", side_effect=swapping_mkdir):
+            with self.assertRaisesRegex(
+                profile.ProfileError, "stable directory changed"
+            ):
+                profile.materialize_profile(self.project, "codex", "review", output)
+        self.assertEqual(list(redirect.iterdir()), [])
+
+
+class GateAndLockTests(ProfileTestCase):
+    def test_global_capability_pollution_is_rejected(self) -> None:
+        global_configs = (
+            (".agents/skills/global-skill/SKILL.md", "pollution"),
+            (".claude.json", '{"mcpServers": {}}'),
+            (".codex/config.toml", 'developer_instructions = "pollution"'),
+            (".codex/config.toml", "[features]\nmulti_agent = true\n"),
+            (".codex/config.toml", 'model_provider = "rogue"\n'),
+            (".codex/config.toml", '[agents.reviewer]\ndescription = "pollution"\n'),
+            (".codex/AGENTS.md", "pollution"),
+            (".codex/hooks.json", "{}"),
+            (".config/opencode/opencode.json", '{"model": "safe", "mcp": {}}'),
+            (".gemini/settings.json", '{"mcpServers": {}}'),
+            (".omp/agent/config.yml", "skills:\n  includeSkills: []\n"),
+            (".omp/agent/mcp.json", "{}"),
+            (".omp/agent/extensions/rogue.ts", "// not Orca managed\n"),
+            (".qoder/settings.json", '{"enabledPlugins": {"pollution": true}}'),
+            (".qoder/AGENTS.md", "pollution"),
+        )
+        for index, (relative, content) in enumerate(global_configs):
+            with self.subTest(relative=relative):
+                home = self.root / f"polluted-home-{index}"
+                path = home / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+                with mock.patch.dict(os.environ, {"HOME": str(home)}):
+                    with self.assertRaisesRegex(
+                        profile.ProfileError, "global capability pollution"
+                    ):
+                        profile.verify_project(self.project)
+
+    def test_runtime_only_global_configs_are_allowed(self) -> None:
+        configs = {
+            ".claude.json": '{"theme": "dark"}',
+            ".codex/config.toml": (
+                'model = "gpt-5.6"\nsandbox_mode = "read-only"\n'
+                '[projects."/tmp/runtime"]\ntrust_level = "trusted"\n'
+                "[agents]\nenabled = false\n"
+                '[agents.reviewer]\ndescription = "cached role"\n'
+                "[analytics]\nenabled = false\n"
+                "[feedback]\nenabled = false\n"
+            ),
+            ".config/opencode/opencode.json": '{"model": "openai/gpt-5.6"}',
+            ".gemini/settings.json": '{"theme": "dark"}',
+            ".omp/agent/config.yml": "model: openai/gpt-5.6\n",
+            ".pi/agent/config.yml": "model: openai/gpt-5.6\n",
+            ".qoder/settings.json": '{"theme": "dark"}',
+        }
+        for relative, content in configs.items():
+            path = self.home / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        profile.verify_project(self.project)
+
+    def test_only_known_qoder_host_hooks_are_ignored(self) -> None:
+        qoder_settings = self.home / ".qoder" / "settings.json"
+        qoder_settings.parent.mkdir(parents=True)
+        hooks = {
+            "PreToolUse": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                f"{self.home}/.yunke/aah_hooks/hook_entry "
+                                "--agent-type=qoder"
+                            ),
+                            "_yunke_managed": True,
+                            "timeout": 10,
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                f"bash {self.home}/.r2c/scripts/qoder-cli-hook.sh"
+                            ),
+                            "timeout": 15,
+                        },
+                    ],
+                }
+            ],
+            "SessionEnd": [],
+        }
+        qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
+        profile.verify_project(self.project)
+
+        hooks["PreToolUse"][0]["hooks"].append(
+            {
+                "type": "command",
+                "command": f"{self.home}/rogue-hook",
+                "timeout": 10,
+            }
+        )
+        qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
+
+    def test_minimal_host_floor_and_disabled_global_caches_are_allowed(self) -> None:
+        codex_skills = self.home / ".codex" / "skills" / ".system"
+        for name in ("skill-creator", "skill-installer"):
+            skill = codex_skills / name / "SKILL.md"
+            skill.parent.mkdir(parents=True, exist_ok=True)
+            skill.write_text(f"# {name}\n", encoding="utf-8")
+        (self.home / ".codex" / "plugins" / "cache").mkdir(parents=True)
+        (self.home / ".codex" / "hooks").mkdir(parents=True)
+        (self.home / ".agents" / "skills").mkdir(parents=True)
+        for client_root in (".omp/agent", ".pi/agent"):
+            for name in profile.ORCA_MANAGED_EXTENSION_NAMES:
+                extension = self.home / client_root / "extensions" / name
+                extension.parent.mkdir(parents=True, exist_ok=True)
+                extension.write_text(
+                    "// @orca-managed-pi-extension\n", encoding="utf-8"
+                )
+        codex_config = self.home / ".codex" / "config.toml"
+        codex_config.write_text(
+            "\n".join(
+                [
+                    "[features]",
+                    "hooks = false",
+                    "plugins = false",
+                    "skill_search = false",
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{codex_skills / "skill-creator" / "SKILL.md"}"',
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{codex_skills / "skill-installer" / "SKILL.md"}"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        for relative in (".codex/AGENTS.md", ".qoder/AGENTS.md"):
+            floor = self.home / relative
+            floor.parent.mkdir(parents=True, exist_ok=True)
+            floor.write_text(profile.HOST_FLOOR_TEXT, encoding="utf-8")
+        qoder_plugin = (
+            self.home
+            / ".qoder"
+            / "plugins"
+            / "cache"
+            / "test-marketplace"
+            / "cached-plugin"
+            / "1.0.0"
+        )
+        qoder_plugin.mkdir(parents=True)
+        (self.home / ".qoder" / "plugins" / "data" / "security-scan").mkdir(
+            parents=True
+        )
+        (self.home / ".qoder" / "settings.json").write_text(
+            '{"enabledPlugins": {"cached-plugin@test-marketplace": false}}',
+            encoding="utf-8",
+        )
+
+        profile.verify_project(self.project)
+
+    def test_codex_skill_symlink_alias_is_not_treated_as_disabled(self) -> None:
+        actual = self.home / "outside-skill" / "SKILL.md"
+        actual.parent.mkdir(parents=True)
+        actual.write_text("# rogue\n", encoding="utf-8")
+        alias = self.home / ".codex" / "skills" / ".system" / "rogue" / "SKILL.md"
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(actual)
+        config = self.home / ".codex" / "config.toml"
+        config.write_text(
+            "\n".join(
+                [
+                    "[features]",
+                    "skill_search = false",
+                    "",
+                    "[[skills.config]]",
+                    "enabled = false",
+                    f'path = "{alias}"',
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
+
+    def test_qoder_cache_requires_matching_disabled_plugin_identity(self) -> None:
+        rogue = (
+            self.home
+            / ".qoder"
+            / "plugins"
+            / "cache"
+            / "rogue-marketplace"
+            / "rogue-plugin"
+            / "1.0.0"
+        )
+        rogue.mkdir(parents=True)
+        (self.home / ".qoder" / "settings.json").write_text(
+            '{"enabledPlugins": {"different-plugin@rogue-marketplace": false}}',
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.verify_project(self.project)
+
+    def test_project_native_bypasses_are_rejected(self) -> None:
+        bypasses = (
+            ".mcp.json",
+            "mcp.json",
+            ".agents/skills/bypass/SKILL.md",
+            ".claude-plugin/rogue.json",
+            ".claude/.mcp.json",
+            ".claude/mcp.json",
+            ".codex/config.toml",
+            ".cursor/mcp.json",
+            ".gemini/settings.json",
+            ".qoder/settings.json",
+            ".omp/mcp.json",
+            ".vscode/mcp.json",
+            ".windsurf/mcp_config.json",
+            "opencode.json",
+            "CLAUDE.md",
+            "nested/AGENTS.md",
+            "nested/AGENTS.override.md",
+            "nested/CLAUDE.md",
+            "nested/QODER.md",
+        )
+        for index, relative in enumerate(bypasses):
+            with self.subTest(relative=relative):
+                project = self.root / f"bypass-{index}"
+                copy_fixture(project)
+                path = project / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("bypass", encoding="utf-8")
+                with self.assertRaisesRegex(
+                    profile.ProfileError, "project capability bypass"
+                ):
+                    profile.verify_project(project)
+
+    def test_managed_dual_marketplace_and_claude_import_are_allowed(self) -> None:
+        project = self.root / "managed-publication"
+        copy_fixture(project)
+        (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+        (project / "plugins" / "sample").mkdir(parents=True)
+        plugin_manifest = {
+            "name": "sample",
+            "version": "1.0.0",
+            "repository": "https://github.com/zaurakworks/agent-system",
+            "skills": "./skills/",
+        }
+        for manifest_root in (".codex-plugin", ".claude-plugin"):
+            manifest_path = (
+                project / "plugins" / "sample" / manifest_root / "plugin.json"
+            )
+            manifest_path.parent.mkdir()
+            manifest_path.write_text(
+                json.dumps(plugin_manifest),
+                encoding="utf-8",
+            )
+        codex_marketplace = project / ".agents" / "plugins" / "marketplace.json"
+        codex_marketplace.parent.mkdir(parents=True)
+        codex_marketplace.write_text(
+            json.dumps(
+                {
+                    "name": "sample-marketplace",
+                    "plugins": [
+                        {
+                            "name": "sample",
+                            "version": "1.0.0",
+                            "source": {
+                                "source": "local",
+                                "path": "./plugins/sample",
+                            },
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        claude_marketplace = project / ".claude-plugin" / "marketplace.json"
+        claude_marketplace.parent.mkdir()
+        claude_marketplace.write_text(
+            json.dumps(
+                {
+                    "name": "sample-marketplace",
+                    "plugins": [
+                        {
+                            "name": "sample",
+                            "version": "1.0.0",
+                            "source": "./plugins/sample",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        profile.verify_project(project)
+
+        claude_marketplace.write_text(
+            json.dumps(
+                {
+                    "name": "sample-marketplace",
+                    "plugins": [
+                        {
+                            "name": "different",
+                            "version": "1.0.0",
+                            "source": "./plugins/different",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            profile.ProfileError, "project capability bypass"
+        ):
+            profile.verify_project(project)
+
+    def test_project_native_bypasses_are_case_insensitive(self) -> None:
+        bypasses = (
+            ".CoDeX/config.toml",
+            ".QoDeR/settings.json",
+            "nested/agents.MD",
+            "MCP.JSON",
+        )
+        for index, relative in enumerate(bypasses):
+            with self.subTest(relative=relative):
+                project = self.root / f"case-bypass-{index}"
+                copy_fixture(project)
+                path = project / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("bypass", encoding="utf-8")
+                with self.assertRaisesRegex(
+                    profile.ProfileError, "project capability bypass"
+                ):
+                    profile.verify_project(project)
+
+    def test_symlinked_provider_directory_is_rejected(self) -> None:
+        external = self.root / "external-claude"
+        external.mkdir()
+        (external / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+        (self.project / ".claude").symlink_to(external, target_is_directory=True)
+        with self.assertRaisesRegex(profile.ProfileError, "project capability bypass"):
+            profile.verify_project(self.project)
+
+    def test_lock_detects_input_and_renderer_drift(self) -> None:
+        mutations = (
+            ("AGENTS.md", "\nchanged baseline\n"),
+            (".cap/profiles/review.toml", "\n# changed profile\n"),
+            (".cap/prompts/review.md", "\nchanged prompt\n"),
+            (
+                ".cap/capabilities/skills/review-skill/SKILL.md",
+                "\nchanged capability\n",
+            ),
+            (".cap/manifest.toml", "\n# changed manifest\n"),
+        )
+        for index, (relative, addition) in enumerate(mutations):
+            with self.subTest(relative=relative):
+                project = self.root / f"drift-{index}"
+                copy_fixture(project)
+                with (project / relative).open("a", encoding="utf-8") as stream:
+                    stream.write(addition)
+                with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
+                    profile.verify_project(project)
+        with mock.patch.object(profile, "RENDERER_VERSION", "profile-renderer-v3"):
+            with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
+                profile.verify_project(self.project)
+
+    def test_list_and_explain_reject_stale_lock(self) -> None:
+        with (self.project / ".cap" / "prompts" / "review.md").open(
+            "a", encoding="utf-8"
+        ) as stream:
+            stream.write("\ndrift\n")
+        for operation in (
+            lambda: profile.list_profiles(self.project),
+            lambda: profile.explain_profile(self.project, "review"),
+        ):
+            with self.subTest(operation=operation):
+                with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
+                    operation()
+
+    def test_lock_file_matches_current_fixture(self) -> None:
+        current = profile.verify_project(self.project)
+        lock = json.loads(
+            (self.project / ".cap" / "lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(current, lock)
+
+    def test_strict_parsing_rejects_unknown_duplicate_and_non_finite_data(self) -> None:
+        manifest = self.project / ".cap" / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace(
+                "version = 2\n", 'version = 2\nunknown = "value"\n', 1
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "keys mismatch"):
+            profile.load_project(self.project)
+
+        shutil.rmtree(self.project)
+        copy_fixture(self.project)
+        mcp = self.project / ".cap" / "capabilities" / "mcp" / "review-mcp.json"
+        mcp.write_text(
+            '{"version":1,"name":"review-mcp","name":"duplicate",'
+            '"command":"python3","args":[],"env":{}}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "duplicate JSON key"):
+            profile.load_project(self.project)
+
+        mcp.write_text(
+            '{"version":1,"name":"review-mcp","command":"python3",'
+            '"args":[],"env":{},"number":NaN}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "non-finite JSON"):
+            profile.load_project(self.project)
+
+    def test_path_escape_and_overlay_root_escape_are_rejected(self) -> None:
+        manifest = self.project / ".cap" / "manifest.toml"
+        manifest.write_text(
+            'version = 2\n\n[profiles]\nreview = "../outside.toml"\n',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            profile.ProfileError, "normalized POSIX relative path"
+        ):
+            profile.load_project(self.project)
+
+        shutil.rmtree(self.project)
+        copy_fixture(self.project)
+        conflict = (
+            self.project
+            / ".cap"
+            / "capabilities"
+            / "hooks"
+            / "review-hook"
+            / "targets"
+            / "codex"
+            / "config.toml"
+        )
+        conflict.write_text("opaque conflict", encoding="utf-8")
+        with self.assertRaisesRegex(profile.ProfileError, "must contain only hooks/"):
+            profile.create_lock(self.project)
+
+    def test_hook_and_plugin_targets_cannot_cross_owned_namespaces(self) -> None:
+        escapes = (
+            ("hooks", "review-hook", "skills/review-skill/SKILL.md"),
+            ("hooks", "review-hook", "plugins/cross-kind.sentinel"),
+            ("hooks", "review-hook", "config.toml"),
+            ("hooks", "review-hook", "AGENTS.md"),
+            ("plugins", "review-plugin", "hooks/cross-kind.sentinel"),
+        )
+        for index, (kind, name, relative) in enumerate(escapes):
+            with self.subTest(kind=kind, relative=relative):
+                project = self.root / f"overlay-escape-{index}"
+                copy_fixture(project)
+                payload = (
+                    project
+                    / ".cap"
+                    / "capabilities"
+                    / kind
+                    / name
+                    / "targets"
+                    / "codex"
+                    / relative
+                )
+                payload.parent.mkdir(parents=True, exist_ok=True)
+                payload.write_text("cross-owned payload", encoding="utf-8")
+                with self.assertRaisesRegex(
+                    profile.ProfileError,
+                    rf"must contain only {kind}/",
+                ):
+                    profile.load_project(project)
+
+    def test_missing_client_overlay_target_is_rejected(self) -> None:
+        target = (
+            self.project
+            / ".cap"
+            / "capabilities"
+            / "hooks"
+            / "review-hook"
+            / "targets"
+            / "omp"
+        )
+        shutil.rmtree(target)
+        with self.assertRaisesRegex(profile.ProfileError, "lacks required omp target"):
+            profile.create_lock(self.project)
+
+
+class RealHomeLayerTests(ProfileTestCase):
+    def configure_layered_profile(self) -> tuple[Path, Path, Path]:
+        manifest = self.project / ".cap" / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8")
+            + 'work = ".cap/profiles/work.toml"\n',
+            encoding="utf-8",
+        )
+        (self.project / ".cap" / "prompts" / "work.md").write_text(
+            "# Work layer\n", encoding="utf-8"
+        )
+        empty_operations = """
+[skills]
+add = ["implementation-skill"]
+mask = []
+replace = []
+
+[mcps]
+add = []
+mask = []
+replace = []
+
+[hooks]
+add = []
+mask = []
+replace = []
+
+[plugins]
+add = []
+mask = []
+replace = []
+"""
+        (self.project / ".cap" / "profiles" / "work.toml").write_text(
+            'version = 2\nextends = "real-home"\n'
+            'prompt = ".cap/prompts/work.md"\n'
+            + empty_operations,
+            encoding="utf-8",
+        )
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+        review.write_text(
+            review.read_text(encoding="utf-8").replace(
+                "version = 2\n", 'version = 2\nextends = "work"\n', 1
+            ),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        base_manifest = self.root / "state" / "real-home.lock.json"
+        base_pin = self.root / "workspace" / "real-home.pin.json"
+        binding_dir = self.root / "workspace" / "bindings"
+        profile.create_base_manifest(self.home, base_manifest)
+        profile.approve_base_manifest(base_manifest, base_pin)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        return base_manifest, base_pin, binding_dir
+
+    def test_resolves_single_base_layers_and_rejects_implicit_conflicts(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        project = profile.load_project(self.project)
+        self.assertEqual(project.profiles["review"].chain, ("real-home", "work", "review"))
+        self.assertEqual(
+            project.profiles["review"].skills,
+            ("implementation-skill", "review-skill"),
+        )
+        prepared = profile._prepare_execution(
+            self.project,
+            "omp",
+            "review",
+            (),
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+        )
+        self.assertEqual(prepared[1].name, "review")
+
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        review.write_text(
+            review.read_text(encoding="utf-8").replace(
+                'add = ["review-skill"]', 'add = ["review-skill", "review-skill"]', 1
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "contains duplicates"):
+            profile.load_project(self.project)
+
+    def test_mask_and_replace_resolve_only_inherited_capabilities(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        original = review.read_text(encoding="utf-8")
+
+        review.write_text(
+            original.replace("mask = []", 'mask = ["implementation-skill"]', 1),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        masked = profile.load_project(self.project).profiles["review"]
+        self.assertEqual(masked.skills, ("review-skill",))
+
+        review.write_text(
+            original.replace("replace = []", 'replace = ["implementation-skill"]', 1),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        replaced = profile.load_project(self.project).profiles["review"]
+        self.assertEqual(
+            replaced.skills, ("implementation-skill", "review-skill")
+        )
+
+    def test_base_lock_redacts_secrets_and_separates_passive_drift(self) -> None:
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"first"}}}}',
+            encoding="utf-8",
+        )
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text('model = "one"\n', encoding="utf-8")
+        manifest_path = self.root / "state" / "real-home.lock.json"
+        locked = profile.create_base_manifest(self.home, manifest_path)
+        serialized = manifest_path.read_text(encoding="utf-8")
+        self.assertNotIn("first", serialized)
+
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"second"}}}}',
+            encoding="utf-8",
+        )
+        secret_only = profile.discover_real_home(self.home)
+        self.assertEqual(locked["effective_digest"], secret_only["effective_digest"])
+
+        (codex / "config.toml").write_text('model = "two"\n', encoding="utf-8")
+        passive_only = profile.discover_real_home(self.home)
+        active, passive = profile._base_diff(locked, passive_only)
+        self.assertEqual(active, [])
+        self.assertEqual(passive, [".codex/config.toml"])
+
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"node","env":{"API_TOKEN":"second"}}}}',
+            encoding="utf-8",
+        )
+        active_change = profile.discover_real_home(self.home)
+        active, _ = profile._base_diff(locked, active_change)
+        self.assertEqual(active, [".mcp.json"])
+
+    def test_omp_uses_real_home_while_runtime_state_remains_isolated(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        captured: dict[str, object] = {}
+
+        def runner(command: list[str], **options: object) -> SimpleNamespace:
+            captured["command"] = command
+            captured["environment"] = options["env"]
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        result = profile.run_client(
+            self.project,
+            "omp",
+            "review",
+            (),
+            auth_root=self.auth_root,
+            runner=runner,
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+        )
+        self.assertEqual(result, 0)
+        environment = captured["environment"]
+        assert isinstance(environment, dict)
+        self.assertEqual(environment["HOME"], str(self.home))
+        self.assertNotEqual(environment["PI_CODING_AGENT_DIR"], str(self.home))
+        self.assertEqual(environment["PI_CONFIG_DIR"], environment["PI_CODING_AGENT_DIR"])
+
+    def test_add_rejects_collision_with_approved_base_capability(self) -> None:
+        skill = self.home / ".codex" / "skills" / "review-skill"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("# ambient\n", encoding="utf-8")
+        with self.assertRaisesRegex(profile.ProfileError, "conflicts with base"):
+            self.configure_layered_profile()
+
+    def test_active_drift_blocks_batch_and_requires_interactive_continue(self) -> None:
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3"}}}', encoding="utf-8"
+        )
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"node"}}}', encoding="utf-8"
+        )
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        with mock.patch.object(sys.stdin, "isatty", return_value=False):
+            with self.assertRaisesRegex(profile.ProfileError, "non-interactive"):
+                profile.run_client(
+                    self.project,
+                    "omp",
+                    "review",
+                    (),
+                    auth_root=self.auth_root,
+                    runner=runner,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                )
+        runner.assert_not_called()
+
+        with (
+            mock.patch.object(sys.stdin, "isatty", return_value=True),
+            mock.patch("builtins.input", return_value="continue"),
+        ):
+            self.assertEqual(
+                profile.run_client(
+                    self.project,
+                    "omp",
+                    "review",
+                    (),
+                    auth_root=self.auth_root,
+                    runner=runner,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                ),
+                0,
+            )
+        runner.assert_called_once()
+
+
+
+class LaunchTests(ProfileTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+
+    def test_run_builds_each_native_command_and_environment_then_cleans_root(
+        self,
+    ) -> None:
+        expectations = {
+            "codex": ("codex", "CODEX_HOME", ()),
+            "qoder": (
+                "qoder",
+                "QODER_CONFIG_DIR",
+                (
+                    "--config-dir",
+                    "--strict-mcp-config",
+                    "--mcp-config",
+                    "--append-system-prompt",
+                ),
+            ),
+            "omp": (
+                "omp",
+                "PI_CODING_AGENT_DIR",
+                (
+                    "--config",
+                    "--append-system-prompt",
+                    "--skills",
+                    "--no-extensions",
+                    "--no-rules",
+                ),
+            ),
+        }
+        runtime_roots: list[Path] = []
+        for client, (
+            executable,
+            environment_name,
+            required_flags,
+        ) in expectations.items():
+            receipt = self.root / f"{client}-receipt.json"
+
+            def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+                runtime_root = Path(str(kwargs["env"][environment_name]))  # type: ignore[index]
+                runtime_roots.append(runtime_root)
+                environment = kwargs["env"]  # type: ignore[assignment]
+                self.assertTrue(runtime_root.is_dir())
+                expected_cwd = runtime_root if client == "omp" else self.project
+                self.assertEqual(Path(str(kwargs["cwd"])), expected_cwd)
+                self.assertEqual(command[0], executable)
+                for flag in required_flags:
+                    self.assertIn(flag, command)
+                if client == "omp":
+                    safe_omp_environment = {
+                        "OMP_AUTH_BROKER_TOKEN": "test-broker-token",
+                        "OMP_AUTH_BROKER_URL": "http://127.0.0.1:43129",
+                        "OMP_PROFILE": "default",
+                        "PI_CODING_AGENT_DIR": str(runtime_root),
+                        "PI_CONFIG_DIR": str(runtime_root),
+                        "PI_CONFIG_FILES": str(runtime_root / "config.yml"),
+                        "PI_PROFILE": "default",
+                    }
+                    for name, value in safe_omp_environment.items():
+                        self.assertEqual(environment[name], value)
+                    self.assertNotIn("CODEX_HOME", environment)
+                    self.assertNotIn("QODER_CONFIG_DIR", environment)
+                    for name in profile.OMP_AMBIENT_AUTH_ENV:
+                        expected = "true" if name == "AWS_EC2_METADATA_DISABLED" else ""
+                        self.assertEqual(environment[name], expected)
+                    cwd_index = command.index("--cwd") + 1
+                    self.assertEqual(Path(command[cwd_index]), self.project)
+                    self.assertEqual(environment["HOME"], str(runtime_root))
+                    self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
+                else:
+                    for ambient_name in profile.AMBIENT_CONFIG_ENV:
+                        if ambient_name != environment_name:
+                            self.assertNotIn(ambient_name, environment)
+                if client in {"qoder", "omp"}:
+                    prompt_index = command.index("--append-system-prompt") + 1
+                    self.assertIn("Review session profile", command[prompt_index])
+                    self.assertFalse(command[prompt_index].endswith("system-prompt.md"))
+                if client == "omp":
+                    skill_index = command.index("--skills") + 1
+                    self.assertEqual(command[skill_index], "review-skill")
+                self.assertEqual(command[-2:], ["--token", "super-secret"])
+                if client == "codex":
+                    self.assertTrue((runtime_root / "config.toml").is_file())
+                    self.assertIn(
+                        'cli_auth_credentials_store = "file"',
+                        (runtime_root / "config.toml").read_text(encoding="utf-8"),
+                    )
+                    self.assertTrue((runtime_root / "auth.json").is_symlink())
+                    self.assertTrue(
+                        os.path.samefile(
+                            runtime_root / "auth.json",
+                            self.auth_root / "codex" / "auth.json",
+                        )
+                    )
+                elif client == "qoder":
+                    self.assertTrue((runtime_root / "settings.json").is_file())
+                    self.assertTrue((runtime_root / ".auth").is_symlink())
+                    self.assertTrue(
+                        os.path.samefile(
+                            runtime_root / ".auth",
+                            self.auth_root / "qoder" / ".auth",
+                        )
+                    )
+                else:
+                    self.assertTrue((runtime_root / "config.yml").is_file())
+                return SimpleNamespace(returncode=0)
+
+            result = profile.run_client(
+                self.project,
+                client,
+                "review",
+                ("--token", "super-secret"),
+                receipt_path=receipt,
+                runner=fake_runner,
+                auth_root=self.auth_root,
+            )
+            self.assertEqual(result, 0)
+            payload = receipt.read_text(encoding="utf-8")
+            self.assertNotIn("super-secret", payload)
+            self.assertNotIn(str(runtime_roots[-1]), payload)
+            self.assertNotIn(str(self.auth_root), payload)
+            self.assertNotIn("test-broker-token", payload)
+            self.assertTrue(json.loads(payload)["temporary_root_removed"])
+            self.assertEqual(
+                json.loads(payload)["inventory"],
+                {
+                    "hooks": ["review-hook"],
+                    "mcps": ["review-mcp"],
+                    "plugins": ["review-plugin"],
+                    "skills": ["review-skill"],
+                },
+            )
+            self.assertFalse(runtime_roots[-1].exists())
+
+    def test_auth_vault_is_required_private_and_outside_the_project(self) -> None:
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "existing non-symlink"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.root / "missing-auth",
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        project_auth = self.project / "auth-vault"
+        shutil.copytree(self.auth_root, project_auth)
+        with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=project_auth,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        codex_auth = self.auth_root / "codex" / "auth.json"
+        codex_auth.chmod(0o644)
+        with self.assertRaisesRegex(profile.ProfileError, "group or other access"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        codex_auth.chmod(0o400)
+        with self.assertRaisesRegex(profile.ProfileError, "owner read and write"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+        omp_token = self.auth_root / "omp" / "token"
+        omp_token.write_bytes(b"invalid\x00token")
+        with self.assertRaisesRegex(profile.ProfileError, "printable non-space ASCII"):
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_qoder_auth_tree_has_bounded_entries_and_depth(self) -> None:
+        runner = mock.Mock()
+        qoder_auth = self.auth_root / "qoder" / ".auth"
+        for index in range(257):
+            (qoder_auth / f"entry-{index}").mkdir(mode=0o700)
+        with self.assertRaisesRegex(profile.ProfileError, "256 directory entries"):
+            profile.run_client(
+                self.project,
+                "qoder",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_auth_vault_updates_persist_without_native_global_roots(self) -> None:
+        for client in ("codex", "qoder"):
+            with self.subTest(client=client):
+                isolated_auth = self.root / f"{client}-persistent-auth"
+                shutil.copytree(self.auth_root, isolated_auth)
+
+                def updating_runner(
+                    command: list[str], **kwargs: object
+                ) -> SimpleNamespace:
+                    environment = kwargs["env"]  # type: ignore[assignment]
+                    if client == "codex":
+                        runtime = Path(str(environment["CODEX_HOME"]))
+                        (runtime / "auth.json").write_text(
+                            '{"auth_mode":"chatgpt","refresh":"persisted"}',
+                            encoding="utf-8",
+                        )
+                    else:
+                        runtime = Path(str(environment["QODER_CONFIG_DIR"]))
+                        (runtime / ".auth" / "refresh.json").write_text(
+                            '{"refresh":"persisted"}', encoding="utf-8"
+                        )
+                    return SimpleNamespace(returncode=0)
+
+                profile.run_client(
+                    self.project,
+                    client,
+                    "review",
+                    auth_root=isolated_auth,
+                    receipt_path=self.root / f"{client}-persistent-receipt.json",
+                    runner=updating_runner,
+                )
+                if client == "codex":
+                    self.assertIn(
+                        "persisted",
+                        (isolated_auth / "codex" / "auth.json").read_text(
+                            encoding="utf-8"
+                        ),
+                    )
+                else:
+                    self.assertTrue(
+                        (isolated_auth / "qoder" / ".auth" / "refresh.json").is_file()
+                    )
+
+    def test_concurrent_codex_refresh_is_retried_to_one_stable_snapshot(self) -> None:
+        codex_auth = self.auth_root / "codex" / "auth.json"
+        original_read = os.read
+        refreshed = False
+
+        def racing_read(descriptor: int, count: int) -> bytes:
+            nonlocal refreshed
+            chunk = original_read(descriptor, count)
+            if not refreshed:
+                refreshed = True
+                codex_auth.write_text(
+                    '{"auth_mode":"chatgpt","refresh":"concurrent"}',
+                    encoding="utf-8",
+                )
+                codex_auth.chmod(0o600)
+            return chunk
+
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        with mock.patch.object(profile.os, "read", side_effect=racing_read):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                auth_root=self.auth_root,
+                receipt_path=self.root / "stable-auth-receipt.json",
+                runner=runner,
+            )
+        self.assertTrue(refreshed)
+        runner.assert_called_once()
+        self.assertIn("concurrent", codex_auth.read_text(encoding="utf-8"))
+
+    def test_stable_but_incomplete_auth_snapshots_are_retried(self) -> None:
+        original_read = profile._read_private_file
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        for client, target in (("codex", "auth.json"), ("omp", "broker.json")):
+            with self.subTest(client=client):
+                transient_reads = 0
+
+                def transient_read(
+                    directory: profile.StableDirectory,
+                    name: str,
+                    context: str,
+                    **kwargs: object,
+                ) -> bytes:
+                    nonlocal transient_reads
+                    if name == target and transient_reads == 0:
+                        transient_reads += 1
+                        return b"{}"
+                    return original_read(directory, name, context, **kwargs)  # type: ignore[arg-type]
+
+                with mock.patch.object(
+                    profile, "_read_private_file", side_effect=transient_read
+                ):
+                    profile.run_client(
+                        self.project,
+                        client,
+                        "review",
+                        auth_root=self.auth_root,
+                        receipt_path=self.root / f"{client}-snapshot-retry.json",
+                        runner=runner,
+                    )
+                self.assertEqual(transient_reads, 1)
+
+    def test_omp_broker_url_rejects_control_characters_before_spawn(self) -> None:
+        broker = self.auth_root / "omp" / "broker.json"
+        broker.write_text(
+            json.dumps({"version": 1, "url": "https://broker.invalid\u0000"}),
+            encoding="utf-8",
+        )
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "printable non-space"):
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                auth_root=self.auth_root,
+                runner=runner,
+            )
+        runner.assert_not_called()
+
+    def test_ambient_auth_is_removed_before_explicit_auth_is_bound(self) -> None:
+        ambient = {
+            "CODEX_ACCESS_TOKEN": "ambient-codex-access",
+            "CODEX_API_KEY": "ambient-codex-key",
+            "OPENAI_API_KEY": "ambient-openai-key",
+            "OMP_AUTH_BROKER_URL": "https://ambient.invalid",
+            "AWS_SHARED_CREDENTIALS_FILE": "/tmp/ambient-aws-credentials",
+            "CLOUDSDK_CONFIG": "/tmp/ambient-gcloud",
+            "OLLAMA_HOST": "https://ambient-ollama.invalid",
+            "OMP_AUTH_BROKER_TOKEN": "ambient-broker-token",
+            "ANTHROPIC_API_KEY": "ambient-anthropic-key",
+            "FUTURE_PROVIDER_API_KEY": "ambient-future-key",
+        }
+        for client in profile.CLIENTS:
+            with (
+                self.subTest(client=client),
+                mock.patch.dict(os.environ, ambient, clear=False),
+            ):
+
+                def checking_runner(
+                    command: list[str], **kwargs: object
+                ) -> SimpleNamespace:
+                    environment = kwargs["env"]  # type: ignore[assignment]
+                    self.assertNotIn("CODEX_ACCESS_TOKEN", environment)
+                    self.assertNotIn("CODEX_API_KEY", environment)
+                    if client == "omp":
+                        self.assertEqual(environment["AWS_SHARED_CREDENTIALS_FILE"], "")
+                        self.assertEqual(environment["CLOUDSDK_CONFIG"], "")
+                        self.assertEqual(environment["OLLAMA_HOST"], "")
+                        self.assertNotEqual(
+                            environment["HOME"], os.path.expanduser("~")
+                        )
+                        self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
+                        self.assertEqual(environment["ANTHROPIC_API_KEY"], "")
+                        self.assertEqual(environment["OPENAI_API_KEY"], "")
+                        self.assertEqual(environment["FUTURE_PROVIDER_API_KEY"], "")
+                    else:
+                        self.assertNotIn("OPENAI_API_KEY", environment)
+                    if client == "omp":
+                        self.assertEqual(
+                            environment["OMP_AUTH_BROKER_URL"],
+                            "http://127.0.0.1:43129",
+                        )
+                        self.assertEqual(
+                            environment["OMP_AUTH_BROKER_TOKEN"],
+                            "test-broker-token",
+                        )
+                    else:
+                        self.assertNotIn("OMP_AUTH_BROKER_URL", environment)
+                        self.assertNotIn("OMP_AUTH_BROKER_TOKEN", environment)
+                    return SimpleNamespace(returncode=0)
+
+                profile.run_client(
+                    self.project,
+                    client,
+                    "review",
+                    auth_root=self.auth_root,
+                    receipt_path=self.root / f"{client}-ambient-auth-receipt.json",
+                    runner=checking_runner,
+                )
+
+    def test_omp_empty_auth_mask_blocks_project_dotenv_reload(self) -> None:
+        (self.project / ".env").write_text(
+            "ANTHROPIC_API_KEY=dotenv-secret\n"
+            "FUTURE_PROVIDER_API_KEY=future-dotenv-secret\n",
+            encoding="utf-8",
+        )
+
+        def bun_boundary_runner(
+            command: list[str], **kwargs: object
+        ) -> SimpleNamespace:
+            result = subprocess.run(
+                [
+                    "bun",
+                    "-e",
+                    "console.log(JSON.stringify([process.env.ANTHROPIC_API_KEY, process.env.FUTURE_PROVIDER_API_KEY ?? null]))",
+                ],
+                cwd=kwargs["cwd"],
+                env=kwargs["env"],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout.strip(), '["",null]')
+            return SimpleNamespace(returncode=0)
+
+        profile.run_client(
+            self.project,
+            "omp",
+            "review",
+            auth_root=self.auth_root,
+            receipt_path=self.root / "dotenv-auth-mask-receipt.json",
+            runner=bun_boundary_runner,
+        )
+
+    def test_launch_metadata_cannot_be_swapped_through_runtime_path(self) -> None:
+        original_build_launch = profile.build_launch
+
+        def swapping_build_launch(
+            client: str,
+            runtime_root: Path | str,
+            rendered_tree: dict[str, profile.RenderedFile],
+            forwarded_args: tuple[str, ...] = (),
+        ) -> profile.LaunchSpec:
+            root = Path(runtime_root)
+            moved = root.with_name(root.name + "-held")
+            root.rename(moved)
+            root.mkdir()
+            (root / "system-prompt.md").write_text("malicious prompt", encoding="utf-8")
+            try:
+                return original_build_launch(
+                    client,
+                    runtime_root,
+                    rendered_tree,
+                    forwarded_args,
+                )
+            finally:
+                shutil.rmtree(root)
+                moved.rename(root)
+
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            prompt_index = command.index("--append-system-prompt") + 1
+            self.assertIn("Review session profile", command[prompt_index])
+            self.assertNotIn("malicious", command[prompt_index])
+            return SimpleNamespace(returncode=0)
+
+        with mock.patch.object(
+            profile, "build_launch", side_effect=swapping_build_launch
+        ):
+            for client in ("qoder", "omp"):
+                with self.subTest(client=client):
+                    self.assertEqual(
+                        profile.run_client(
+                            self.project,
+                            client,
+                            "review",
+                            receipt_path=self.root / f"{client}-swap-read-receipt.json",
+                            runner=fake_runner,
+                            auth_root=self.auth_root,
+                        ),
+                        0,
+                    )
+
+    def test_omp_single_line_prompt_is_forced_to_literal_text(self) -> None:
+        prompt_path = self.project / ".cap" / "prompts" / "review.md"
+        prompt_path.write_text("collision.txt", encoding="utf-8")
+        (self.project / "collision.txt").write_text(
+            "malicious unlocked prompt", encoding="utf-8"
+        )
+        profile.create_lock(self.project)
+
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            prompt_index = command.index("--append-system-prompt") + 1
+            self.assertEqual(command[prompt_index], "collision.txt\n")
+            self.assertNotIn("malicious", command[prompt_index])
+            return SimpleNamespace(returncode=0)
+
+        self.assertEqual(
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                receipt_path=self.root / "omp-literal-prompt-receipt.json",
+                runner=fake_runner,
+                auth_root=self.auth_root,
+            ),
+            0,
+        )
+
+    def test_missing_or_unknown_profile_never_invokes_client(self) -> None:
+        runner = mock.Mock()
+        with self.assertRaises(SystemExit) as raised:
+            profile.main(
+                [
+                    "--project",
+                    str(self.project),
+                    "run",
+                    "--client",
+                    "codex",
+                ]
+            )
+        self.assertEqual(raised.exception.code, 2)
+        with self.assertRaisesRegex(profile.ProfileError, "unknown profile"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "missing",
+                runner=runner,
+                auth_root=self.auth_root,
+            )
+        runner.assert_not_called()
+
+    def test_gate_and_lock_failures_never_invoke_client(self) -> None:
+        runner = mock.Mock()
+        polluted = self.home / ".agents" / "skills"
+        polluted.mkdir(parents=True)
+        (polluted / "pollution" / "SKILL.md").parent.mkdir()
+        (polluted / "pollution" / "SKILL.md").write_text("pollution", encoding="utf-8")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.run_client(
+                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
+        runner.assert_not_called()
+
+        shutil.rmtree(self.home / ".agents")
+        with (self.project / "AGENTS.md").open("a", encoding="utf-8") as stream:
+            stream.write("drift")
+        with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
+            profile.run_client(
+                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
+        runner.assert_not_called()
+
+    def test_client_global_pollution_is_rejected_after_process_exit(self) -> None:
+        def polluting_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            pollution = self.home / ".agents" / "skills" / "late" / "SKILL.md"
+            pollution.parent.mkdir(parents=True)
+            pollution.write_text("pollution", encoding="utf-8")
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(
+            profile.ProfileError, "global capability pollution"
+        ):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                runner=polluting_runner,
+                auth_root=self.auth_root,
+            )
+
+    def test_forwarded_capability_overrides_never_invoke_client(self) -> None:
+        runner = mock.Mock()
+        overrides = (
+            ("codex", ("--profile", "unsafe")),
+            ("codex", ("-C", "/tmp/unsafe")),
+            ("codex", ("-C/tmp/unsafe",)),
+            ("codex", ("-p", "unsafe")),
+            ("codex", ("-punsafe",)),
+            ("codex", ("--cd=/tmp/unsafe",)),
+            ("codex", ("-cmodel=unsafe",)),
+            ("codex", ("-c=model=unsafe",)),
+            ("qoder", ("--mcp-config=/tmp/unsafe.json",)),
+            ("qoder", ("-w", "/tmp/unsafe")),
+            ("qoder", ("--cwd=/tmp/unsafe",)),
+            ("qoder", ("--worktree", "unsafe")),
+            ("qoder", ("--worktree=unsafe",)),
+            ("qoder", ("-wunsafe",)),
+            ("omp", ("--config", "/tmp/unsafe.yml")),
+            ("omp", ("--extension=/tmp/unsafe.ts",)),
+            ("omp", ("-e/tmp/unsafe.ts",)),
+            ("omp", ("--trusted-extension=/tmp/unsafe.ts",)),
+            ("omp", ("--trusted-extension", "/tmp/unsafe.ts")),
+        )
+        for client, arguments in overrides:
+            with self.subTest(client=client, arguments=arguments):
+                with self.assertRaisesRegex(profile.ProfileError, "may override"):
+                    profile.run_client(
+                        self.project,
+                        client,
+                        "review",
+                        arguments,
+                        runner=runner,
+                        auth_root=self.auth_root,
+                    )
+        runner.assert_not_called()
+
+    def test_nested_project_root_never_invokes_client(self) -> None:
+        parent = self.root / "parent-project"
+        subprocess.run(["git", "init", "-q", str(parent)], check=True)
+        nested = parent / "nested"
+        copy_fixture(nested)
+        runner = mock.Mock()
+        with self.assertRaisesRegex(
+            profile.ProfileError, "must equal the Git worktree root"
+        ):
+            profile.run_client(
+                nested, "codex", "review", runner=runner, auth_root=self.auth_root
+            )
+        runner.assert_not_called()
+
+    def test_post_verification_render_drift_never_invokes_client(self) -> None:
+        runner = mock.Mock()
+        original_verify = profile._verify_lock
+
+        def verify_then_mutate(project: profile.Project, desired: object) -> None:
+            original_verify(project, desired)  # type: ignore[arg-type]
+            skill = (
+                project.root
+                / ".cap"
+                / "capabilities"
+                / "skills"
+                / "review-skill"
+                / "SKILL.md"
+            )
+            skill.write_text(
+                skill.read_text(encoding="utf-8") + "\ndrift\n", encoding="utf-8"
+            )
+
+        with mock.patch.object(profile, "_verify_lock", side_effect=verify_then_mutate):
+            with self.assertRaisesRegex(
+                profile.ProfileError, "drifted after lock verification"
+            ):
+                profile.run_client(
+                    self.project,
+                    "codex",
+                    "review",
+                    runner=runner,
+                    auth_root=self.auth_root,
+                )
+        runner.assert_not_called()
+
+    def test_final_input_and_project_bypass_gates_never_invoke_client(self) -> None:
+        mutations = (
+            (
+                "locked inputs drifted",
+                lambda project: (project / "AGENTS.md").write_text(
+                    "changed after launch preparation\n",
+                    encoding="utf-8",
+                ),
+            ),
+            (
+                "project capability bypass",
+                lambda project: (
+                    (project / ".codex").mkdir(),
+                    (project / ".codex" / "AGENTS.md").write_text(
+                        "late bypass\n",
+                        encoding="utf-8",
+                    ),
+                ),
+            ),
+        )
+        original_build = profile.build_launch
+        for index, (message, mutate) in enumerate(mutations):
+            with self.subTest(message=message):
+                project = self.root / f"final-gate-{index}"
+                copy_fixture(project)
+                subprocess.run(["git", "init", "-q", str(project)], check=True)
+                receipt = self.root / f"final-gate-{index}.json"
+                runner = mock.Mock()
+
+                def build_then_mutate(
+                    *args: object, **kwargs: object
+                ) -> profile.LaunchSpec:
+                    spec = original_build(*args, **kwargs)  # type: ignore[arg-type]
+                    mutate(project)
+                    return spec
+
+                with mock.patch.object(
+                    profile,
+                    "build_launch",
+                    side_effect=build_then_mutate,
+                ):
+                    with self.assertRaisesRegex(profile.ProfileError, message):
+                        profile.run_client(
+                            project,
+                            "codex",
+                            "review",
+                            receipt_path=receipt,
+                            runner=runner,
+                            auth_root=self.auth_root,
+                        )
+                runner.assert_not_called()
+                self.assertFalse(receipt.exists())
+
+    def test_ambient_qoder_working_directory_cannot_override_project_cwd(self) -> None:
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            self.assertEqual(kwargs["cwd"], str(self.project))
+            self.assertNotIn("QODER_WORKING_DIR", kwargs["env"])  # type: ignore[operator]
+            return SimpleNamespace(returncode=0)
+
+        with mock.patch.dict(
+            os.environ,
+            {"QODER_WORKING_DIR": "/tmp/unsafe"},
+        ):
+            self.assertEqual(
+                profile.run_client(
+                    self.project,
+                    "qoder",
+                    "review",
+                    receipt_path=self.root / "qoder-cwd-receipt.json",
+                    runner=fake_runner,
+                    auth_root=self.auth_root,
+                ),
+                0,
+            )
+
+    def test_project_dotenv_cannot_override_omp_isolation(self) -> None:
+        (self.project / ".env").write_text(
+            "OMP_PROFILE=unsafe\nPI_PROFILE=unsafe\nPI_CONFIG_FILES=/tmp/unsafe.yml\n",
+            encoding="utf-8",
+        )
+
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            environment = kwargs["env"]
+            self.assertEqual(environment["OMP_PROFILE"], "default")  # type: ignore[index]
+            self.assertEqual(environment["PI_PROFILE"], "default")  # type: ignore[index]
+            self.assertEqual(  # type: ignore[index]
+                environment["PI_CONFIG_FILES"],
+                str(Path(environment["PI_CONFIG_DIR"]) / "config.yml"),
+            )
+            self.assertEqual(
+                environment["PI_CONFIG_DIR"],  # type: ignore[index]
+                environment["PI_CODING_AGENT_DIR"],  # type: ignore[index]
+            )
+            return SimpleNamespace(returncode=0)
+
+        self.assertEqual(
+            profile.run_client(
+                self.project,
+                "omp",
+                "review",
+                receipt_path=self.root / "dotenv-receipt.json",
+                runner=fake_runner,
+                auth_root=self.auth_root,
+            ),
+            0,
+        )
+
+    def test_symlink_receipt_parent_never_invokes_client(self) -> None:
+        target = self.root / "receipts"
+        nested_target = target / "nested"
+        nested_target.mkdir(parents=True)
+        linked_parent = self.root / "receipt-link"
+        linked_parent.symlink_to(target, target_is_directory=True)
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "non-symlink directory"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=linked_parent / "nested" / "receipt.json",
+                runner=runner,
+                auth_root=self.auth_root,
+            )
+        runner.assert_not_called()
+        self.assertEqual(list(nested_target.iterdir()), [])
+
+    def test_symlink_receipt_target_never_invokes_client(self) -> None:
+        sink = self.root / "existing-receipt-sink.txt"
+        sink.write_text("unchanged", encoding="utf-8")
+        receipt = self.root / "receipt-link.json"
+        receipt.symlink_to(sink)
+        runner = mock.Mock()
+        with self.assertRaisesRegex(profile.ProfileError, "already exists"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=receipt,
+                runner=runner,
+                auth_root=self.auth_root,
+            )
+        runner.assert_not_called()
+        self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
+
+    def test_concurrent_launches_cannot_clobber_one_receipt(self) -> None:
+        receipt = self.root / "shared-receipt.json"
+        started = threading.Event()
+        release = threading.Event()
+        runner_calls: list[int] = []
+
+        def slow_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            runner_calls.append(1)
+            started.set()
+            if not release.wait(5):
+                raise AssertionError("test did not release the reserved receipt")
+            return SimpleNamespace(returncode=0)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            winner = executor.submit(
+                profile.run_client,
+                self.project,
+                "codex",
+                "review",
+                (),
+                receipt_path=receipt,
+                runner=slow_runner,
+                auth_root=self.auth_root,
+            )
+            self.assertTrue(started.wait(5))
+            losing_runner = mock.Mock()
+            try:
+                with self.assertRaisesRegex(profile.ProfileError, "already exists"):
+                    profile.run_client(
+                        self.project,
+                        "codex",
+                        "review",
+                        receipt_path=receipt,
+                        runner=losing_runner,
+                        auth_root=self.auth_root,
+                    )
+            finally:
+                release.set()
+            self.assertEqual(winner.result(), 0)
+        losing_runner.assert_not_called()
+        self.assertEqual(runner_calls, [1])
+        self.assertEqual(
+            json.loads(receipt.read_text(encoding="utf-8"))["profile"], "review"
+        )
+
+    def test_reserved_receipt_target_cannot_be_redirected(self) -> None:
+        receipt = self.root / "redirected-receipt.json"
+        sink = self.root / "receipt-sink.txt"
+        sink.write_text("unchanged", encoding="utf-8")
+
+        def replacing_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            receipt.unlink()
+            receipt.symlink_to(sink)
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(profile.ProfileError, "target changed"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=receipt,
+                runner=replacing_runner,
+                auth_root=self.auth_root,
+            )
+        self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
+        self.assertTrue(receipt.is_symlink())
+
+    def test_reserved_receipt_parent_cannot_be_redirected(self) -> None:
+        parent = self.root / "stable-receipt-parent"
+        parent.mkdir()
+        receipt = parent / "receipt.json"
+        moved_parent = self.root / "moved-receipt-parent"
+        redirect = self.root / "redirect-target"
+        redirect.mkdir()
+
+        def replacing_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            parent.rename(moved_parent)
+            parent.symlink_to(redirect, target_is_directory=True)
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(profile.ProfileError, "parent changed"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=receipt,
+                runner=replacing_runner,
+                auth_root=self.auth_root,
+            )
+        self.assertFalse((redirect / "receipt.json").exists())
+        self.assertFalse((moved_parent / "receipt.json").exists())
+
+    def test_reserved_receipt_hard_link_alias_is_rejected(self) -> None:
+        receipt = self.root / "hard-link-receipt.json"
+        alias = self.root / "receipt-alias.json"
+
+        def linking_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            os.link(receipt, alias)
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(profile.ProfileError, "hard-link alias"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=receipt,
+                runner=linking_runner,
+                auth_root=self.auth_root,
+            )
+        self.assertFalse(receipt.exists())
+        self.assertEqual(alias.read_bytes(), b"")
+
+    def test_runner_exception_removes_reserved_receipt(self) -> None:
+        receipt = self.root / "failed-receipt.json"
+        runner = mock.Mock(side_effect=RuntimeError("runner failed"))
+        with self.assertRaisesRegex(RuntimeError, "runner failed"):
+            profile.run_client(
+                self.project,
+                "codex",
+                "review",
+                receipt_path=receipt,
+                runner=runner,
+                auth_root=self.auth_root,
+            )
+        self.assertFalse(os.path.lexists(receipt))
+
+
+class ObserverContractTests(ProfileTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+
+    def state_directory(self, name: str) -> Path:
+        """Create one explicit immutable observation directory."""
+
+        state = self.root / name
+        state.mkdir()
+        return state
+
+    def test_observer_redacts_auth_token_and_canonical_root_alias(self) -> None:
+        state = self.state_directory("auth-redaction-state")
+        token = (self.auth_root / "omp" / "token").read_text(encoding="utf-8")
+        alias_text = str(self.auth_root).replace("/private/var/", "/var/", 1)
+        auth_alias = Path(alias_text)
+
+        def leaking_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    f"SKILLS-AVAILABLE: {token}\n"
+                    "MCP-AVAILABLE: unknown\n"
+                    f"CONTEXT-FILES: {self.auth_root}/omp/token\n"
+                    "HOOKS-AVAILABLE: unknown\n"
+                    "PLUGINS-AVAILABLE: unknown\n"
+                ),
+                stderr="",
+            )
+
+        profile.run_observed(
+            self.project,
+            "omp",
+            "review",
+            state,
+            auth_root=auth_alias,
+            runner=leaking_runner,
+        )
+        evidence = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in state.iterdir()
+            if path.is_file()
+        )
+        self.assertNotIn(token, evidence)
+        self.assertNotIn(str(self.auth_root), evidence)
+        self.assertNotIn(str(auth_alias), evidence)
+
+    def test_probe_uses_locked_render_tree_and_keeps_unknown_distinct(self) -> None:
+        state = self.state_directory("probe-state")
+        result = profile.probe_profile(self.project, "omp", "review", state)
+        self.assertEqual(result["observed"]["skills"], ["review-skill"])
+        self.assertEqual(result["observed"]["mcps"], ["review-mcp"])
+        self.assertIsNone(result["observed"]["context"])
+        self.assertIsNone(result["observed"]["hooks"])
+        self.assertIsNone(result["observed"]["plugins"])
+        self.assertEqual(result["staged"]["hooks"], ["review-hook"])
+        self.assertEqual(result["staged"]["plugins"], ["review-plugin"])
+        self.assertTrue((state / "declared.json").is_file())
+        self.assertTrue((state / "probed.json").is_file())
+        self.assertFalse((state / "effective.json").exists())
+
+    def test_codex_probe_accepts_a_profile_with_no_mcp_servers(self) -> None:
+        profile_path = self.project / ".cap" / "profiles" / "review.toml"
+        original = profile_path.read_text(encoding="utf-8")
+        updated = original.replace('add = ["review-mcp"]', "add = []", 1)
+        self.assertNotEqual(updated, original)
+        profile_path.write_text(updated, encoding="utf-8")
+        (self.project / ".cap" / "capabilities" / "mcp" / "review-mcp.json").unlink()
+        profile.create_lock(self.project)
+
+        state = self.state_directory("empty-codex-mcp-state")
+        result = profile.probe_profile(self.project, "codex", "review", state)
+        self.assertEqual(result["observed"]["mcps"], [])
+
+    def test_report_parser_does_not_turn_unknown_into_observed_none(self) -> None:
+        self.assertIsNone(
+            profile.parse_reported("SKILLS-AVAILABLE: unknown", "SKILLS-AVAILABLE")
+        )
+        self.assertEqual(
+            profile.parse_reported("SKILLS-AVAILABLE: none", "SKILLS-AVAILABLE"), []
+        )
+        self.assertIsNone(profile.parse_reported("no marker", "SKILLS-AVAILABLE"))
+        self.assertEqual(
+            profile.parse_reported(
+                "SKILLS-AVAILABLE: review-skill", "SKILLS-AVAILABLE"
+            ),
+            ["review-skill"],
+        )
+        self.assertEqual(
+            profile.parse_reported("SKILLS-AVAILABLE: name1", "SKILLS-AVAILABLE"),
+            ["name1"],
+        )
+        self.assertEqual(
+            profile.parse_reported(
+                "SKILLS-AVAILABLE: name1, name2", "SKILLS-AVAILABLE"
+            ),
+            ["name1", "name2"],
+        )
+
+    def test_diff_rejects_fifo_state_file_without_blocking(self) -> None:
+        state = self.state_directory("fifo-state")
+        os.mkfifo(state / "declared.json")
+        with self.assertRaisesRegex(profile.ProfileError, "private regular file"):
+            profile.diff_profile(self.project, "codex", "review", state)
+
+    def test_run_and_diff_report_unknown_instead_of_silent_success(self) -> None:
+        state = self.state_directory("unknown-state")
+
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "SKILLS-AVAILABLE: review-skill\n"
+                    "MCP-AVAILABLE: review-mcp\n"
+                    "CONTEXT-FILES: unknown\n"
+                    "HOOKS-AVAILABLE: unknown\n"
+                    "PLUGINS-AVAILABLE: unknown\n"
+                ),
+                stderr="",
+            )
+
+        self.assertEqual(
+            profile.run_observed(
+                self.project,
+                "codex",
+                "review",
+                state,
+                ("exec", "observe"),
+                runner=fake_runner,
+                auth_root=self.auth_root,
+            ),
+            0,
+        )
+        effective = json.loads((state / "effective.json").read_text(encoding="utf-8"))
+        self.assertIsNone(effective["observed"]["context"])
+        self.assertIsNone(effective["observed"]["mcps"])
+        self.assertEqual(effective["reported_client_limited"]["mcps"], ["review-mcp"])
+        self.assertEqual(
+            profile.diff_profile(self.project, "codex", "review", state), 2
+        )
+
+    def test_observed_none_is_drift_when_declaration_is_nonempty(self) -> None:
+        state = self.state_directory("none-state")
+
+        def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "SKILLS-AVAILABLE: none\n"
+                    "MCP-AVAILABLE: none\n"
+                    "CONTEXT-FILES: none\n"
+                    "HOOKS-AVAILABLE: none\n"
+                    "PLUGINS-AVAILABLE: none\n"
+                ),
+                stderr="",
+            )
+
+        profile.run_observed(
+            self.project,
+            "qoder",
+            "review",
+            state,
+            ("-p", "observe"),
+            runner=fake_runner,
+            auth_root=self.auth_root,
+        )
+        effective = json.loads((state / "effective.json").read_text(encoding="utf-8"))
+        self.assertEqual(effective["observed"]["skills"], [])
+        self.assertIsNone(effective["observed"]["hooks"])
+        self.assertEqual(effective["reported_opaque_staging"]["hooks"], [])
+        self.assertEqual(
+            profile.diff_profile(self.project, "qoder", "review", state), 1
+        )
+
+    def test_concurrent_observed_profiles_have_independent_roots_outputs_and_receipts(
+        self,
+    ) -> None:
+        review_state = self.state_directory("review-state")
+        implementation_state = self.state_directory("implementation-state")
+        runtime_roots: dict[str, Path] = {}
+
+        def observed(profile_name: str, state: Path) -> int:
+            def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+                runtime_root = Path(str(kwargs["env"]["QODER_CONFIG_DIR"]))  # type: ignore[index]
+                runtime_roots[profile_name] = runtime_root
+                skill = f"{profile_name}-skill"
+                self.assertTrue(
+                    (runtime_root / "skills" / skill / "SKILL.md").is_file()
+                )
+                other = "implementation" if profile_name == "review" else "review"
+                self.assertFalse((runtime_root / "skills" / f"{other}-skill").exists())
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=(
+                        f"SKILLS-AVAILABLE: {skill}\n"
+                        f"MCP-AVAILABLE: {profile_name}-mcp\n"
+                        "CONTEXT-FILES: unknown\n"
+                        "HOOKS-AVAILABLE: unknown\n"
+                        "PLUGINS-AVAILABLE: unknown\n"
+                    ),
+                    stderr="",
+                )
+
+            return profile.run_observed(
+                self.project,
+                "qoder",
+                profile_name,
+                state,
+                ("-p", "observe"),
+                runner=fake_runner,
+                auth_root=self.auth_root,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            review_future = executor.submit(observed, "review", review_state)
+            implementation_future = executor.submit(
+                observed, "implementation", implementation_state
+            )
+        self.assertEqual(review_future.result(), 0)
+        self.assertEqual(implementation_future.result(), 0)
+        self.assertNotEqual(runtime_roots["review"], runtime_roots["implementation"])
+        self.assertFalse(runtime_roots["review"].exists())
+        self.assertFalse(runtime_roots["implementation"].exists())
+        review_receipt = json.loads(
+            (review_state / "receipt.json").read_text(encoding="utf-8")
+        )
+        implementation_receipt = json.loads(
+            (implementation_state / "receipt.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(review_receipt["profile"], "review")
+        self.assertEqual(implementation_receipt["profile"], "implementation")
+        self.assertNotEqual(
+            review_receipt["output_tree_hash"],
+            implementation_receipt["output_tree_hash"],
+        )
+
+    def test_observed_state_swap_cannot_redirect_evidence(self) -> None:
+        state = self.state_directory("stable-state")
+        moved = self.root / "moved-state"
+        redirect = self.root / "redirect-state"
+        redirect.mkdir()
+
+        def replacing_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
+            state.rename(moved)
+            state.symlink_to(redirect, target_is_directory=True)
+            return SimpleNamespace(
+                returncode=0,
+                stdout="SKILLS-AVAILABLE: review-skill\n",
+                stderr="",
+            )
+
+        with self.assertRaisesRegex(profile.ProfileError, "stable directory changed"):
+            profile.run_observed(
+                self.project,
+                "qoder",
+                "review",
+                state,
+                ("-p", "observe"),
+                runner=replacing_runner,
+                auth_root=self.auth_root,
+            )
+        self.assertEqual(list(redirect.iterdir()), [])
+        self.assertFalse((moved / "receipt.json").exists())
+
+
+class SingleEntryTests(unittest.TestCase):
+    def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
+        package_root = Path(profile.__file__).resolve().parent
+        repository_root = Path(__file__).resolve().parents[2]
+        self.assertEqual(
+            sorted(path.name for path in package_root.glob("*.py")),
+            ["__init__.py", "cli.py"],
+        )
+        self.assertFalse((repository_root / "tools" / "profile" / "profile.py").exists())
+        self.assertFalse((repository_root / "tools" / "caprun").exists())
+        self.assertFalse((repository_root / "tools" / "profile" / "observe").exists())
+        self.assertFalse((repository_root / "tools" / "profile" / "observe-codex").exists())
+        self.assertTrue(
+            (Path(__file__).resolve().parent / "fixtures" / "multi-profile" / ".cap" / "manifest.toml").is_file()
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

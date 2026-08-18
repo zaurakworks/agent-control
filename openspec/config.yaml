@@ -1,0 +1,36 @@
+schema: spec-driven
+
+context: |
+  本仓库维护项目内 assembly-helper Agent profile。
+  运行时声明位于 .cap；不得从用户目录、模板、其他仓库或 provider ambient
+  配置继承业务能力。中文 SKILL.md 是唯一运行时全文合同；不维护需要同步的
+  另一语言全文镜像。稳定机器 id、路径、命令和配置键保持规范形式。所有结论
+  必须区分声明态、配置态和实际生效态。OpenSpec 作为仓库内开发依赖，通过 npx openspec 调用。
+  禁用 OpenSpec 的客户端专属产物生成，确保 .cap 是唯一声明的运行时能力面。
+  OpenSpec 中供人阅读的正文统一使用中文；解析所需的英文结构关键字保持原样。
+
+rules:
+  proposal:
+    - 正文使用中文；保留 OpenSpec 约定标题。
+    - 包含意图、范围、非目标、受影响 profile 和能力、回滚边界。
+    - 写明基线证据，以及控制设计决定的官方一手来源。
+  specs:
+    - 正文使用中文，保留 ADDED/MODIFIED/REMOVED、Requirement、Scenario、WHEN、THEN 结构关键字。
+    - 编写可观察行为需求，并同时包含正向和负向触发场景。
+    - 分别描述闭包、标准合规和实际生效态结论。
+  design:
+    - 正文使用中文；保留 OpenSpec 约定标题。
+    - 解释 prompt 与 Skill 的分层、客户端差异、来源、验证和回滚。
+  tasks:
+    - 正文使用中文；保留 OpenSpec 约定标题和复选框格式。
+    - 列出声明、中文运行时合同、摘要文档、lock、标准验证和运行 smoke check。
+
+operations:
+  apply:
+    guidance:
+      - 保持 .cap 为唯一运行时能力来源。
+      - 没有可比较的前后证据时，不得声称行为得到改善。
+      - 人读 OpenSpec 正文使用中文，机器解析关键字除外。
+  archive:
+    guidance:
+      - 仅在 OpenSpec 验证和 .cap 闭包验证均通过后归档。

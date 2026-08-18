@@ -1,0 +1,351 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-assembly",
+  "source_worktree_head": "38fc3e35cf8f1c25aa2fd9e20b47603c464b12cc",
+  "source_remote_default_head": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+  "source_branch": "share-omp-runtime-across-profiles",
+  "source_change": "consolidate-agent-repositories-into-agent-system",
+  "mappings": [
+    {
+      "source": ".cap/capabilities/skills/agent-behavior-evaluation/SKILL.md",
+      "target": ".cap/capabilities/skills/agent-behavior-evaluation/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/agent-prompt-design/SKILL.md",
+      "target": ".cap/capabilities/skills/agent-prompt-design/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/agent-skill-design/SKILL.md",
+      "target": ".cap/capabilities/skills/agent-skill-design/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/assembly-helper/SKILL.md",
+      "target": ".cap/capabilities/skills/assembly-helper/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/capability-lifecycle/SKILL.md",
+      "target": ".cap/capabilities/skills/capability-lifecycle/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/capability-profile-closure/SKILL.md",
+      "target": ".cap/capabilities/skills/capability-profile-closure/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-apply-change/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-apply-change/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-archive-change/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-archive-change/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-explore/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-explore/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-propose/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-propose/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-sync-specs/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-sync-specs/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/openspec-update-change/SKILL.md",
+      "target": ".cap/capabilities/skills/openspec-update-change/SKILL.md"
+    },
+    {
+      "source": ".cap/capabilities/skills/spec-change-pack/SKILL.md",
+      "target": ".cap/capabilities/skills/spec-change-pack/SKILL.md"
+    },
+    {
+      "source": ".cap/lock.json",
+      "target": ".cap/lock.json"
+    },
+    {
+      "source": ".cap/manifest.toml",
+      "target": ".cap/manifest.toml"
+    },
+    {
+      "source": ".cap/profiles/assembly-helper.toml",
+      "target": ".cap/profiles/assembly-helper.toml"
+    },
+    {
+      "source": ".cap/profiles/general.toml",
+      "target": ".cap/profiles/general.toml"
+    },
+    {
+      "source": ".cap/profiles/work.toml",
+      "target": ".cap/profiles/work.toml"
+    },
+    {
+      "source": ".cap/prompts/assembly-helper.md",
+      "target": ".cap/prompts/assembly-helper.md"
+    },
+    {
+      "source": ".cap/prompts/general.md",
+      "target": ".cap/prompts/general.md"
+    },
+    {
+      "source": ".cap/prompts/work.md",
+      "target": ".cap/prompts/work.md"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/.openspec.yaml",
+      "target": "openspec/changes/add-general-profile/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/README.md",
+      "target": "openspec/changes/add-general-profile/README.md"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/design.md",
+      "target": "openspec/changes/add-general-profile/design.md"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/proposal.md",
+      "target": "openspec/changes/add-general-profile/proposal.md"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/specs/general-profile/spec.md",
+      "target": "openspec/changes/add-general-profile/specs/general-profile/spec.md"
+    },
+    {
+      "source": "openspec/changes/add-general-profile/tasks.md",
+      "target": "openspec/changes/add-general-profile/tasks.md"
+    },
+    {
+      "source": "openspec/changes/adopt-chinese-skill-contracts/.openspec.yaml",
+      "target": "openspec/changes/adopt-chinese-skill-contracts/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/adopt-chinese-skill-contracts/design.md",
+      "target": "openspec/changes/adopt-chinese-skill-contracts/design.md"
+    },
+    {
+      "source": "openspec/changes/adopt-chinese-skill-contracts/proposal.md",
+      "target": "openspec/changes/adopt-chinese-skill-contracts/proposal.md"
+    },
+    {
+      "source": "openspec/changes/adopt-chinese-skill-contracts/specs/chinese-skill-contracts/spec.md",
+      "target": "openspec/changes/adopt-chinese-skill-contracts/specs/chinese-skill-contracts/spec.md"
+    },
+    {
+      "source": "openspec/changes/adopt-chinese-skill-contracts/tasks.md",
+      "target": "openspec/changes/adopt-chinese-skill-contracts/tasks.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/.openspec.yaml",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/design.md",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/design.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/proposal.md",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/proposal.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/specs/layered-agent-profile/spec.md",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/specs/layered-agent-profile/spec.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/specs/workspace-context-bridge/spec.md",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/specs/workspace-context-bridge/spec.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/tasks.md",
+      "target": "openspec/changes/archive/2026-08-18-adopt-real-home-profile-base/tasks.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/.openspec.yaml",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/README.md",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/README.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/design.md",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/design.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/proposal.md",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/proposal.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/specs/cap-default-interactive-entry/spec.md",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/specs/cap-default-interactive-entry/spec.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/tasks.md",
+      "target": "openspec/changes/archive/2026-08-18-make-cap-default-interactive/tasks.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/.openspec.yaml",
+      "target": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/design.md",
+      "target": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/design.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/proposal.md",
+      "target": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/proposal.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/specs/layered-agent-profile/spec.md",
+      "target": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/specs/layered-agent-profile/spec.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/tasks.md",
+      "target": "openspec/changes/archive/2026-08-18-share-omp-auth-across-profiles/tasks.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/.openspec.yaml",
+      "target": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/design.md",
+      "target": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/design.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/proposal.md",
+      "target": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/proposal.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/specs/layered-agent-profile/spec.md",
+      "target": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/specs/layered-agent-profile/spec.md"
+    },
+    {
+      "source": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/tasks.md",
+      "target": "openspec/changes/archive/2026-08-19-share-omp-runtime-across-profiles/tasks.md"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/.openspec.yaml",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/design.md",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/design.md"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/assembly-source-freeze.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/assembly-source-freeze.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/local-checkouts.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/local-checkouts.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/plugin-contract-baseline.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/plugin-contract-baseline.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/profile-runtime-baseline.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/profile-runtime-baseline.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/remote-baseline.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/remote-baseline.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/source-assets.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/source-assets.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/state-lab-graduation.json",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/evidence/state-lab-graduation.json"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/proposal.md",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/proposal.md"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/specs/agent-system-monorepo/spec.md",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/specs/agent-system-monorepo/spec.md"
+    },
+    {
+      "source": "openspec/changes/consolidate-agent-repositories-into-agent-system/tasks.md",
+      "target": "openspec/changes/consolidate-agent-repositories-into-agent-system/tasks.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/.openspec.yaml",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/.openspec.yaml"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/design.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/design.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/proposal.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/proposal.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/specs/agent-behavior-evaluation/spec.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/specs/agent-behavior-evaluation/spec.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/specs/agent-skill-design/spec.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/specs/agent-skill-design/spec.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/specs/research-first-assembly/spec.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/specs/research-first-assembly/spec.md"
+    },
+    {
+      "source": "openspec/changes/harden-assembly-helper-maintenance/tasks.md",
+      "target": "openspec/changes/harden-assembly-helper-maintenance/tasks.md"
+    },
+    {
+      "source": "openspec/config.yaml",
+      "target": "openspec/config.yaml"
+    },
+    {
+      "source": "openspec/specs/cap-default-interactive-entry/spec.md",
+      "target": "openspec/specs/cap-default-interactive-entry/spec.md"
+    },
+    {
+      "source": "openspec/specs/layered-agent-profile/spec.md",
+      "target": "openspec/specs/layered-agent-profile/spec.md"
+    },
+    {
+      "source": "openspec/specs/workspace-context-bridge/spec.md",
+      "target": "openspec/specs/workspace-context-bridge/spec.md"
+    },
+    {
+      "source": "docs/maintenance.zh-CN.md",
+      "target": "docs/maintenance.zh-CN.md"
+    },
+    {
+      "source": "docs/skill-catalog.zh-CN.md",
+      "target": "docs/skill-catalog.zh-CN.md"
+    },
+    {
+      "source": "README.md",
+      "target": "docs/assembly/README.md"
+    },
+    {
+      "source": "CONTRIBUTING.md",
+      "target": "docs/assembly/CONTRIBUTING.md"
+    },
+    {
+      "source": "LICENSE",
+      "target": "LICENSE"
+    }
+  ],
+  "profile_chain": "real-home -> work -> general | assembly-helper",
+  "runtime_migration_status": "already-global",
+  "history_location": "source repository; do not archive until all migration and effective-state gates pass",
+  "excluded_for_later_tasks": [
+    "tools/cap.py",
+    "tests/test_cap.py",
+    "requirements.txt",
+    "package.json",
+    "package-lock.json"
+  ],
+  "excluded_intentionally": [
+    "AGENTS.md runtime entry; target root AGENTS.md remains canonical"
+  ]
+}

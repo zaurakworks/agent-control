@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-18T19:52:05Z",
+  "collector": "authenticated gh API; no secret values captured",
+  "target": "zaurakworks/agent-control",
+  "planned_canonical": "zaurakworks/agent-system",
+  "repositories": [
+    {
+      "name": "zaurakworks/agent-control",
+      "visibility": "public",
+      "default_branch": "main",
+      "remote_head": "8d6e82aca6be715d109e90428553e62d7aedf712",
+      "rollback_ref": "8d6e82aca6be715d109e90428553e62d7aedf712",
+      "archived": false,
+      "permissions": {"admin": true, "maintain": true, "rename": true, "archive": true},
+      "open_issues": [67,49,34,33,32,31,30,29,28,27,26,25,24,23,22,21,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,2,1],
+      "open_pull_requests": [],
+      "releases": [],
+      "rulesets": [],
+      "actions": [{"name":"Existing repository checks","path":".github/workflows/repository-checks.yml","state":"active"}]
+    },
+    {
+      "name": "zaurakworks/agent-contracts",
+      "visibility": "public",
+      "default_branch": "main",
+      "remote_head": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+      "rollback_ref": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+      "archived": false,
+      "permissions": {"admin": true, "maintain": true, "rename": true, "archive": true},
+      "open_issues": [19,18,17,16,15,13,12],
+      "open_pull_requests": [],
+      "releases": [],
+      "rulesets": [],
+      "actions": [{"name":"Validate contracts","path":".github/workflows/validate.yml","state":"active"}]
+    },
+    {
+      "name": "zaurakworks/agent-plugins",
+      "visibility": "public",
+      "default_branch": "main",
+      "remote_head": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+      "rollback_ref": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+      "archived": false,
+      "permissions": {"admin": true, "maintain": true, "rename": true, "archive": true},
+      "open_issues": [16,14,10],
+      "open_pull_requests": [15],
+      "releases": [],
+      "rulesets": [],
+      "actions": [{"name":"Plugin conformance checks","path":".github/workflows/plugin-checks.yml","state":"active"}]
+    },
+    {
+      "name": "zaurakworks/agent-assembly",
+      "visibility": "public",
+      "default_branch": "master",
+      "remote_head": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+      "rollback_ref": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+      "archived": false,
+      "permissions": {"admin": true, "maintain": true, "rename": true, "archive": true},
+      "open_issues": [5],
+      "open_pull_requests": [4],
+      "releases": [],
+      "rulesets": [],
+      "actions": []
+    },
+    {
+      "name": "zaurakworks/agent-state-lab",
+      "visibility": "private",
+      "default_branch": "main",
+      "remote_head": "a7252eda4410c6b21865c727d54c76dcf6a10cad",
+      "rollback_ref": "a7252eda4410c6b21865c727d54c76dcf6a10cad",
+      "archived": false,
+      "permissions": {"admin": true, "maintain": true, "rename": true, "archive": true},
+      "open_issues": [4,3],
+      "open_pull_requests": [6],
+      "releases": [],
+      "rulesets": {"status":"unavailable","reason":"GitHub 403: private repository rulesets require GitHub Pro"},
+      "actions": []
+    }
+  ],
+  "notes": [
+    "GitHub open_issues_count includes pull requests; issue and pull request numbers above were collected separately.",
+    "No repository has a GitHub Release at capture time.",
+    "Public repositories returned an empty ruleset list.",
+    "Immutable commit SHAs are the rollback refs; no remote tag or branch was created during baseline capture."
+  ]
+}

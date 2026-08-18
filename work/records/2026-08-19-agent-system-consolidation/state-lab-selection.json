@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "private_source_commit": "a7252eda4410c6b21865c727d54c76dcf6a10cad",
+  "selection_rule": "Only findings with an explicit responsible decision, public product owner, public necessity, sanitization pass, target contract/test, source commit, and negative case are selected.",
+  "selected": [
+    {
+      "id": "G-001",
+      "target": "authority/11-execution-state.md",
+      "test": "scripts/test_federated_entry.py",
+      "negative_case": "extra undeclared capability fails closure or launch"
+    },
+    {
+      "id": "G-002",
+      "target": "authority/11-execution-state.md",
+      "test": "scripts/test_federated_entry.py",
+      "negative_case": "substantive execution change without re-evaluation is rejected"
+    },
+    {
+      "id": "G-006",
+      "target": "authority/11-execution-state.md",
+      "test": "scripts/test_federated_entry.py",
+      "negative_case": "CURRENT, handoff, or progress file cannot become active authority"
+    },
+    {
+      "id": "G-007",
+      "target": "authority/11-execution-state.md and contracts/EXECUTION.md",
+      "test": "contracts/tools/validate.py",
+      "negative_case": "local contract without a stable remote WorkItem binding cannot activate"
+    },
+    {
+      "id": "G-008",
+      "target": "entrypoints/agent-system.md and authority/11-execution-state.md",
+      "test": "scripts/test_federated_entry.py",
+      "negative_case": "exploration does not create an Issue or start implementation without explicit activation"
+    }
+  ],
+  "rejected": ["G-003","G-004","G-005","G-009","G-010","G-011","G-012"],
+  "raw_assets_selected": [],
+  "private_urls_required_for_understanding": false,
+  "status": "selected-for-public-graduation"
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Grilling"
+  short_description: "Stress-test decisions with consent-aware questions"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-18T19:52:05Z",
+  "source_heads": {
+    "agent-plugins": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+    "agent-contracts": "5bb8ea0b54f063b0758c294b73ea270ba69322d2"
+  },
+  "plugins": {
+    "marketplace_name": "agent-plugins",
+    "codex_manifest": ".agents/plugins/marketplace.json",
+    "claude_manifest": ".claude-plugin/marketplace.json",
+    "versions_match_across_manifests": true,
+    "items": [
+      {"name":"grilling","version":"0.1.2"},
+      {"name":"self-improvement","version":"0.1.7"},
+      {"name":"skill-maintenance","version":"0.1.0"},
+      {"name":"knowledge-maintenance","version":"0.1.3"},
+      {"name":"orchestrated-collaboration","version":"0.2.7"},
+      {"name":"adaptive-problem-solving","version":"0.2.12"},
+      {"name":"resource-observability","version":"0.2.4"}
+    ],
+    "source_conformance": [
+      {"command":"node tests/workflow-routing.test.ts","result":"pass","output":"PASS: 7 个 Skill、7 个 Plugin、34 个验收场景"},
+      {"command":"node plugins/orchestrated-collaboration/tests/verify-three-party-review.test.ts","result":"pass","output":"PASS: CF-6 三方审阅验证器合同"}
+    ],
+    "current_global_clients": {
+      "codex": {"command":"codex plugin list --json","installed":[],"available":[],"result":"pass"},
+      "claude": {"command":"claude plugin list --json","result":"unavailable","error":"claude not found in PATH"}
+    },
+    "isolated_current_source": {
+      "codex": {
+        "marketplace_add": "pass",
+        "marketplace_readback": "pass",
+        "plugin": "grilling@agent-plugins",
+        "version": "0.1.2",
+        "install": "pass",
+        "installed_enabled_readback": "pass",
+        "remove": "pass",
+        "marketplace_remove": "pass",
+        "empty_after_cleanup": true,
+        "home": "ephemeral temp path; removed after baseline process"
+      },
+      "claude": {"result":"unavailable","reason":"claude executable absent"},
+      "explicit_trigger": "unknown",
+      "no_explicit_call_negative": "unknown",
+      "unknown_reason": "The current seven-Plugin source has no authenticated isolated Claude runtime here, and the temporary Codex home intentionally did not receive or copy credentials."
+    },
+    "historical_runtime_evidence": {
+      "source": "https://github.com/zaurakworks/agent-plugins/issues/13",
+      "state": "closed",
+      "scope": "retired github-collaboration 0.1.0 candidate, not the current seven-Plugin tree",
+      "observations": [
+        "Temporary Codex and Claude homes each installed and enabled the candidate.",
+        "Explicit invocation loaded the contract on both clients.",
+        "No-explicit-call negatives returned NO_IMPLICIT.",
+        "The real Issue task produced Draft PR #15 but omitted the required Issue receipt and used 51,982 input tokens.",
+        "The candidate was rejected and global Plugin state returned to empty."
+      ],
+      "use_as_current_baseline": false
+    }
+  },
+  "contracts": {
+    "validation": {
+      "command": "python3 tools/validate.py",
+      "result": "pass",
+      "output": "validation passed: 3 schemas, 6 examples, 2 Issue Forms, 10 execution-loop tests"
+    },
+    "runtime_dependencies": "Python 3.11+; no third-party runtime dependency",
+    "validated_behaviors": ["Schema subset","valid examples","invalid examples","contract semantic binding","Issue Form mapping","unique project entry","CI wiring","offline execution loop tests"]
+  },
+  "blockers": [
+    "Current-source Claude installation/discovery/explicit-trigger/negative evidence is unavailable because Claude is not installed.",
+    "Current-source explicit-trigger and no-explicit-call negative behavior are unknown; historical Issue #13 covered a retired candidate and cannot substitute."
+  ]
+}

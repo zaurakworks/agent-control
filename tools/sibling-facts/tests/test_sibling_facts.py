@@ -125,7 +125,7 @@ def base_responses(agent_repo: Path, work_repo: Path) -> dict[tuple[str, ...], t
             "pr",
             "list",
             "--repo",
-            "owner/agent-control",
+            "owner/agent-system",
             "--state",
             "open",
             "--limit",
@@ -154,7 +154,7 @@ class CollectionTests(unittest.TestCase):
     def test_collects_direct_facts_and_marks_self_and_sibling(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            agent_repo = root / "agent-control"
+            agent_repo = root / "agent-system"
             work_repo = root / "work-skills"
             agent_repo.mkdir()
             work_repo.mkdir()
@@ -168,10 +168,10 @@ class CollectionTests(unittest.TestCase):
             report = sibling_facts.collect_report(
                 runner,
                 orca_command=["orca"],
-                agent_control_repo=agent_repo,
+                agent_system_repo=agent_repo,
                 work_skills_repo=work_repo,
                 lease_path=lease,
-                github_repositories=["owner/agent-control"],
+                github_repositories=["owner/agent-system"],
                 self_terminal="term-self",
                 now=datetime(2026, 8, 14, tzinfo=timezone.utc),
             )
@@ -189,12 +189,12 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(report["git_worktrees"][1]["observed"]["branch"], "detached")
         pr = report["open_pull_requests"][0]
         self.assertEqual(pr["who"], "author owner / PR #12")
-        self.assertEqual(pr["write_where"], "owner/agent-control:feature/a4")
+        self.assertEqual(pr["write_where"], "owner/agent-system:feature/a4")
 
     def test_unavailable_source_is_reported_not_inferred(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            agent_repo = root / "agent-control"
+            agent_repo = root / "agent-system"
             work_repo = root / "work-skills"
             agent_repo.mkdir()
             work_repo.mkdir()
@@ -206,10 +206,10 @@ class CollectionTests(unittest.TestCase):
             report = sibling_facts.collect_report(
                 runner,
                 orca_command=["orca"],
-                agent_control_repo=agent_repo,
+                agent_system_repo=agent_repo,
                 work_skills_repo=work_repo,
                 lease_path=lease,
-                github_repositories=["owner/agent-control"],
+                github_repositories=["owner/agent-system"],
                 self_terminal=None,
             )
 
@@ -226,7 +226,7 @@ class CollectionTests(unittest.TestCase):
     def test_only_read_only_subprocess_commands_are_issued(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            agent_repo = root / "agent-control"
+            agent_repo = root / "agent-system"
             work_repo = root / "work-skills"
             agent_repo.mkdir()
             work_repo.mkdir()
@@ -236,10 +236,10 @@ class CollectionTests(unittest.TestCase):
             sibling_facts.collect_report(
                 runner,
                 orca_command=["orca"],
-                agent_control_repo=agent_repo,
+                agent_system_repo=agent_repo,
                 work_skills_repo=work_repo,
                 lease_path=lease,
-                github_repositories=["owner/agent-control"],
+                github_repositories=["owner/agent-system"],
                 self_terminal=None,
             )
 

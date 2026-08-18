@@ -1,0 +1,10 @@
+{
+  "name": "orchestrated-collaboration",
+  "version": "0.2.7",
+  "description": "Coordinate multiple Agents or Sessions through explicit ownership, bounded tasks, verified handoffs, independent parent-goal review, and synthesis.",
+  "author": {
+    "name": "zaurakworks"
+  },
+  "repository": "https://github.com/zaurakworks/agent-system",
+  "skills": "./skills/"
+}

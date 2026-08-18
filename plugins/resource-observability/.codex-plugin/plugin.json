@@ -1,0 +1,10 @@
+{
+  "name": "resource-observability",
+  "version": "0.2.4",
+  "description": "按需读取 Codex／Claude 账户容量与单会话 Token。",
+  "author": {
+    "name": "zaurakworks"
+  },
+  "repository": "https://github.com/zaurakworks/agent-system",
+  "skills": "./skills/"
+}

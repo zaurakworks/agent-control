@@ -13,9 +13,9 @@ python tools/sibling-facts/sibling_facts.py --json
 
 - `orca orchestration run-list --json` 与 `worker-list --json`；
 - `orca terminal list --json`；
-- `%LOCALAPPDATA%\agent-control\scheduler-lease.json` 中的 D9 持有者与 session；
-- `agent-control` 当前 checkout 和 `~/workspace/work-skills` 的 `git worktree list --porcelain`；
-- `Eridanus117/agent-control`、`Eridanus117/work-skills`、`Eridanus117/agent-plugins` 的开放 PR。
+- `%LOCALAPPDATA%\agent-system\scheduler-lease.json` 中的 D9 持有者与 session；
+- `agent-system` 当前 checkout 和 `~/workspace/work-skills` 的 `git worktree list --porcelain`；
+- `zaurakworks/agent-system`、`Eridanus117/work-skills`、`Eridanus117/agent-plugins` 的开放 PR。
 
 每条事实都带「谁／写哪儿／怎么核实」。如果一个来源缺失、命令失败、JSON 无法解析或返回截断标志，报告会明确写「未观察到」或「只观察到部分」，不会用其他来源推断补齐。
 

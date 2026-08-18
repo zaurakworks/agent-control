@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-18T19:52:05Z",
+  "repository": "zaurakworks/agent-assembly",
+  "worktree_role": "active source of this change",
+  "head": "38fc3e35cf8f1c25aa2fd9e20b47603c464b12cc",
+  "branch": "share-omp-runtime-across-profiles",
+  "remote_default_head": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+  "working_tree": {
+    "tracked_modifications": [],
+    "untracked_root": "openspec/changes/consolidate-agent-repositories-into-agent-system/"
+  },
+  "tracked_file_count": 77,
+  "tracked_digest": "sha256:699e7185b199196af28005dac0f28af1cafb62fd24ca76e026200c17052333ad",
+  "change_artifact_digest": "sha256:23b699a4633a83b583422872f76b1a9fbe55d4902db169988776e27e2cbcbe58",
+  "subtrees": {
+    ".cap": {
+      "file_count": 21,
+      "digest": "sha256:8be24caaccd8a87ffccadf8fbe5ec80dae51ef68921b0d966d66b18b6d442263"
+    },
+    "openspec": {
+      "file_count": 55,
+      "digest": "sha256:c8981afc349b4a83e604a60cc9910f260bc3620bf3b0bddf814f9a41584981f2"
+    },
+    "docs": {
+      "file_count": 2,
+      "digest": "sha256:4e1aab6b180bed4fccc3810ca4e3ff9e57f694bfe2be53794f328224535b3c64"
+    },
+    "tools": {
+      "file_count": 1,
+      "digest": "sha256:7f5d47726fbe51891f7a65f772492761a0b121a207853da0a1bb93c705bcbeec"
+    },
+    "tests": {
+      "file_count": 1,
+      "digest": "sha256:6de78a977321db3ac072246fa7a794b78217905f0451f4c50b503226ab31262c"
+    }
+  },
+  "runtime_migration": {
+    "status": "already-global",
+    "runtime_id": "default",
+    "source_exists": false,
+    "target_exists": true,
+    "auth_entries": 1,
+    "auth_digest": "sha256:ea8d56f4da24dbf4f0cddc8091118efbc22b4837b9b8290c0a37c900375b080c",
+    "settings_digest": "sha256:45c9184849c9be78053468e50149618ac75b2d936d36d4000cf2826492e168ff",
+    "schema_digest": "sha256:bafae29f6197a56220ecfec8db524bd4af82f485e27b32b3bc10f0a82b54bfa9",
+    "session_files": 25,
+    "writes_planned": false
+  },
+  "baseline_evidence": [
+    "evidence/profile-runtime-baseline.json",
+    "evidence/remote-baseline.json",
+    "evidence/local-checkouts.json"
+  ],
+  "freeze_rule": "Migrate from this exact worktree snapshot plus listed untracked change artifacts; do not substitute the stale clean clone or legacy main checkout.",
+  "untracked_change_file_count_excluding_manifest": 11,
+  "change_artifact_digest_excludes": "evidence/assembly-source-freeze.json to avoid a self-referential digest"
+}

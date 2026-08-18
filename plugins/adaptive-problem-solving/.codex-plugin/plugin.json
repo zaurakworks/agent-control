@@ -1,0 +1,10 @@
+{
+  "name": "adaptive-problem-solving",
+  "version": "0.2.12",
+  "description": "Govern problem framing, method choice, execution setup, parent-goal acceptance, and adaptive course correction.",
+  "author": {
+    "name": "zaurakworks"
+  },
+  "repository": "https://github.com/zaurakworks/agent-system",
+  "skills": "./skills/"
+}

@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-plugins",
+  "source_head": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+  "open_issues": [
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-plugins/issues/10",
+      "source_number": 10,
+      "source_title": "摩擦：复杂度预算把按需加载的 references/ 当常驻字节计价，使官方 progressive disclosure 在本仓变成「绕过预算」",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:7492137b0024d40a202feaff948267aafbe8f34b0d7bd197c46b9a411fb854a7",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "blocker": "Create and reciprocally link an agent-system successor before archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-plugins/issues/14",
+      "source_number": 14,
+      "source_title": "实验：把安装入口改为按需单 Plugin",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:c034eb71de83726735540848d6852e5908e072e067dc6c009e5b038af3e6876a",
+      "classification": "source-completion-blocker",
+      "target_successor": null,
+      "blocker": "Resolve or explicitly migrate the source experiment together with open Draft PR #15; no acceptance is inferred."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-plugins/issues/16",
+      "source_number": 16,
+      "source_title": "审计：十三项 Skill 的保留、缩减、合并与退役",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:0e1006fc7c319f21e75b8441f644b7f8c72005683d760aefc6baa5dd019102d5",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "blocker": "Create and reciprocally link an agent-system successor before archive."
+    }
+  ],
+  "open_pull_requests": [
+    {
+      "source_pull_request": "https://github.com/zaurakworks/agent-plugins/pull/15",
+      "source_number": 15,
+      "source_title": "docs: 将安装入口改为按需单 Plugin",
+      "state": "OPEN",
+      "draft": true,
+      "head_branch": "trial/issue14",
+      "head_commit": "68fbce6b2c671f93e3914a75a52a69ca617a89e9",
+      "classification": "source-review-blocker",
+      "target_successor": null
+    }
+  ],
+  "releases": [],
+  "canonical_install_surface": {
+    "repository": "zaurakworks/agent-system",
+    "marketplace_name": "agent-plugins",
+    "codex_manifest": ".agents/plugins/marketplace.json",
+    "claude_manifest": ".claude-plugin/marketplace.json",
+    "plugin_repository_fields": "zaurakworks/agent-system"
+  },
+  "source_url_policy": "Remaining zaurakworks/agent-plugins Issue/PR links are historical or migration sources; no managed manifest or install command may use the source repository as canonical.",
+  "archive_status": "blocked",
+  "archive_blockers": [
+    "Issues #10 and #16 require agent-system successors.",
+    "Issue #14 and Draft PR #15 require explicit source completion or migration.",
+    "Required real Codex/Claude effective-state evidence is incomplete."
+  ]
+}

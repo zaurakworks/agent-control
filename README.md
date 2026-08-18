@@ -1,6 +1,18 @@
-# Agent Control
+# Agent System
 
-本仓是 `agent-control` 的公共产品与政策仓：保存可公开复用的 Agent 系统原则、协议、知识和装配量具。它不保存个人当前工作状态，也不是 Plugin 仓或完整多 Agent 平台。
+本仓是 `agent-system` 的公共单仓：保存可公开复用的 Agent 系统原则、协议、知识、合同、Plugin、profile 装配和验证工具。它不保存个人当前工作状态，也不公开 private state-lab 原始研究证据。
+
+## Agent System 单仓边界
+
+本仓是 `agent-system` 单仓收敛的目标仓；目标由现有 `agent-control` 原位改名得到，不新建第六个仓。迁移完成后，根目录分别承载：
+
+- `authority/`、`knowledge/` 与 `entrypoints/`：公共政策、当前知识和项目入口；
+- `contracts/`：合同 Schema、样例、捕获／回执工具和验证；
+- `plugins/`、`.agents/` 与 `.claude-plugin/`：可安装 Plugin／Skill 和双端 Marketplace；
+- `.cap/`：显式 profile、prompt 和 capability 声明；
+- `src/agent_system/`：唯一 profile、CAP 与 OMP Python 实现。
+
+迁移中的 immutable source head、目标路径和历史保留策略记录在 [`work/records/2026-08-19-agent-system-consolidation/provenance.json`](work/records/2026-08-19-agent-system-consolidation/provenance.json)。目录尚未迁入不表示对应源仓可以归档；静态、集成、回滚和所需真实客户端门全部通过后才切换入口。
 
 ## 持久实现语言
 
@@ -10,7 +22,7 @@
 
 - 2026-08-15 从私有 `Eridanus117/agent-control` clean-slate 迁入的 Issue #1–#34 标记为 `迁移索引/待分诊`；它们默认不是当前授权或活动 backlog。
 - 迁入事项只有补齐公开、自足的目标、范围、验收和当前授权后才能重新激活。旧仓评论与 PR 可以作历史来源，但公共规范不得以私有链接为理解前提。
-- 旧仓保持私有；必要决定与证据先脱敏蒸馏，再机械 archive。当前落地工作见 [Issue #58](https://github.com/zaurakworks/agent-control/issues/58)。
+- 旧仓保持私有；必要决定与证据先脱敏蒸馏，再机械 archive。当前落地工作见 [Issue #58](https://github.com/zaurakworks/agent-system/issues/58)。
 
 ## 开始工作
 
@@ -48,8 +60,7 @@ Session 的职责由负责人当前明确指令、公开自足的 Issue 合同�
 - `entrypoints/agent-system.md`：本仓项目级 Agent 行为入口；不作为用户级全局提示词安装源；
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
 - `CLAUDE.md`：Claude Code 导入同一份入口规则，并在本仓内加载 `entrypoints/agent-system.md`；用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面；
-- `.claude/skills/`：本仓的工作阶段 Skill（`stage`：观察／提议／执行／判定的完成判据与产出形状），供本仓内支持该发现约定的客户端直接使用；
-- [`tools/profile/`](./tools/profile/)：Codex／Qoder／OMP 项目能力面的唯一声明、content+mode lock、渲染、隔离启动和生效态核验入口；profile 必须显式选择，运行根与无 secret 收据落在仓库之外，边界见 [`tools/profile/README.md`](./tools/profile/README.md)。
+- [`src/agent_system/`](./src/agent_system/)：唯一的 profile、CAP 与 OMP Python 实现；通过 `uv run agent-profile` 与 `uv run cap` 使用，接口边界见 [`docs/profile.md`](./docs/profile.md) 和 [`docs/maintenance.zh-CN.md`](./docs/maintenance.zh-CN.md)。
 
 私有旧仓、迁移索引、历史记录、分析和实验只提供来源；公共产品政策必须在本仓自足表达，历史材料不能反向产生当前授权。
 

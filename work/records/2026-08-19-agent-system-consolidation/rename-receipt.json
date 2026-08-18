@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "operation": "repository-rename",
+  "before": "zaurakworks/agent-control",
+  "after": "zaurakworks/agent-system",
+  "default_branch": "main",
+  "head_before": "8d6e82aca6be715d109e90428553e62d7aedf712",
+  "head_after": "8d6e82aca6be715d109e90428553e62d7aedf712",
+  "visibility": "public",
+  "archived": false,
+  "permissions": {"admin": true, "maintain": true},
+  "rulesets": [],
+  "actions": [{"name":"Existing repository checks","path":".github/workflows/repository-checks.yml","state":"active"}],
+  "open_issues_before": 34,
+  "open_issues_after": 34,
+  "open_pull_requests_before": 0,
+  "open_pull_requests_after": 0,
+  "old_api_lookup_resolves_to": "zaurakworks/agent-system",
+  "rollback": "Rename zaurakworks/agent-system back to agent-control while the old name remains available; immutable rollback content ref is 8d6e82aca6be715d109e90428553e62d7aedf712.",
+  "result": "verified"
+}

@@ -1,0 +1,46 @@
+{
+  "name": "agent-plugins",
+  "description": "Cross-provider Agent plugins maintained by zaurakworks.",
+  "owner": {
+    "name": "zaurakworks",
+    "url": "https://github.com/zaurakworks"
+  },
+  "plugins": [
+    {
+      "name": "grilling",
+      "version": "0.1.2",
+      "source": "./plugins/grilling"
+    },
+    {
+      "name": "self-improvement",
+      "version": "0.1.7",
+      "source": "./plugins/self-improvement"
+    },
+    {
+      "name": "skill-maintenance",
+      "version": "0.1.0",
+      "source": "./plugins/skill-maintenance"
+    },
+    {
+      "name": "knowledge-maintenance",
+      "version": "0.1.3",
+      "source": "./plugins/knowledge-maintenance"
+    },
+    {
+      "name": "orchestrated-collaboration",
+      "version": "0.2.7",
+      "source": "./plugins/orchestrated-collaboration"
+    },
+    {
+      "name": "adaptive-problem-solving",
+      "version": "0.2.12",
+      "source": "./plugins/adaptive-problem-solving"
+    },
+    {
+      "name": "resource-observability",
+      "version": "0.2.4",
+      "description": "只读的 Codex／Claude 账户容量与单会话 Token 回执；不负责调度。",
+      "source": "./plugins/resource-observability"
+    }
+  ]
+}

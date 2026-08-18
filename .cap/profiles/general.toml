@@ -1,0 +1,23 @@
+version = 2
+extends = "work"
+prompt = ".cap/prompts/general.md"
+
+[skills]
+add = []
+mask = []
+replace = []
+
+[mcps]
+add = []
+mask = []
+replace = []
+
+[hooks]
+add = []
+mask = []
+replace = []
+
+[plugins]
+add = []
+mask = []
+replace = []

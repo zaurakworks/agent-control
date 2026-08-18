@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "source_lock_hash": "sha256:482e4c9658cec7399536dd3a9d975a9c1024625a62829665dc56fc2691f2e2ff",
+  "target_lock_hash": "sha256:7b5b03ef6a2135dc96cbd3ed916a5a21c886fa4e4bd64c149e3273eee1b2d975",
+  "reason": "profile renderer moved into the agent_system package and the target repository gained an explicit managed Marketplace-source gate; profile declarations and rendered capability trees did not change",
+  "base_digest": "sha256:b7ef4c0228c940a5259acd290ceb68bf5c86d84d3aa5aa27b06e626793a7afb9",
+  "bindings": {
+    "work": "sha256:834ae72e3ce246051bd889216632b3b0b3d936cded9cb7db552b1575e712e80c",
+    "general": "sha256:7d9a435b7712645b76e451cf1cf72f5671c03c896c0e131e9f30f44c625c5c1d",
+    "assembly-helper": "sha256:8d8f00e4984791a0cbfb5f274e8f095c75b2e3c64f2c67e3ba1a515addcea921"
+  },
+  "portable_tree_hashes_unchanged": {
+    "work": {"codex":"sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984","qoder":"sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c","omp":"sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b"},
+    "general": {"codex":"sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f","qoder":"sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28","omp":"sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b"},
+    "assembly-helper": {"codex":"sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c","qoder":"sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14","omp":"sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208"}
+  },
+  "inventory_unchanged": true,
+  "skill_contract_content_unchanged": true,
+  "verify": "ok"
+}

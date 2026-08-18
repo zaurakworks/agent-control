@@ -1,0 +1,6 @@
+interface:
+  display_name: "Skill Maintenance"
+  short_description: "Maintain Skill contracts, callers, versions, and cutovers"
+
+policy:
+  allow_implicit_invocation: true

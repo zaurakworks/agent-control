@@ -1,0 +1,6 @@
+interface:
+  display_name: "Knowledge Maintenance"
+  short_description: "Reuse trusted knowledge and research only what changed"
+
+policy:
+  allow_implicit_invocation: true

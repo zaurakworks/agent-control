@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "change": "consolidate-agent-repositories-into-agent-system",
+  "strategy": "current-tree snapshot with archived source history; no unrelated-history graft",
+  "target": {
+    "repository_before_rename": "zaurakworks/agent-control",
+    "repository_after_rename": "zaurakworks/agent-system",
+    "base_head": "8d6e82aca6be715d109e90428553e62d7aedf712",
+    "target_branch": "consolidate-agent-repositories-into-agent-system"
+  },
+  "sources": [
+    {
+      "repository": "zaurakworks/agent-control",
+      "visibility": "public",
+      "head": "8d6e82aca6be715d109e90428553e62d7aedf712",
+      "target_paths": ["authority/", "knowledge/", "entrypoints/", "tools/", "work/"],
+      "history": "inherited by repository rename"
+    },
+    {
+      "repository": "zaurakworks/agent-contracts",
+      "visibility": "public",
+      "head": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+      "git_tree": "48f41841e7c06df915359d8d0ceab50c69eff792",
+      "target_paths": ["contracts/"],
+      "history": "retained in archived source repository"
+    },
+    {
+      "repository": "zaurakworks/agent-plugins",
+      "visibility": "public",
+      "head": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+      "git_tree": "0231c873d9cb3137b42995e69e4a79e6b8af25a5",
+      "target_paths": ["plugins/", ".agents/", ".claude-plugin/"],
+      "history": "retained in archived source repository"
+    },
+    {
+      "repository": "zaurakworks/agent-assembly",
+      "visibility": "public",
+      "head": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+      "git_tree": "0dbf53addf7eebe6fbf88cc74ae13874562c7875",
+      "target_paths": [".cap/", "openspec/", "src/agent_system/", "docs/assembly/"],
+      "history": "retained in archived source repository"
+    },
+    {
+      "repository": "zaurakworks/agent-state-lab",
+      "visibility": "private",
+      "head": "a7252eda4410c6b21865c727d54c76dcf6a10cad",
+      "target_paths": ["approved owner-specific policy/spec/test only"],
+      "history": "retained in private archived source; raw tree never copied"
+    }
+  ],
+  "logical_boundaries": {
+    "authority": "public policy and current knowledge",
+    "contracts": "contract schemas, examples, capture/receipt tools and tests",
+    "plugins": "versioned installable Plugin/Skill assets and dual-client marketplaces",
+    "assembly": "root .cap declarations and explicit profile composition",
+    "runtime_tooling": "one Python agent_system package for profile, CAP and OMP behavior",
+    "private_research": "state-lab raw evidence remains outside the public repository"
+  },
+  "archive_gate": "Every source keeps its history and remains unarchived until source validation, target integration, caller cutover, rollback and required real-client evidence pass."
+}

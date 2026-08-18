@@ -1,0 +1,6 @@
+interface:
+  display_name: "Adaptive Problem Solving"
+  short_description: "Frame problems, choose methods, and correct course"
+
+policy:
+  allow_implicit_invocation: true

@@ -3,7 +3,7 @@
 > 状态：2026-08-15 clean-slate 迁入的产品政策快照；正文按公开 Issue 逐项复核。
 > 权威地位：本文件是 `authority/` 的公共路由索引；它不保存当前工作，也不自行产生实施授权。
 > 历史来源：私有 `Eridanus117/agent-control` Issue／评论只作可选证据；当前公共规则必须在本仓自足表达。
-> 当前迁移裁决：[Issue #58](https://github.com/zaurakworks/agent-control/issues/58)。
+> 当前迁移裁决：[Issue #58](https://github.com/zaurakworks/agent-system/issues/58)。
 
 ## 权威规则
 
@@ -34,3 +34,4 @@
 | [`08-mvp-implementation-direction.md`](./08-mvp-implementation-direction.md) | MVP 实施历史与当前承载语义、实施授权、Windows 入口、权限、窄行为资产、守恒律与受限自清理 |
 | [`09-rd-memory.md`](./09-rd-memory.md) | 研发记忆的原始记录层、可读记录层及其与权威、知识和行为资产的边界 |
 | [`10-operating-ledger.md`](./10-operating-ledger.md) | 经营总账准入、节点、执行／诉求／证据状态、Project 观察面与维护行为 |
+| [`11-execution-state.md`](./11-execution-state.md) | 当前执行的最小充分装配、重新判断条件、外部 WorkItem 状态边界与显式激活 |

@@ -12,7 +12,7 @@
 新 Codex 会话报出        仅在用户直接要求 grilling／盘问…   ← 缓存里的旧值
 ```
 
-在此之前本工具曾据 `claude plugin details` 的 on-invoke 估算随工作树变化，判定「会话读工作树、缓存没人读」，并把告警逻辑整个对调。那是**拿 CLI 检视命令的显示去推断会话行为**——CLI 算的是「装了会是多大」，与会话加载是两条代码路径。来回三轮的完整证据见 [`agent-control#11`](https://github.com/zaurakworks/agent-control/issues/11)。
+在此之前本工具曾据 `claude plugin details` 的 on-invoke 估算随工作树变化，判定「会话读工作树、缓存没人读」，并把告警逻辑整个对调。那是**拿 CLI 检视命令的显示去推断会话行为**——CLI 算的是「装了会是多大」，与会话加载是两条代码路径。来回三轮的完整证据见 [`agent-system#11`](https://github.com/zaurakworks/agent-system/issues/11)。
 
 **边界**：以上是 manifest 层的直接实测。`SKILL.md` 正文没有单独测——插件作为一个整体装进同一个缓存目录（含 manifest 与 `skills/` 全部文件），正文同源是推断，不是实测。
 

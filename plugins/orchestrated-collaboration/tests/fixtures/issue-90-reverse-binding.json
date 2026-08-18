@@ -1,0 +1,99 @@
+{
+  "source": {
+    "issue": "https://github.com/Eridanus117/agent-control/issues/90",
+    "request": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258544763",
+    "coordinator_vote": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258560688",
+    "worker_vote_1": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258609427",
+    "worker_vote_2": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258639034",
+    "receipt_with_reverse_binding": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258662798"
+  },
+  "normalization_note": "原评论早于 v1 机器清单；本夹具只把远端可核验身份归一化，用来重放决定回执把两位 Worker 的 task 与评论 URL 反向绑定这一 C1 事实。",
+  "input": {
+    "schema": "orchestrated-collaboration.three-party-review-input/v1",
+    "decision_id": "90-D1",
+    "decision_packet_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "target_issue": { "owner": "Eridanus117", "repo": "agent-control", "number": 90 },
+    "run_id": "run_dcd99bacfc80",
+    "drafter_model_family": "codex",
+    "excluded_terminal_handles": ["term_drafter"],
+    "trusted_github_users": ["Eridanus117"],
+    "seats": [
+      {
+        "role_id": "R1",
+        "assigned_countercase": "授权与边界",
+        "seat_kind": "coordinator",
+        "task_id": null,
+        "dispatch_id": null,
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258560688",
+        "comment_updated_at": "2026-08-11T20:36:09Z",
+        "observed_terminal_handle": "term_30a4317a-79a0-4ead-84bb-9692496ca347",
+        "consumer_generation": 2,
+        "model_family": "claude",
+        "seal_message_id": "historical_r1",
+        "seal_sha256": "26a77ce23396ed827b34e17c618da1c18d4018c3f73df221be2eecab968049ef"
+      },
+      {
+        "role_id": "R2",
+        "assigned_countercase": "执行与身份",
+        "seat_kind": "reviewer",
+        "task_id": "task_5749cdc947c3",
+        "dispatch_id": "ctx_e06470e7e4af",
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258609427",
+        "comment_updated_at": "2026-08-11T20:41:01Z",
+        "observed_terminal_handle": "term_fd775f23-ae83-42b2-934b-5e7c8ba268ed",
+        "consumer_generation": null,
+        "model_family": "codex",
+        "seal_message_id": "historical_r2",
+        "seal_sha256": "5862d2c82528ed9be5f12607a25a7c31578761dd3aa15fac690b71bb436eb8d2"
+      },
+      {
+        "role_id": "R3",
+        "assigned_countercase": "ROI 与维持现状",
+        "seat_kind": "reviewer",
+        "task_id": "task_881cce88e326",
+        "dispatch_id": "ctx_2a28408466bc",
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258639034",
+        "comment_updated_at": "2026-08-11T20:44:03Z",
+        "observed_terminal_handle": "term_58230cd4-6062-4e9d-99b9-ec170bc13e7a",
+        "consumer_generation": null,
+        "model_family": "claude",
+        "seal_message_id": "historical_r3",
+        "seal_sha256": "e8067fdeb07f322d6e1d37071618bc8a9fbb89bcae6fa0db2424a85c0cd79b3a"
+      }
+    ]
+  },
+  "first": {
+    "run": { "result": { "run": { "id": "run_dcd99bacfc80", "consumer_generation": 2, "coordinator_handle": "term_30a4317a-79a0-4ead-84bb-9692496ca347" } } },
+    "workers": {
+      "ctx_e06470e7e4af": { "result": { "dispatch": { "id": "ctx_e06470e7e4af", "task_id": "task_5749cdc947c3", "run_id": "run_dcd99bacfc80", "assignee_handle": "term_fd775f23-ae83-42b2-934b-5e7c8ba268ed" }, "worker": { "agent_terminal_handle": "term_fd775f23-ae83-42b2-934b-5e7c8ba268ed" } } },
+      "ctx_2a28408466bc": { "result": { "dispatch": { "id": "ctx_2a28408466bc", "task_id": "task_881cce88e326", "run_id": "run_dcd99bacfc80", "assignee_handle": "term_58230cd4-6062-4e9d-99b9-ec170bc13e7a" }, "worker": { "agent_terminal_handle": "term_58230cd4-6062-4e9d-99b9-ec170bc13e7a" } } }
+    },
+    "comments": {
+      "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258560688": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258560688",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/90",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-11T20:36:09Z",
+        "updated_at": "2026-08-11T20:36:09Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"role_id\":\"R1\",\"assigned_countercase\":\"授权与边界\",\"seat_kind\":\"coordinator\",\"task_id\":null,\"dispatch_id\":null,\"run_id\":\"run_dcd99bacfc80\",\"consumer_generation\":2,\"observed_terminal_handle\":\"term_30a4317a-79a0-4ead-84bb-9692496ca347\",\"model_family\":\"claude\",\"seal_message_id\":\"historical_r1\",\"seal_sha256\":\"26a77ce23396ed827b34e17c618da1c18d4018c3f73df221be2eecab968049ef\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"verdict\":\"approve\",\"role_id\":\"R1\",\"assigned_countercase\":\"授权与边界\",\"rationale\":\"协调席认可。\",\"countercase_response\":\"历史正文已归一化。\",\"flip_conditions\":[\"身份映射不一致\"]}}\n-->"
+      },
+      "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258609427": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258609427",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/90",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-11T20:41:01Z",
+        "updated_at": "2026-08-11T20:41:01Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"role_id\":\"R2\",\"assigned_countercase\":\"执行与身份\",\"seat_kind\":\"reviewer\",\"task_id\":\"task_881cce88e326\",\"dispatch_id\":\"ctx_2a28408466bc\",\"run_id\":\"run_dcd99bacfc80\",\"consumer_generation\":null,\"observed_terminal_handle\":\"term_58230cd4-6062-4e9d-99b9-ec170bc13e7a\",\"model_family\":\"codex\",\"seal_message_id\":\"historical_r2\",\"seal_sha256\":\"5862d2c82528ed9be5f12607a25a7c31578761dd3aa15fac690b71bb436eb8d2\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"verdict\":\"approve\",\"role_id\":\"R2\",\"assigned_countercase\":\"执行与身份\",\"rationale\":\"历史评审甲认可。\",\"countercase_response\":\"历史正文已归一化。\",\"flip_conditions\":[\"身份映射不一致\"]}}\n-->"
+      },
+      "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258639034": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/90#issuecomment-5258639034",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/90",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-11T20:44:03Z",
+        "updated_at": "2026-08-11T20:44:03Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"role_id\":\"R3\",\"assigned_countercase\":\"ROI 与维持现状\",\"seat_kind\":\"reviewer\",\"task_id\":\"task_5749cdc947c3\",\"dispatch_id\":\"ctx_e06470e7e4af\",\"run_id\":\"run_dcd99bacfc80\",\"consumer_generation\":null,\"observed_terminal_handle\":\"term_fd775f23-ae83-42b2-934b-5e7c8ba268ed\",\"model_family\":\"claude\",\"seal_message_id\":\"historical_r3\",\"seal_sha256\":\"e8067fdeb07f322d6e1d37071618bc8a9fbb89bcae6fa0db2424a85c0cd79b3a\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"90-D1\",\"decision_packet_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"verdict\":\"approve\",\"role_id\":\"R3\",\"assigned_countercase\":\"ROI 与维持现状\",\"rationale\":\"历史评审乙认可。\",\"countercase_response\":\"历史正文已归一化。\",\"flip_conditions\":[\"身份映射不一致\"]}}\n-->"
+      }
+    }
+  },
+  "second": null
+}

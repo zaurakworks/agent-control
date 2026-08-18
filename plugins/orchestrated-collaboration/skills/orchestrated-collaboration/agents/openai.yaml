@@ -1,0 +1,6 @@
+interface:
+  display_name: "Orchestrated Collaboration"
+  short_description: "Coordinate bounded multi-Agent and multi-Session work"
+
+policy:
+  allow_implicit_invocation: true

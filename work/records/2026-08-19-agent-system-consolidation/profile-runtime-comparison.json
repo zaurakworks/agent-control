@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "source_baseline": "agent-assembly change evidence/profile-runtime-baseline.json",
+  "profile_inventory_equal": true,
+  "portable_tree_hashes_equal": true,
+  "effective_render_hashes_equal": true,
+  "bindings_equal": true,
+  "profiles": {
+    "work": {"codex":"sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984","qoder":"sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c","omp":"sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b","effective_omp":"sha256:f608c36289615ce4e80f4ca9f02f32946824c8dadc91cca6e125a47694b115e4"},
+    "general": {"codex":"sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f","qoder":"sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28","omp":"sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b","effective_omp":"sha256:c5e2e8cb23c2f4a6d5fb54a24b6b8c88f7820268d9c505ce969d92fd1cfe82b6"},
+    "assembly-helper": {"codex":"sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c","qoder":"sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14","omp":"sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208","effective_omp":"sha256:c21c722e1c9c5a2fa473ac94e216a8ec74dd766a4630be637b10935d76394531"}
+  },
+  "capability_gates": {
+    "declared_hooks": [],
+    "declared_mcps": [],
+    "declared_plugins": [],
+    "memory_backend": "off",
+    "project_mcp_config": false,
+    "ambient_skill_sources": "disabled",
+    "managed_marketplace_sources": "publication-only; exact dual manifests, plugin manifests, names and versions validated",
+    "rogue_marketplace_negative": "pass"
+  },
+  "shared_omp_runtime": {
+    "status": "already-global",
+    "runtime_id": "default",
+    "auth_digest_equal": true,
+    "settings_digest_equal": true,
+    "schema_digest_equal": true,
+    "session_files_before": 25,
+    "session_files_after": 25,
+    "writes_planned": false
+  },
+  "result": "configured behavior equal; real cross-workdir client requests remain task 7.4"
+}

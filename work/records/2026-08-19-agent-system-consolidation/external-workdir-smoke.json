@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "canonical_project": "zaurakworks/agent-system",
+  "invocation": "uv run --project <agent-system> cap",
+  "workdir_count": 2,
+  "client_binary_smoke": {
+    "codex": {
+      "version": "0.147.0",
+      "exit_code": 0
+    },
+    "qoder": {
+      "version": "1.1.23",
+      "exit_code": 0
+    },
+    "omp": {
+      "version": "17.3.7",
+      "exit_code": 0
+    }
+  },
+  "omp_real_requests": [
+    {
+      "profile": "general",
+      "expected": "AGENT-SYSTEM-OMP-SMOKE-1",
+      "observed": "AGENT-SYSTEM-OMP-SMOKE-1"
+    },
+    {
+      "profile": "assembly-helper",
+      "expected": "AGENT-SYSTEM-OMP-SMOKE-2",
+      "observed": "AGENT-SYSTEM-OMP-SMOKE-2"
+    }
+  ],
+  "receipts": [
+    {
+      "profile": "general",
+      "exit_code": 0,
+      "workdir_class": "external-non-target",
+      "sha256": "c25ab7c29f3f4d137e7f1a7d627790c84c91d5cdc57ec6b71d342499992a565b",
+      "unexpected_keys": [],
+      "credential_keys_present": []
+    },
+    {
+      "profile": "assembly-helper",
+      "exit_code": 0,
+      "workdir_class": "external-non-target",
+      "sha256": "aa54834ccc3bcabb5273548c64e91b39a055c24ed7473b85a8cc2aefcd29717b",
+      "unexpected_keys": [],
+      "credential_keys_present": []
+    }
+  ],
+  "claim_limit": "Codex and Qoder were invoked through their real --version surfaces; authenticated profile model requests were not executed for those two clients. OMP completed two authenticated model requests."
+}
