@@ -168,6 +168,7 @@ collaboration_authority = get_repository_text("authority/04-collaboration.md")
 thinking_authority = get_repository_text("authority/03-thinking-methods.md")
 ledger_authority = get_repository_text("authority/10-operating-ledger.md")
 authority_map = get_repository_text("authority/00-map.md")
+execution_state_authority = get_repository_text("authority/11-execution-state.md")
 record = get_repository_text(
     "work/records/2026-08-10-federated-session-entry/record.md"
 )
@@ -177,6 +178,28 @@ raw_current = get_repository_text(
 )
 raw_index = get_repository_text(
     "work/records/2026-08-10-federated-session-entry/raw/index.md"
+)
+
+test_contains_all(
+    execution_state_authority,
+    [
+        "一次当前执行只获得其目标、输入、约束、上下文、能力和权限所需的最小充分配置",
+        "必须重新判断装配",
+        "仓库本地文件不得作为任务队列",
+        "活动工作状态必须绑定具有稳定 URI 和可观察版本的外部 WorkItem",
+        "自由对话、探索、建议、枚举候选或建立 proposal 不自动形成 Issue",
+    ],
+    "当前执行与状态权威消费五项获批结论",
+)
+for forbidden in ("Q-007", "E-004", "Multica", "stage-assembly"):
+    add_check_result(
+        forbidden not in execution_state_authority,
+        f"当前执行与状态权威不把未采纳研究升级为产品政策：{forbidden}",
+    )
+test_contains_all(
+    authority_map,
+    ["11-execution-state.md"],
+    "权威总图路由到当前执行与状态唯一产品入口",
 )
 
 try:
@@ -426,9 +449,9 @@ add_check_result(
 )
 claude_entry_lines = [line.strip() for line in claude_entry.strip().splitlines() if line.strip()]
 add_check_result(
-    claude_entry_lines == ["@AGENTS.md", "@entrypoints/agent-system.md"],
+    claude_entry_lines == ["@AGENTS.md"],
     "Claude 真实仓库入口继续导入同一 AGENTS.md"
-    if claude_entry_lines == ["@AGENTS.md", "@entrypoints/agent-system.md"]
+    if claude_entry_lines == ["@AGENTS.md"]
     else "Claude 真实仓库入口继续导入同一 AGENTS.md；实际："
     + "、".join(claude_entry_lines or ["(空)"]),
 )
@@ -505,7 +528,7 @@ language_rule_patterns = [
     "一次性命令",
 ]
 project_scope_patterns = [
-    "只约束在 `agent-control` 仓库内",
+    "只约束在 `agent-system` 仓库内",
     "不是这台电脑或其他仓库的用户级全局提示词",
     "不授权批量重写",
     "不自动扩大到其他仓库或用户级配置",
@@ -754,6 +777,7 @@ test_local_markdown_links(
         "authority/04-collaboration.md",
         "authority/08-mvp-implementation-direction.md",
         "authority/10-operating-ledger.md",
+        "authority/11-execution-state.md",
     ]
 )
 

@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-18
+goal: Make assembly-helper research-first, Agent Skills compliant, and
+  behavior-evaluable while preserving project-local capability closure.

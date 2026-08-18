@@ -1,0 +1,6 @@
+interface:
+  display_name: "Self Improvement"
+  short_description: "Turn corrections into bounded Agent behavior improvements"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "canonical_project": "zaurakworks/agent-system",
+  "invocation": "uv run --project <agent-system> cap",
+  "workdir_count": 2,
+  "client_binary_smoke": {
+    "codex": {
+      "version": "0.147.0",
+      "exit_code": 0
+    },
+    "qoder": {
+      "version": "1.1.23",
+      "exit_code": 0
+    },
+    "omp": {
+      "version": "17.3.7",
+      "exit_code": 0
+    }
+  },
+  "omp_real_requests": [
+    {
+      "profile": "general",
+      "expected": "AGENT-SYSTEM-OMP-SMOKE-1",
+      "observed": "AGENT-SYSTEM-OMP-SMOKE-1"
+    },
+    {
+      "profile": "assembly-helper",
+      "expected": "AGENT-SYSTEM-OMP-SMOKE-2",
+      "observed": "AGENT-SYSTEM-OMP-SMOKE-2"
+    }
+  ],
+  "receipts": [
+    {
+      "profile": "general",
+      "exit_code": 0,
+      "workdir_class": "external-non-target",
+      "sha256": "c25ab7c29f3f4d137e7f1a7d627790c84c91d5cdc57ec6b71d342499992a565b",
+      "unexpected_keys": [],
+      "credential_keys_present": []
+    },
+    {
+      "profile": "assembly-helper",
+      "exit_code": 0,
+      "workdir_class": "external-non-target",
+      "sha256": "aa54834ccc3bcabb5273548c64e91b39a055c24ed7473b85a8cc2aefcd29717b",
+      "unexpected_keys": [],
+      "credential_keys_present": []
+    }
+  ],
+  "claim_limit": "Codex and Qoder completed fresh profile --version smokes with receipts; OMP completed two authenticated model requests. Claude Plugin behavior remains outside this three-client CAP smoke.",
+  "profile_client_smoke": {
+    "mode": "fresh isolated --version using synthetic non-secret auth fixtures",
+    "receipts": [
+      {
+        "client": "codex",
+        "profile": "general",
+        "exit_code": 0,
+        "output_tree_hash": "sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f",
+        "temporary_root_removed": true,
+        "sha256": "4a5e395d7848fa01d7924d29a6dccc8463efa4e17bb3d6dc19142418065f6d9c",
+        "credential_keys_present": []
+      },
+      {
+        "client": "qoder",
+        "profile": "assembly-helper",
+        "exit_code": 0,
+        "output_tree_hash": "sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14",
+        "temporary_root_removed": true,
+        "sha256": "587654a3b5c951d31334bc4e2b5b2b0df45cc693cec33615a3440adecd6be88d",
+        "credential_keys_present": []
+      }
+    ],
+    "claim_limit": "Proves CAP render, isolated auth staging, real client binary invocation, receipt redaction and cleanup; does not prove provider login or model response for Codex/Qoder."
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "input": {
+    "schema": "orchestrated-collaboration.three-party-review-input/v1",
+    "decision_id": "120-D1",
+    "decision_packet_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "target_issue": { "owner": "Eridanus117", "repo": "agent-control", "number": 120 },
+    "run_id": "run_example",
+    "drafter_model_family": "codex",
+    "excluded_terminal_handles": ["term_drafter", "term_implementer"],
+    "trusted_github_users": ["Eridanus117"],
+    "seats": [
+      {
+        "role_id": "R3",
+        "assigned_countercase": "ROI 与维持现状",
+        "seat_kind": "reviewer",
+        "task_id": "task_r3",
+        "dispatch_id": "ctx_r3",
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12003",
+        "comment_updated_at": "2026-08-12T00:03:00Z",
+        "observed_terminal_handle": "term_r3",
+        "consumer_generation": null,
+        "model_family": "codex",
+        "seal_message_id": "msg_r3",
+        "seal_sha256": "428f4b91376b6e6d53bb05ae5942994bbee186915449c8e35a922f0ebb672a2f"
+      },
+      {
+        "role_id": "R1",
+        "assigned_countercase": "授权与边界",
+        "seat_kind": "coordinator",
+        "task_id": null,
+        "dispatch_id": null,
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12001",
+        "comment_updated_at": "2026-08-12T00:01:00Z",
+        "observed_terminal_handle": "term_coordinator",
+        "consumer_generation": 4,
+        "model_family": "claude",
+        "seal_message_id": "msg_r1",
+        "seal_sha256": "42c3e6b194b0275923d4feb3f5f6764076e4e9bd60b91017891001b4c0d6ba8e"
+      },
+      {
+        "role_id": "R2",
+        "assigned_countercase": "执行与身份",
+        "seat_kind": "reviewer",
+        "task_id": "task_r2",
+        "dispatch_id": "ctx_r2",
+        "comment_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12002",
+        "comment_updated_at": "2026-08-12T00:02:00Z",
+        "observed_terminal_handle": "term_r2",
+        "consumer_generation": null,
+        "model_family": "codex",
+        "seal_message_id": "msg_r2",
+        "seal_sha256": "7e5137ac82838954e71670b19998c715c7ac8682c514bb2a8e7a604b3d95d8e6"
+      }
+    ]
+  },
+  "first": {
+    "run": { "result": { "run": { "id": "run_example", "consumer_generation": 4, "coordinator_handle": "term_coordinator" } } },
+    "workers": {
+      "ctx_r2": { "result": { "dispatch": { "id": "ctx_r2", "task_id": "task_r2", "run_id": "run_example", "assignee_handle": "term_r2" }, "worker": { "agent_terminal_handle": "term_r2" } } },
+      "ctx_r3": { "result": { "dispatch": { "id": "ctx_r3", "task_id": "task_r3", "run_id": "run_example", "assignee_handle": "term_r3" }, "worker": { "agent_terminal_handle": "term_r3" } } }
+    },
+    "comments": {
+      "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12001": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12001",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/120",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-12T00:01:00Z",
+        "updated_at": "2026-08-12T00:01:00Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"role_id\":\"R1\",\"assigned_countercase\":\"授权与边界\",\"seat_kind\":\"coordinator\",\"task_id\":null,\"dispatch_id\":null,\"run_id\":\"run_example\",\"consumer_generation\":4,\"observed_terminal_handle\":\"term_coordinator\",\"model_family\":\"claude\",\"seal_message_id\":\"msg_r1\",\"seal_sha256\":\"42c3e6b194b0275923d4feb3f5f6764076e4e9bd60b91017891001b4c0d6ba8e\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"verdict\":\"approve\",\"role_id\":\"R1\",\"assigned_countercase\":\"授权与边界\",\"rationale\":\"授权边界内。\",\"countercase_response\":\"最强反方已回应。\",\"flip_conditions\":[\"出现新的冲突证据\"]}}\n-->"
+      },
+      "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12002": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12002",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/120",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-12T00:02:00Z",
+        "updated_at": "2026-08-12T00:02:00Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"role_id\":\"R2\",\"assigned_countercase\":\"执行与身份\",\"seat_kind\":\"reviewer\",\"task_id\":\"task_r2\",\"dispatch_id\":\"ctx_r2\",\"run_id\":\"run_example\",\"consumer_generation\":null,\"observed_terminal_handle\":\"term_r2\",\"model_family\":\"codex\",\"seal_message_id\":\"msg_r2\",\"seal_sha256\":\"7e5137ac82838954e71670b19998c715c7ac8682c514bb2a8e7a604b3d95d8e6\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"verdict\":\"approve\",\"role_id\":\"R2\",\"assigned_countercase\":\"执行与身份\",\"rationale\":\"身份映射一致。\",\"countercase_response\":\"最强反方已回应。\",\"flip_conditions\":[\"出现新的冲突证据\"]}}\n-->"
+      },
+      "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12003": {
+        "html_url": "https://github.com/Eridanus117/agent-control/issues/120#issuecomment-12003",
+        "issue_url": "https://api.github.com/repos/Eridanus117/agent-control/issues/120",
+        "user": { "login": "Eridanus117", "type": "User" },
+        "created_at": "2026-08-12T00:03:00Z",
+        "updated_at": "2026-08-12T00:03:00Z",
+        "body": "<!-- CF6-VERDICT-V1\n{\"schema\":\"orchestrated-collaboration.three-party-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"role_id\":\"R3\",\"assigned_countercase\":\"ROI 与维持现状\",\"seat_kind\":\"reviewer\",\"task_id\":\"task_r3\",\"dispatch_id\":\"ctx_r3\",\"run_id\":\"run_example\",\"consumer_generation\":null,\"observed_terminal_handle\":\"term_r3\",\"model_family\":\"codex\",\"seal_message_id\":\"msg_r3\",\"seal_sha256\":\"428f4b91376b6e6d53bb05ae5942994bbee186915449c8e35a922f0ebb672a2f\",\"verdict\":\"approve\",\"sealed_payload\":{\"schema\":\"orchestrated-collaboration.sealed-verdict/v1\",\"decision_id\":\"120-D1\",\"decision_packet_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"verdict\":\"approve\",\"role_id\":\"R3\",\"assigned_countercase\":\"ROI 与维持现状\",\"rationale\":\"审阅收益高于判断税。\",\"countercase_response\":\"最强反方已回应。\",\"flip_conditions\":[\"出现新的冲突证据\"]}}\n-->"
+      }
+    }
+  },
+  "second": null
+}

@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-state-lab",
+  "source_head_re_read": "a7252eda4410c6b21865c727d54c76dcf6a10cad",
+  "source_projection_re_read": "FINDINGS.md",
+  "selected_findings": ["G-001","G-002","G-006","G-007","G-008"],
+  "product_entry": "authority/11-execution-state.md",
+  "routes": ["authority/00-map.md","entrypoints/agent-system.md","contracts/EXECUTION.md"],
+  "duplicate_normative_entry": false,
+  "unapproved_research_terms_absent": ["Q-007","E-004","Multica","stage-assembly"],
+  "raw_assets_migrated": [],
+  "public_surface_check": "pass",
+  "negative_fixtures": ["private-state-lab-asset","assigned-secret"],
+  "entry_validation": {"passed":133,"failed":0},
+  "source_current_work": {
+    "open_issues": [3,4],
+    "open_pull_requests": [6],
+    "archive_blocked": true
+  },
+  "claim_limit": "The selected principles are current public policy; no experiment result is reported as general runtime effectiveness."
+}

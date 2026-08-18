@@ -8,7 +8,7 @@
 
 首个 MVP 已从早期方向选择进入实施，当前形成四层可恢复架构：
 
-1. **版本化权威与行为资产**：`agent-control` 保存负责人确认的长期权威、入口版本化来源和需要版本管理的资产；当前私有远程为 `https://github.com/Eridanus117/agent-control`。
+1. **版本化权威与行为资产**：`agent-system` 保存负责人确认的长期权威、入口版本化来源和需要版本管理的资产；当前公共远程为 `https://github.com/zaurakworks/agent-system`。
 2. **GitHub 持久合同**：Issue／PR 保存意图、授权、决定、验收、任务图、交付来源和阶段边界回执；它们不能覆盖当前权威或负责人更新的明确指令。
 3. **Orca 活跃运行面**：Run、Task、Dispatch、消息、Delivery 和 worker 生命周期只承载过程执行态；运行态不回灌为权威或持久授权。
 4. **按需行为资产**：知识维护、问题求解治理、纠偏改进、受控协作、GitHub Issue 交付与 PR 整合分别由当前 Skill／Plugin 承载可重复行为；权威只保留职责、授权边界和失效条件，不固化易漂移版本表。

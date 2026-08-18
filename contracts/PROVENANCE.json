@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-contracts",
+  "source_default_branch": "main",
+  "source_commit": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+  "source_git_tree": "48f41841e7c06df915359d8d0ceab50c69eff792",
+  "source_file_count": 23,
+  "migration_strategy": "tracked current-tree snapshot",
+  "target_path": "contracts/",
+  "history_location": "source repository; keep unarchived until all migration and effective-state gates pass, then archive without deletion",
+  "validation_baseline": "python3 tools/validate.py => 3 schemas, 6 examples, 2 Issue Forms, 10 execution-loop tests",
+  "content_changes_at_import": "none; path and CI integration changes are tracked by subsequent tasks"
+}

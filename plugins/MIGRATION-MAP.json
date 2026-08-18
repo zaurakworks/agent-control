@@ -1,0 +1,539 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-plugins",
+  "source_commit": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+  "source_git_tree": "0231c873d9cb3137b42995e69e4a79e6b8af25a5",
+  "source_file_count": 106,
+  "mappings": [
+    {
+      "source": ".agents/plugins/marketplace.json",
+      "target": ".agents/plugins/marketplace.json",
+      "action": "copied"
+    },
+    {
+      "source": ".claude-plugin/marketplace.json",
+      "target": ".claude-plugin/marketplace.json",
+      "action": "copied"
+    },
+    {
+      "source": ".gitattributes",
+      "target": ".gitattributes",
+      "action": "copied"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/01-goal.yml",
+      "target": ".github/ISSUE_TEMPLATE/01-goal.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/02-need.yml",
+      "target": ".github/ISSUE_TEMPLATE/02-need.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/03-delivery.yml",
+      "target": ".github/ISSUE_TEMPLATE/03-delivery.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/04-experiment.yml",
+      "target": ".github/ISSUE_TEMPLATE/04-experiment.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/05-research.yml",
+      "target": ".github/ISSUE_TEMPLATE/05-research.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/06-friction.yml",
+      "target": ".github/ISSUE_TEMPLATE/06-friction.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/07-proposal.yml",
+      "target": ".github/ISSUE_TEMPLATE/07-proposal.yml",
+      "action": "deduplicated-identical"
+    },
+    {
+      "source": ".github/ISSUE_TEMPLATE/config.yml",
+      "target": ".github/ISSUE_TEMPLATE/config.yml",
+      "action": "deduplicated-target-config-is-superset"
+    },
+    {
+      "source": ".github/workflows/plugin-checks.yml",
+      "target": ".github/workflows/plugin-checks.yml",
+      "action": "copied"
+    },
+    {
+      "source": "README.md",
+      "target": "plugins/README.md",
+      "action": "copied"
+    },
+    {
+      "source": "docs/asset-model.md",
+      "target": "plugins/docs/asset-model.md",
+      "action": "copied"
+    },
+    {
+      "source": "docs/conformance.md",
+      "target": "plugins/docs/conformance.md",
+      "action": "copied"
+    },
+    {
+      "source": "docs/lifecycle.md",
+      "target": "plugins/docs/lifecycle.md",
+      "action": "copied"
+    },
+    {
+      "source": "docs/skills-overview.md",
+      "target": "plugins/docs/skills-overview.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/.claude-plugin/plugin.json",
+      "target": "plugins/adaptive-problem-solving/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/.codex-plugin/plugin.json",
+      "target": "plugins/adaptive-problem-solving/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/SKILL.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/agents/openai.yaml",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/adversarial-review.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/adversarial-review.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/bounded-research.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/bounded-research.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/INDEX.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/INDEX.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/README.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/README.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/alternative-futures.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/alternative-futures.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/analysis-of-competing-hypotheses.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/analysis-of-competing-hypotheses.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-adversarial-falsification.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-adversarial-falsification.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-alignment-questioning.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-alignment-questioning.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-bounded-research.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-bounded-research.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-execution-configuration-check.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-execution-configuration-check.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-minimum-experiment.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-minimum-experiment.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-parent-goal-acceptance.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-parent-goal-acceptance.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-problem-modeling.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-problem-modeling.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-roi-options.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/aps-roi-options.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/comparative-experiment.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/comparative-experiment.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/cynefin-sensemaking.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/cynefin-sensemaking.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/devils-advocacy.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/devils-advocacy.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/goal-question-metric.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/goal-question-metric.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/grilling-decision-tree.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/grilling-decision-tree.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/high-impact-low-probability.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/high-impact-low-probability.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/indicators-signposts.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/indicators-signposts.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/key-assumptions-check.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/key-assumptions-check.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/multi-perspective-adversarial-review.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/multi-perspective-adversarial-review.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/outside-in-thinking.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/outside-in-thinking.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/paired-observation.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/paired-observation.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/premortem.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/premortem.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/preregistered-experiment-card.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/preregistered-experiment-card.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/quality-of-information-check.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/quality-of-information-check.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/red-team-analysis.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/red-team-analysis.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/self-improvement-loop.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/self-improvement-loop.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/sequential-experiment.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/sequential-experiment.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/structured-brainstorming.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/structured-brainstorming.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/team-a-team-b.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/team-a-team-b.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/what-if-analysis.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/method-registry/cards/what-if-analysis.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/milestone-acceptance.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/milestone-acceptance.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/minimum-experiment.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/minimum-experiment.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/pre-action-gates.md",
+      "target": "plugins/adaptive-problem-solving/skills/adaptive-problem-solving/references/pre-action-gates.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/.claude-plugin/plugin.json",
+      "target": "plugins/grilling/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/.codex-plugin/plugin.json",
+      "target": "plugins/grilling/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/LICENSES/mattpocock-skills-MIT.txt",
+      "target": "plugins/grilling/LICENSES/mattpocock-skills-MIT.txt",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/UPSTREAM.md",
+      "target": "plugins/grilling/UPSTREAM.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/skills/grilling/SKILL.md",
+      "target": "plugins/grilling/skills/grilling/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/grilling/skills/grilling/agents/openai.yaml",
+      "target": "plugins/grilling/skills/grilling/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/knowledge-maintenance/.claude-plugin/plugin.json",
+      "target": "plugins/knowledge-maintenance/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/knowledge-maintenance/.codex-plugin/plugin.json",
+      "target": "plugins/knowledge-maintenance/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/knowledge-maintenance/skills/knowledge-maintenance/SKILL.md",
+      "target": "plugins/knowledge-maintenance/skills/knowledge-maintenance/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/knowledge-maintenance/skills/knowledge-maintenance/agents/openai.yaml",
+      "target": "plugins/knowledge-maintenance/skills/knowledge-maintenance/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/.claude-plugin/plugin.json",
+      "target": "plugins/orchestrated-collaboration/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/.codex-plugin/plugin.json",
+      "target": "plugins/orchestrated-collaboration/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/scripts/verify-three-party-review.ts",
+      "target": "plugins/orchestrated-collaboration/scripts/verify-three-party-review.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/SKILL.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/agents/openai.yaml",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/INDEX.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/INDEX.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-0.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-0.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-1.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-1.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-2.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-2.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-3.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-3.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-4.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-4.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-5.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-5.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-6.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-6.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-7.md",
+      "target": "plugins/orchestrated-collaboration/skills/orchestrated-collaboration/references/collaboration-shapes/cf-7.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/tests/evidence-stub.ts",
+      "target": "plugins/orchestrated-collaboration/tests/evidence-stub.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/tests/fixtures/issue-90-reverse-binding.json",
+      "target": "plugins/orchestrated-collaboration/tests/fixtures/issue-90-reverse-binding.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/tests/fixtures/three-party-review-compliant.json",
+      "target": "plugins/orchestrated-collaboration/tests/fixtures/three-party-review-compliant.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/orchestrated-collaboration/tests/verify-three-party-review.test.ts",
+      "target": "plugins/orchestrated-collaboration/tests/verify-three-party-review.test.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/.claude-plugin/plugin.json",
+      "target": "plugins/resource-observability/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/.codex-plugin/plugin.json",
+      "target": "plugins/resource-observability/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/scripts/resource-observability.ts",
+      "target": "plugins/resource-observability/scripts/resource-observability.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/skills/resource-observability/SKILL.md",
+      "target": "plugins/resource-observability/skills/resource-observability/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/skills/resource-observability/agents/openai.yaml",
+      "target": "plugins/resource-observability/skills/resource-observability/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/skills/resource-observability/references/natural-decision-loop.md",
+      "target": "plugins/resource-observability/skills/resource-observability/references/natural-decision-loop.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/tests/ccusage-stub.ts",
+      "target": "plugins/resource-observability/tests/ccusage-stub.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/resource-observability/tests/test-resource-observability.ts",
+      "target": "plugins/resource-observability/tests/test-resource-observability.ts",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/self-improvement/.claude-plugin/plugin.json",
+      "target": "plugins/self-improvement/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/self-improvement/.codex-plugin/plugin.json",
+      "target": "plugins/self-improvement/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/self-improvement/skills/self-improvement/SKILL.md",
+      "target": "plugins/self-improvement/skills/self-improvement/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/self-improvement/skills/self-improvement/agents/openai.yaml",
+      "target": "plugins/self-improvement/skills/self-improvement/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/self-improvement/skills/self-improvement/references/iteration-receipt.md",
+      "target": "plugins/self-improvement/skills/self-improvement/references/iteration-receipt.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/skill-maintenance/.claude-plugin/plugin.json",
+      "target": "plugins/skill-maintenance/.claude-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/skill-maintenance/.codex-plugin/plugin.json",
+      "target": "plugins/skill-maintenance/.codex-plugin/plugin.json",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/skill-maintenance/skills/skill-maintenance/SKILL.md",
+      "target": "plugins/skill-maintenance/skills/skill-maintenance/SKILL.md",
+      "action": "copied"
+    },
+    {
+      "source": "plugins/skill-maintenance/skills/skill-maintenance/agents/openai.yaml",
+      "target": "plugins/skill-maintenance/skills/skill-maintenance/agents/openai.yaml",
+      "action": "copied"
+    },
+    {
+      "source": "scripts/skills-overview.ts",
+      "target": "plugins/scripts/skills-overview.ts",
+      "action": "copied"
+    },
+    {
+      "source": "tests/workflow-routing.json",
+      "target": "plugins/tests/workflow-routing.json",
+      "action": "copied"
+    },
+    {
+      "source": "tests/workflow-routing.test.ts",
+      "target": "plugins/tests/workflow-routing.test.ts",
+      "action": "copied"
+    }
+  ]
+}

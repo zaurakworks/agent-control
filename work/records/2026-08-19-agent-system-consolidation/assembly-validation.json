@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "uv_sync_locked": "pass",
+  "python_tests": {
+    "root": {
+      "result": "pass",
+      "count": 28
+    },
+    "profile": {
+      "result": "pass",
+      "count": 69
+    },
+    "cap_omp": {
+      "result": "pass",
+      "count": 28
+    }
+  },
+  "skill_standard": {
+    "result": "pass",
+    "count": 13
+  },
+  "cap_verify": {
+    "result": "pass",
+    "lock_hash": "sha256:7b5b03ef6a2135dc96cbd3ed916a5a21c886fa4e4bd64c149e3273eee1b2d975"
+  },
+  "render_matrix": {
+    "work": {
+      "codex": {
+        "exit_code": 0,
+        "tree_hash": "sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984",
+        "files": [
+          "AGENTS.md",
+          "config.toml",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md"
+        ]
+      },
+      "qoder": {
+        "exit_code": 0,
+        "tree_hash": "sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c",
+        "files": [
+          "mcp.json",
+          "settings.json",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "system-prompt.md"
+        ]
+      },
+      "omp": {
+        "exit_code": 0,
+        "tree_hash": "sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b",
+        "files": [
+          "config.yml",
+          "mcp.json",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "system-prompt.md"
+        ],
+        "effective_render_hash": "sha256:f608c36289615ce4e80f4ca9f02f32946824c8dadc91cca6e125a47694b115e4"
+      }
+    },
+    "general": {
+      "codex": {
+        "exit_code": 0,
+        "tree_hash": "sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f",
+        "files": [
+          "AGENTS.md",
+          "config.toml",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md"
+        ]
+      },
+      "qoder": {
+        "exit_code": 0,
+        "tree_hash": "sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28",
+        "files": [
+          "mcp.json",
+          "settings.json",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "system-prompt.md"
+        ]
+      },
+      "omp": {
+        "exit_code": 0,
+        "tree_hash": "sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b",
+        "files": [
+          "config.yml",
+          "mcp.json",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "system-prompt.md"
+        ],
+        "effective_render_hash": "sha256:c5e2e8cb23c2f4a6d5fb54a24b6b8c88f7820268d9c505ce969d92fd1cfe82b6"
+      }
+    },
+    "assembly-helper": {
+      "codex": {
+        "exit_code": 0,
+        "tree_hash": "sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c",
+        "files": [
+          "AGENTS.md",
+          "config.toml",
+          "skills/agent-behavior-evaluation/SKILL.md",
+          "skills/agent-prompt-design/SKILL.md",
+          "skills/agent-skill-design/SKILL.md",
+          "skills/assembly-helper/SKILL.md",
+          "skills/capability-lifecycle/SKILL.md",
+          "skills/capability-profile-closure/SKILL.md",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "skills/spec-change-pack/SKILL.md"
+        ]
+      },
+      "qoder": {
+        "exit_code": 0,
+        "tree_hash": "sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14",
+        "files": [
+          "mcp.json",
+          "settings.json",
+          "skills/agent-behavior-evaluation/SKILL.md",
+          "skills/agent-prompt-design/SKILL.md",
+          "skills/agent-skill-design/SKILL.md",
+          "skills/assembly-helper/SKILL.md",
+          "skills/capability-lifecycle/SKILL.md",
+          "skills/capability-profile-closure/SKILL.md",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "skills/spec-change-pack/SKILL.md",
+          "system-prompt.md"
+        ]
+      },
+      "omp": {
+        "exit_code": 0,
+        "tree_hash": "sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208",
+        "files": [
+          "config.yml",
+          "mcp.json",
+          "skills/agent-behavior-evaluation/SKILL.md",
+          "skills/agent-prompt-design/SKILL.md",
+          "skills/agent-skill-design/SKILL.md",
+          "skills/assembly-helper/SKILL.md",
+          "skills/capability-lifecycle/SKILL.md",
+          "skills/capability-profile-closure/SKILL.md",
+          "skills/openspec-apply-change/SKILL.md",
+          "skills/openspec-archive-change/SKILL.md",
+          "skills/openspec-explore/SKILL.md",
+          "skills/openspec-propose/SKILL.md",
+          "skills/openspec-sync-specs/SKILL.md",
+          "skills/openspec-update-change/SKILL.md",
+          "skills/spec-change-pack/SKILL.md",
+          "system-prompt.md"
+        ],
+        "effective_render_hash": "sha256:c21c722e1c9c5a2fa473ac94e216a8ec74dd766a4630be637b10935d76394531"
+      }
+    }
+  },
+  "omp_migration": {
+    "status": "already-global",
+    "session_files": 25,
+    "writes_planned": false
+  },
+  "cli_smoke": {
+    "command": "uv run cap profiles",
+    "profiles": [
+      "assembly-helper",
+      "general",
+      "work"
+    ],
+    "result": "pass"
+  },
+  "openspec_strict": {
+    "change": "consolidate-agent-repositories-into-agent-system",
+    "result": "pass"
+  },
+  "effective_limit": "No real Codex/Qoder/OMP model request was executed in task 5.8; cross-workdir real-client smoke remains task 7.4."
+}

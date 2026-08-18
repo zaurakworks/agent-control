@@ -17,7 +17,7 @@ from typing import Any, Protocol, Sequence
 
 TERMINAL_DISPATCH_STATUSES = {"completed", "failed", "stopped", "abandoned"}
 DEFAULT_GITHUB_REPOSITORIES = (
-    "zaurakworks/agent-control",
+    "zaurakworks/agent-system",
     "zaurakworks/work-skills",
     "zaurakworks/agent-plugins",
 )
@@ -178,7 +178,7 @@ def collect_report(
     runner: Runner,
     *,
     orca_command: Sequence[str],
-    agent_control_repo: Path,
+    agent_system_repo: Path,
     work_skills_repo: Path,
     lease_path: Path,
     github_repositories: Sequence[str],
@@ -340,7 +340,7 @@ def collect_report(
     report["sources"].append(lease_source)
 
     for source_id, label, repo_path in (
-        ("git_agent_control", "agent-control worktrees", agent_control_repo),
+        ("git_agent_system", "agent-system worktrees", agent_system_repo),
         ("git_work_skills", "work-skills worktrees", work_skills_repo),
     ):
         git_args = ["git", "-C", str(repo_path), "worktree", "list", "--porcelain"]
@@ -535,14 +535,14 @@ def build_parser() -> argparse.ArgumentParser:
     repository_root = Path(__file__).resolve().parents[2]
     local_app_data = os.environ.get("LOCALAPPDATA")
     default_lease = (
-        Path(local_app_data) / "agent-control" / "scheduler-lease.json"
+        Path(local_app_data) / "agent-system" / "scheduler-lease.json"
         if local_app_data
-        else Path.home() / "AppData" / "Local" / "agent-control" / "scheduler-lease.json"
+        else Path.home() / "AppData" / "Local" / "agent-system" / "scheduler-lease.json"
     )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Emit structured JSON instead of Markdown.")
     parser.add_argument("--orca-command", help="Orca executable; defaults to the current Orca guide resolution.")
-    parser.add_argument("--agent-control-repo", type=Path, default=repository_root)
+    parser.add_argument("--agent-system-repo", type=Path, default=repository_root)
     parser.add_argument("--work-skills-repo", type=Path, default=Path.home() / "workspace" / "work-skills")
     parser.add_argument("--lease-path", type=Path, default=default_lease)
     parser.add_argument(
@@ -573,7 +573,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = collect_report(
         SubprocessRunner(args.timeout_seconds),
         orca_command=orca_command,
-        agent_control_repo=args.agent_control_repo.resolve(),
+        agent_system_repo=args.agent_system_repo.resolve(),
         work_skills_repo=args.work_skills_repo.resolve(),
         lease_path=args.lease_path.resolve(),
         github_repositories=args.github_repositories or DEFAULT_GITHUB_REPOSITORIES,

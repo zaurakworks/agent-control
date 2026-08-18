@@ -1,0 +1,23 @@
+version = 2
+extends = "work"
+prompt = ".cap/prompts/assembly-helper.md"
+
+[skills]
+add = ["assembly-helper", "agent-prompt-design", "agent-skill-design", "capability-profile-closure", "capability-lifecycle", "agent-behavior-evaluation", "spec-change-pack"]
+mask = []
+replace = []
+
+[mcps]
+add = []
+mask = []
+replace = []
+
+[hooks]
+add = []
+mask = []
+replace = []
+
+[plugins]
+add = []
+mask = []
+replace = []

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-plugins",
+  "source_default_branch": "main",
+  "source_commit": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+  "source_git_tree": "0231c873d9cb3137b42995e69e4a79e6b8af25a5",
+  "source_file_count": 106,
+  "migration_strategy": "tracked current-tree snapshot with identical Issue Form deduplication",
+  "target_paths": ["plugins/", ".agents/", ".claude-plugin/", ".github/workflows/plugin-checks.yml", ".gitattributes"],
+  "mapping_manifest": "plugins/MIGRATION-MAP.json",
+  "history_location": "source repository; keep unarchived until all migration and required real-client gates pass, then archive without deletion",
+  "validation_baseline": [
+    "node tests/workflow-routing.test.ts => 7 Skills, 7 Plugins, 34 scenarios",
+    "node plugins/orchestrated-collaboration/tests/verify-three-party-review.test.ts => PASS"
+  ],
+  "effective_state": {
+    "codex_isolated_install_readback_cleanup": "pass for grilling 0.1.2",
+    "claude": "unknown; CLI unavailable",
+    "archive_blocked": true
+  },
+  "content_changes_at_import": "none except path placement and identical root Issue Form deduplication; canonical URL and invocation rewrites are tracked by subsequent tasks"
+}

@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "captured_at": "2026-08-18T19:52:05Z",
+  "searched_roots": [
+    "/Users/a123/work/agent-*",
+    "/Users/a123/work/tools/agent-*",
+    "/Users/a123/work/tools/**/agent-contracts",
+    "/Users/a123/work/tools/**/agent-state-lab",
+    "/Users/a123/work/worktrees/{agent-control,agent-assembly,agent-plugins,agent-contracts,agent-state-lab}",
+    "/Users/a123/workspace/agent-*",
+    "/Users/a123/workspace/sources/**/{agent-contracts,agent-state-lab}",
+    "/Users/a123/workspace/{worktrees,sandbox,host-local,archive}/**/{agent-contracts,agent-state-lab}",
+    "/Users/a123/work/_org/{staging,archive}/**/{agent-contracts,agent-state-lab}"
+  ],
+  "checkouts": [
+    {
+      "path": "/Users/a123/work/tools/agent-control",
+      "generation": "current",
+      "origin": "https://github.com/zaurakworks/agent-control.git",
+      "head": "8d6e82aca6be715d109e90428553e62d7aedf712",
+      "branch": "main",
+      "common_dir": "/Users/a123/work/tools/agent-control/.git",
+      "working_tree": "clean",
+      "upstream": "origin/main",
+      "ahead": 0,
+      "behind": 0,
+      "ownership": "standalone clone; candidate canonical target"
+    },
+    {
+      "path": "/Users/a123/workspace/agent-control",
+      "generation": "current-legacy-root",
+      "origin": "https://github.com/zaurakworks/agent-control.git",
+      "head": "8d6e82aca6be715d109e90428553e62d7aedf712",
+      "branch": "main",
+      "common_dir": "/Users/a123/workspace/agent-control/.git",
+      "working_tree": "clean",
+      "upstream": "origin/main",
+      "ahead": 0,
+      "behind": 0,
+      "ownership": "common dir for two registered worktrees",
+      "registered_worktrees": [
+        {"path":"/Users/a123/work/worktrees/agent-control/67-real-home-base-profile","head":"b6aad56d87738388a2edc2c9ffea7a361912205a","branch":"issue-67-real-home-base-profile","working_tree":"clean","ahead":0,"behind":0},
+        {"path":"/Users/a123/worktrees/agent-control-auth-cleanup","head":"0b2037c82e632728a50a8607f576667fa26cfa4b","branch":"issue-64-auth-cleanup","working_tree":"clean","ahead":0,"behind":0}
+      ]
+    },
+    {
+      "path": "/Users/a123/work/agent-control",
+      "generation": "frozen-eridanus",
+      "origin": "https://github.com/Eridanus117/agent-control.git",
+      "head": "2344780d4e561dc2a3be287c6ddf1b8743053f80",
+      "branch": "main",
+      "common_dir": "/Users/a123/work/agent-control/.git",
+      "working_tree": "clean",
+      "upstream": "origin/main",
+      "ahead": 0,
+      "behind": 53,
+      "ownership": "common dir for two registered historical worktrees",
+      "registered_worktrees": [
+        {"path":"/Users/a123/work/worktrees/agent-control-capability-profiles","head":"bbf60a7d8c2451aefd71714aa52ed09bb77bfbb4","branch":"issue-300-capability-profiles","working_tree":"clean","ahead":0,"behind":0},
+        {"path":"/Users/a123/work/worktrees/agent-control-freeze-302","head":"5420ebc0e8453929c9047259f6d2dfd166015700","branch":"issue-302-freeze-old-repo","working_tree":"clean","ahead":0,"behind":0}
+      ]
+    },
+    {
+      "path": "/Users/a123/work/tools/agent-assembly",
+      "generation": "current-stale-clone",
+      "origin": "https://github.com/zaurakworks/agent-assembly.git",
+      "head": "a984f7fe4b757db34f4b64b224c36f45f28948e0",
+      "branch": "master",
+      "common_dir": "/Users/a123/work/tools/agent-assembly/.git",
+      "working_tree": "clean",
+      "upstream": "origin/master",
+      "local_tracking_ahead": 0,
+      "local_tracking_behind": 0,
+      "live_remote_head": "c1e3a54c0a6638fdba7395136bd67e877586753f",
+      "ownership": "standalone clone with stale remote-tracking ref; not safe as source without refresh"
+    },
+    {
+      "path": "/Users/a123/workspace/agent-assembly",
+      "generation": "current-legacy-root",
+      "origin": "https://github.com/zaurakworks/agent-assembly.git",
+      "head": "a984f7fe4b757db34f4b64b224c36f45f28948e0",
+      "branch": "master",
+      "common_dir": "/Users/a123/workspace/agent-assembly/.git",
+      "working_tree": "clean",
+      "upstream": "origin/master",
+      "ahead": 0,
+      "behind": 2,
+      "ownership": "common dir for active agent-assembly-general worktree",
+      "registered_worktrees": [
+        {"path":"/Users/a123/work/worktrees/agent-assembly-general","head":"38fc3e35cf8f1c25aa2fd9e20b47603c464b12cc","branch":"share-omp-runtime-across-profiles","working_tree":"untracked-change-artifacts","untracked":["openspec/changes/consolidate-agent-repositories-into-agent-system/"],"ahead":0,"behind":0}
+      ]
+    },
+    {
+      "path": "/Users/a123/work/agent-plugins",
+      "generation": "frozen-eridanus-with-untracked-assets",
+      "origin": "https://github.com/Eridanus117/agent-plugins.git",
+      "head": "838680aca87239a2cbb90fb53112e6c61fc58adb",
+      "branch": "main",
+      "common_dir": "/Users/a123/work/agent-plugins/.git",
+      "working_tree": "untracked-assets",
+      "untracked": [".agents/skills/", ".claude/", ".omp/", ".qoder/", "openspec/"],
+      "upstream": "origin/main",
+      "ahead": 0,
+      "behind": 0,
+      "ownership": "historical checkout; archive blocked until untracked assets are classified"
+    }
+  ],
+  "not_found_in_searched_roots": [
+    {"remote":"zaurakworks/agent-contracts","classification":"not-found-in-searched-roots"},
+    {"remote":"zaurakworks/agent-state-lab","classification":"not-found-in-searched-roots"},
+    {"remote":"zaurakworks/agent-plugins","classification":"current-generation-clone-not-found-in-searched-roots"}
+  ],
+  "blockers": [
+    "The active agent-assembly task worktree is owned by /Users/a123/workspace/agent-assembly; that common dir cannot be moved or removed.",
+    "The zaurakworks agent-control legacy-root clone owns two registered worktrees, including one outside ~/work.",
+    "The frozen Eridanus117 agent-control clone owns two registered worktrees.",
+    "The frozen Eridanus117 agent-plugins checkout contains unclassified untracked assets.",
+    "The clean ~/work/tools/agent-assembly clone has a stale remote-tracking ref and is not the active source of this change.",
+    "No claim is made that contracts/state-lab clones do not exist elsewhere on the machine; only the listed roots were searched."
+  ]
+}

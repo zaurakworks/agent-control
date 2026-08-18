@@ -1,0 +1,11 @@
+{
+  "name": "grilling",
+  "version": "0.1.2",
+  "description": "Consent-aware questioning that stress-tests a plan, decision, or idea.",
+  "author": {
+    "name": "zaurakworks"
+  },
+  "repository": "https://github.com/zaurakworks/agent-system",
+  "license": "MIT",
+  "skills": "./skills/"
+}

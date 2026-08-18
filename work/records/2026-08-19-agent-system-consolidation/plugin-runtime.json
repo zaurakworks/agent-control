@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "target_repository": "zaurakworks/agent-system",
+  "source_commit": "9b779a7c28a1c658d695a2764a1a2fb77bfd58c2",
+  "codex": {
+    "isolated_home": true,
+    "marketplace_add": "pass",
+    "marketplace": "agent-plugins",
+    "plugin": "grilling@agent-plugins",
+    "version": "0.1.2",
+    "install": "pass",
+    "enabled_readback": "pass",
+    "source_readback": "agent-system/plugins/grilling",
+    "explicit_trigger": "unknown; isolated home intentionally had no copied credentials",
+    "no_explicit_call_negative": "unknown; requires an authenticated real request",
+    "uninstall": "pass",
+    "marketplace_remove": "pass",
+    "empty_after_cleanup": true
+  },
+  "claude": {
+    "state": "unknown",
+    "reason": "claude executable is not available in the current environment"
+  },
+  "archive_gate": "blocked until real authenticated Codex explicit/negative and Claude install/discovery/explicit/negative probes pass",
+  "source_code_and_ci_do_not_substitute": true
+}

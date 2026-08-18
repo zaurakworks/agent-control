@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "scope": "repository rename and target identity before source imports",
+  "immutable_content_ref": "8d6e82aca6be715d109e90428553e62d7aedf712",
+  "preconditions_verified": [
+    "zaurakworks/agent-system resolves to the inherited repository",
+    "default branch main still resolves to the immutable content ref",
+    "old zaurakworks/agent-control API lookup redirects to agent-system",
+    "34 open Issues and 0 open pull requests were preserved",
+    "Existing repository checks workflow remains active",
+    "repository ruleset list remains empty"
+  ],
+  "rollback_steps": [
+    "Stop target and source writes.",
+    "Re-read agent-system identity, main HEAD, open Issues/PRs and old-name availability.",
+    "Rename zaurakworks/agent-system back to agent-control through the GitHub repository API.",
+    "Set the canonical local origin back to https://github.com/zaurakworks/agent-control.git.",
+    "Revert target-identity commits on the migration branch or reset the unmerged branch to 8d6e82aca6be715d109e90428553e62d7aedf712.",
+    "Re-read repository identity, main HEAD, Issues/PRs, workflow and redirect behavior.",
+    "Do not delete source repositories, private evidence, local-only commits or untracked assets."
+  ],
+  "dry_run_evidence": {
+    "remote_identity_readback": "pass",
+    "head_unchanged": true,
+    "old_url_redirect": "pass",
+    "local_origin_switch_is_reversible": true,
+    "target_changes_unmerged": true
+  },
+  "execution": "not performed because rename rollback itself would create unnecessary remote churn; every read-only precondition and exact inverse operation was verified"
+}

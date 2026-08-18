@@ -1,0 +1,36 @@
+name: Plugin conformance checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # 两份测试都是 Node 原生剥离 TypeScript 类型，无构建、无依赖。
+      # 固定 24：24 起类型剥离无需 flag。
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Check cross-skill routing and asset consistency
+        run: node plugins/tests/workflow-routing.test.ts
+
+      - name: Check three-party review validator contract
+        run: node plugins/orchestrated-collaboration/tests/verify-three-party-review.test.ts
+
+      # 本工作流只校验版本化来源：两端 manifest、两份 Marketplace、符合性声明与
+      # README 版本总览是否互相自洽。它不校验、也无法校验任一运行端的安装状态——
+      # 那是本机事实，检测入口见 agent-system 的 tools/plugin_release。

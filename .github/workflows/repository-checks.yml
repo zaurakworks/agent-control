@@ -23,6 +23,20 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync locked Python project
+        run: uv sync --locked
+
+      - name: Test profile package
+        run: uv run python -m unittest discover -s tests/profile -v
+
+      - name: Test CAP and OMP packages
+        run: uv run python -m unittest tests/cap/test_cap.py
+
       - name: Check federated entry contract
         run: python scripts/test_federated_entry.py
 

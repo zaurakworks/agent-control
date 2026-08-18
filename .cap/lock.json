@@ -1,0 +1,373 @@
+{
+  "capability_semantics": {
+    "hooks": "opaque-staging",
+    "mcp": "native-config",
+    "plugins": "opaque-staging",
+    "skills": "native-staging"
+  },
+  "clients": {
+    "codex": {
+      "adapter_version": 8,
+      "executable": "codex"
+    },
+    "omp": {
+      "adapter_version": 8,
+      "executable": "omp"
+    },
+    "qoder": {
+      "adapter_version": 8,
+      "executable": "qoder"
+    }
+  },
+  "inputs": {
+    ".cap/capabilities": {
+      "type": "directory"
+    },
+    ".cap/capabilities/hooks": {
+      "type": "directory"
+    },
+    ".cap/capabilities/mcp": {
+      "type": "directory"
+    },
+    ".cap/capabilities/plugins": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/agent-behavior-evaluation": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/agent-behavior-evaluation/SKILL.md": {
+      "mode": "0644",
+      "sha256": "333354df9150c95de88d732d8689c44f44a1b24a6ea8ca2c60c38b4cba31c254",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/agent-prompt-design": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/agent-prompt-design/SKILL.md": {
+      "mode": "0644",
+      "sha256": "265188928009bf91c26f6e3ca4e09ddc606cfbccbbcc20d4c64ef441a725bf9a",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/agent-skill-design": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/agent-skill-design/SKILL.md": {
+      "mode": "0644",
+      "sha256": "432d7fc4813c413b6691ebdce9563087c8ab8627e0cebcc26c22343ed7d2727a",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/assembly-helper": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/assembly-helper/SKILL.md": {
+      "mode": "0644",
+      "sha256": "38ace404fe09aa116b78071868635a5d772599aab0f218ddb7ae3b1d4386a07e",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/capability-lifecycle": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/capability-lifecycle/SKILL.md": {
+      "mode": "0644",
+      "sha256": "b4c5d4c151d84353b34aa6c5883f7c70473153812a0e4acf2721bd32c50e754a",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/capability-profile-closure": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/capability-profile-closure/SKILL.md": {
+      "mode": "0644",
+      "sha256": "8febbda7a15e5f397a075e71adeff40af036e0f6cbbfbf3bdc30054fd397a9b0",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-apply-change": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-apply-change/SKILL.md": {
+      "mode": "0644",
+      "sha256": "b7dc8c11395530ed5a6a5b15f87493b219fe85424dcc26125d7c99de132beb81",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-archive-change": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-archive-change/SKILL.md": {
+      "mode": "0644",
+      "sha256": "59573906010bc0fe31ec4dee7ae2b715e65ba5cb183c152251d5af8cb0e49095",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-explore": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-explore/SKILL.md": {
+      "mode": "0644",
+      "sha256": "f4e206e1db60da7bf1f14eaffff25427bba746c1b6e0bf4fc7b896bdec5d91cb",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-propose": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-propose/SKILL.md": {
+      "mode": "0644",
+      "sha256": "c569c3f29cb846811401413c28332062b1268cb184fd5dbe3c675e1ef622ce15",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-sync-specs": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-sync-specs/SKILL.md": {
+      "mode": "0644",
+      "sha256": "1c646841efd22cb6e26a0ca5b56484d36266a944e4b13f4c1b8e14d72613ad62",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/openspec-update-change": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/openspec-update-change/SKILL.md": {
+      "mode": "0644",
+      "sha256": "e38e1a3d8b5c2cfebf2c845fddf918a2df36ac559370d6caff045b870630b15a",
+      "type": "file"
+    },
+    ".cap/capabilities/skills/spec-change-pack": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/spec-change-pack/SKILL.md": {
+      "mode": "0644",
+      "sha256": "3a050a9657fb47b2d159af10d7d1b8029f3e7cb58d36c51b6a1a4aea7cf1bcfe",
+      "type": "file"
+    },
+    ".cap/manifest.toml": {
+      "mode": "0644",
+      "sha256": "8083539c6f4f8f81199f0ec15a16791526971a6c1a2c543cc476622c43bbfc97",
+      "type": "file"
+    },
+    ".cap/profiles/assembly-helper.toml": {
+      "mode": "0644",
+      "sha256": "8912337beff08c87356a3c0584acbc6781168c426821f56e1d7f7ff62d5aa02e",
+      "type": "file"
+    },
+    ".cap/profiles/general.toml": {
+      "mode": "0644",
+      "sha256": "9be9d99995b13ea0afe59ce76944059a8ab7022b9274c8c35ffef73693c98c96",
+      "type": "file"
+    },
+    ".cap/profiles/work.toml": {
+      "mode": "0644",
+      "sha256": "8b3757acdfe254325a4dabcd40c9b39a4ac66bbd7c3157c3183356606b76a66d",
+      "type": "file"
+    },
+    ".cap/prompts/assembly-helper.md": {
+      "mode": "0644",
+      "sha256": "d1c260cc0a8005b93bc8450ff03d3ffb3257d789df66677fc4a1af692dea1116",
+      "type": "file"
+    },
+    ".cap/prompts/general.md": {
+      "mode": "0644",
+      "sha256": "ce7d1f7d13472d1e3c4edbe8dccf2783c2a458babddb42cd5eee32d31c33f328",
+      "type": "file"
+    },
+    ".cap/prompts/work.md": {
+      "mode": "0644",
+      "sha256": "fa7063785f31282d5b69a09a829363a5763a301a9cd48f60a459d2ba0774f0f9",
+      "type": "file"
+    },
+    "AGENTS.md": {
+      "mode": "0644",
+      "sha256": "0535a512da2614f6d0b9b60e504dce62de8cf66326d34e6aa150e6ebe663b3cb",
+      "type": "file"
+    }
+  },
+  "profiles": {
+    "assembly-helper": {
+      "chain": [
+        "real-home",
+        "work",
+        "assembly-helper"
+      ],
+      "clients": {
+        "codex": {
+          "tree_hash": "sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c"
+        },
+        "omp": {
+          "tree_hash": "sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208"
+        },
+        "qoder": {
+          "tree_hash": "sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14"
+        }
+      },
+      "extends": "work",
+      "inventory": {
+        "hooks": [],
+        "mcps": [],
+        "plugins": [],
+        "skills": [
+          "agent-behavior-evaluation",
+          "agent-prompt-design",
+          "agent-skill-design",
+          "assembly-helper",
+          "capability-lifecycle",
+          "capability-profile-closure",
+          "openspec-apply-change",
+          "openspec-archive-change",
+          "openspec-explore",
+          "openspec-propose",
+          "openspec-sync-specs",
+          "openspec-update-change",
+          "spec-change-pack"
+        ]
+      },
+      "layer_digest": "sha256:08c84b0370e16f4c910138036832b404f9821dece8d43f0658f7b75fec938b51",
+      "operations": {
+        "hooks": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "mcps": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "plugins": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "skills": {
+          "add": [
+            "assembly-helper",
+            "agent-prompt-design",
+            "agent-skill-design",
+            "capability-profile-closure",
+            "capability-lifecycle",
+            "agent-behavior-evaluation",
+            "spec-change-pack"
+          ],
+          "mask": [],
+          "replace": []
+        }
+      }
+    },
+    "general": {
+      "chain": [
+        "real-home",
+        "work",
+        "general"
+      ],
+      "clients": {
+        "codex": {
+          "tree_hash": "sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f"
+        },
+        "omp": {
+          "tree_hash": "sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b"
+        },
+        "qoder": {
+          "tree_hash": "sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28"
+        }
+      },
+      "extends": "work",
+      "inventory": {
+        "hooks": [],
+        "mcps": [],
+        "plugins": [],
+        "skills": [
+          "openspec-apply-change",
+          "openspec-archive-change",
+          "openspec-explore",
+          "openspec-propose",
+          "openspec-sync-specs",
+          "openspec-update-change"
+        ]
+      },
+      "layer_digest": "sha256:c9beecab11a2fbe9f0fb3b4a57a42e5b152caa98e3c175c094ee3eda4b8d3cad",
+      "operations": {
+        "hooks": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "mcps": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "plugins": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "skills": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        }
+      }
+    },
+    "work": {
+      "chain": [
+        "real-home",
+        "work"
+      ],
+      "clients": {
+        "codex": {
+          "tree_hash": "sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984"
+        },
+        "omp": {
+          "tree_hash": "sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b"
+        },
+        "qoder": {
+          "tree_hash": "sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c"
+        }
+      },
+      "extends": "real-home",
+      "inventory": {
+        "hooks": [],
+        "mcps": [],
+        "plugins": [],
+        "skills": [
+          "openspec-apply-change",
+          "openspec-archive-change",
+          "openspec-explore",
+          "openspec-propose",
+          "openspec-sync-specs",
+          "openspec-update-change"
+        ]
+      },
+      "layer_digest": "sha256:f4430e859a508985c7bb484d1d1557e2251a33d598ac3cc510e363b1e3d8f2bd",
+      "operations": {
+        "hooks": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "mcps": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "plugins": {
+          "add": [],
+          "mask": [],
+          "replace": []
+        },
+        "skills": {
+          "add": [
+            "openspec-explore",
+            "openspec-propose",
+            "openspec-update-change",
+            "openspec-apply-change",
+            "openspec-sync-specs",
+            "openspec-archive-change"
+          ],
+          "mask": [],
+          "replace": []
+        }
+      }
+    }
+  },
+  "renderer_version": "profile-renderer-v2",
+  "version": 2
+}

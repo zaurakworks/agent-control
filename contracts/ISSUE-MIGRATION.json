@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "source_repository": "zaurakworks/agent-contracts",
+  "source_head": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+  "open_pull_requests": [],
+  "issues": [
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/12",
+      "source_number": 12,
+      "source_title": "目标：澄清合同来源术语",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:5d4edb9e2810f40273d065c10105a67da56ebcbf8e8ccadd2c6a8d9504bbdc04",
+      "kind": "goal",
+      "source_parent_issue": null,
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/13",
+      "source_number": 13,
+      "source_title": "执行合同：定义并迁移合同状态依据术语",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:18ff5339537d1ee8cda0dff878a61b6f96d1164f211d9e9bd833cce0e9ffcce2",
+      "kind": "execution-contract",
+      "source_parent_issue": "https://github.com/zaurakworks/agent-contracts/issues/12",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/15",
+      "source_number": 15,
+      "source_title": "目标：构建抵抗漂移与上下文腐烂的 Agent 形式",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:756e401fc34ac8391ff0e3e17695a164caa3863037dff01d89dbbc06ec97237f",
+      "kind": "goal",
+      "source_parent_issue": null,
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/16",
+      "source_number": 16,
+      "source_title": "执行合同：固化 Agent 形式研究基线",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:d7c145d26eee1f671054e1f56375d2c67ba1c2a6cea4fd3353611c773ea09df3",
+      "kind": "execution-contract",
+      "source_parent_issue": "https://github.com/zaurakworks/agent-contracts/issues/15",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/17",
+      "source_number": 17,
+      "source_title": "执行合同：固化自由对话与显式激活入口模型",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:6f8447c32883f4d56c171fffa469f7cc9a66cee103030816e2a191aac27bb04b",
+      "kind": "execution-contract",
+      "source_parent_issue": "https://github.com/zaurakworks/agent-contracts/issues/15",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/18",
+      "source_number": 18,
+      "source_title": "执行合同：固化跨端 Skills 显式激活入口",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:e06c571b5207698cba3e1aa2f261690776853a1e4e89202a7618a96b1c552b03",
+      "kind": "execution-contract",
+      "source_parent_issue": "https://github.com/zaurakworks/agent-contracts/issues/15",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    },
+    {
+      "source_issue": "https://github.com/zaurakworks/agent-contracts/issues/19",
+      "source_number": 19,
+      "source_title": "执行合同：固化 Skills 生命周期守卫研究检查点",
+      "source_state": "OPEN",
+      "source_body_digest": "sha256:9f17f101dfa6b451c414ca5a49b1e7a49d517a93381f92d0995d591459f00654",
+      "kind": "execution-contract",
+      "source_parent_issue": "https://github.com/zaurakworks/agent-contracts/issues/15",
+      "classification": "target-successor-required",
+      "target_successor": null,
+      "migration_blocker": "Create a self-contained agent-system successor, preserve the native parent relationship for execution contracts, then add reciprocal source/successor links before source archive."
+    }
+  ],
+  "archive_status": "blocked",
+  "archive_blockers": [
+    "All seven open Issues require target successors and reciprocal links.",
+    "No Issue closure or acceptance is inferred from source migration."
+  ]
+}

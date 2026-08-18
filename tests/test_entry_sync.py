@@ -245,7 +245,10 @@ class TargetGenerationTests(unittest.TestCase):
                 result = generate_target(root, config, target, output_root)
 
             self.assertEqual(result.content, "source\n")
-            self.assertEqual(result.output_path, output_root / "installed/example/entry.md")
+            self.assertEqual(
+                result.output_path,
+                (output_root / "installed/example/entry.md").resolve(),
+            )
             self.assertFalse(result.current_path.exists())
 
     def test_default_config_declares_expected_projection_counts(self) -> None:

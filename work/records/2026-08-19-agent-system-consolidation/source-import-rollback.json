@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "target_commit": "e7a734c",
+  "source": {
+    "repository": "zaurakworks/agent-contracts",
+    "commit": "5bb8ea0b54f063b0758c294b73ea270ba69322d2",
+    "worktree_clean_before": true,
+    "worktree_clean_after": true
+  },
+  "exercise": [
+    "Created a detached target worktree at e7a734c.",
+    "Removed the complete contracts/ import from the detached target.",
+    "Verified the agent-system entry contract remained valid with zero failures.",
+    "Verified the source worktree stayed at the immutable source commit and remained clean.",
+    "Restored contracts/ exactly from e7a734c.",
+    "Ran contracts/tools/validate.py successfully after restoration.",
+    "Verified the detached target worktree was clean and removed it through git worktree remove."
+  ],
+  "source_history_deleted": false,
+  "private_evidence_touched": false,
+  "untracked_source_assets_touched": false,
+  "result": "pass"
+}
