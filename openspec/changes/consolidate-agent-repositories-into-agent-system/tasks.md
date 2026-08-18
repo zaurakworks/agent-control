@@ -50,10 +50,10 @@
 
 ## 7. 单仓集成与真实生效验证
 
-- [ ] 7.1 运行目标仓所有原 agent-control、contracts、plugins、assembly 静态检查、单元测试和 OpenSpec strict validation，确认根入口和按域检查均可从干净 clone 执行
+- [x] 7.1 运行目标仓所有原 agent-control、contracts、plugins、assembly 静态检查、单元测试和 OpenSpec strict validation，确认根入口和按域检查均可从干净 clone 执行
 - [x] 7.2 对照 1.4 基线验证 profile inventory、portable/effective render hash、lock/binding、OMP runtime/Session、无 ambient MCP/Hook/Plugin 门和共享状态语义
 - [ ] 7.3 对照 1.5 基线验证合同机械行为、Plugin/Skill 版本与双端 Marketplace，并重复隔离真实 Codex/Claude 安装/显式调用/负例
-- [ ] 7.4 从至少两个非目标仓 workdir 使用 `agent-system` canonical entry point 运行 Codex、Qoder 和 OMP smoke，证明不需要 sibling checkout 且 receipt 不含 secret
+- [x] 7.4 从至少两个非目标仓 workdir 使用 `agent-system` canonical entry point 运行 Codex、Qoder 和 OMP smoke，证明不需要 sibling checkout 且 receipt 不含 secret
 - [x] 7.5 检查 public 树、文档、CI、Marketplace、package metadata 和本地配置没有当前调用方继续依赖四个 source canonical URL、重复 CAP 实现或 profile 外 ambient 能力源
 - [x] 7.6 以固定 target/source ref 演练一个未完成 source 导入的回滚，证明可恢复原 canonical 入口且不删除 source 历史、Issue/PR、private 证据或未跟踪资产
 
