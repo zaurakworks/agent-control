@@ -1,6 +1,22 @@
-version = 1
+version = 2
 prompt = ".cap/prompts/review.md"
-skills = ["review-skill"]
-mcps = ["review-mcp"]
-hooks = ["review-hook"]
-plugins = ["review-plugin"]
+
+[skills]
+add = ["review-skill"]
+mask = []
+replace = []
+
+[mcps]
+add = ["review-mcp"]
+mask = []
+replace = []
+
+[hooks]
+add = ["review-hook"]
+mask = []
+replace = []
+
+[plugins]
+add = ["review-plugin"]
+mask = []
+replace = []

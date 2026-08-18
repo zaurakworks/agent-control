@@ -7,15 +7,15 @@
   },
   "clients": {
     "codex": {
-      "adapter_version": 7,
+      "adapter_version": 8,
       "executable": "codex"
     },
     "omp": {
-      "adapter_version": 7,
+      "adapter_version": 8,
       "executable": "omp"
     },
     "qoder": {
-      "adapter_version": 7,
+      "adapter_version": 8,
       "executable": "qoder"
     }
   },
@@ -219,17 +219,17 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "de42f27f35a1e1b2ec1787428e20812fb28cade3f1475788efa7aa634d28d40c",
+      "sha256": "ed3bc75877d3b4d7bef70f25a004ce9ea86408a2f3368aad672a5bb21e7d0003",
       "type": "file"
     },
     ".cap/profiles/implementation.toml": {
       "mode": "0644",
-      "sha256": "723bfafa04ee50bc6956dafbd8ac6368a1d811f6293456b568c87978fe98b363",
+      "sha256": "c2dfd63f5134d75f3ca0c270f752d3ad4fa13ac381014d620ddb4423774c1a10",
       "type": "file"
     },
     ".cap/profiles/review.toml": {
       "mode": "0644",
-      "sha256": "9adee77481026ff7eab85d9192da5f507179de7ea9ce9b464fb46d56b1fd71ca",
+      "sha256": "77b6d331a69a26f375266bd6fcfa5fe59e15b5a81e4cc783745bfe180707bdca",
       "type": "file"
     },
     ".cap/prompts/implementation.md": {
@@ -250,6 +250,9 @@
   },
   "profiles": {
     "implementation": {
+      "chain": [
+        "implementation"
+      ],
       "clients": {
         "codex": {
           "tree_hash": "sha256:34d0d2d491540dd77de99f03ff66d180e87d2257e703fcb88b525c23d5414c16"
@@ -261,6 +264,7 @@
           "tree_hash": "sha256:0c33261e1810c70238a545c41e0f6a9ec3c48129d77018c459fd8d3d44a5a7d2"
         }
       },
+      "extends": null,
       "inventory": {
         "hooks": [
           "implementation-hook"
@@ -274,9 +278,43 @@
         "skills": [
           "implementation-skill"
         ]
+      },
+      "layer_digest": "sha256:0ffcb3b27871148db40489b785a85ca4ca866e44f1574704ba94225e9add5949",
+      "operations": {
+        "hooks": {
+          "add": [
+            "implementation-hook"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "mcps": {
+          "add": [
+            "implementation-mcp"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "plugins": {
+          "add": [
+            "implementation-plugin"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "skills": {
+          "add": [
+            "implementation-skill"
+          ],
+          "mask": [],
+          "replace": []
+        }
       }
     },
     "review": {
+      "chain": [
+        "review"
+      ],
       "clients": {
         "codex": {
           "tree_hash": "sha256:a3184e9cf4bd3ee3b829b389cb63339df4c3f1171d5884ac22803ccdff8856fe"
@@ -288,6 +326,7 @@
           "tree_hash": "sha256:4509a221f78da3768bb9885caec8b2eb029962fc200501910da747f23a607ee6"
         }
       },
+      "extends": null,
       "inventory": {
         "hooks": [
           "review-hook"
@@ -301,9 +340,40 @@
         "skills": [
           "review-skill"
         ]
+      },
+      "layer_digest": "sha256:d165320231fe8a994c1a9f1d01234bb31d6a0c7352f6aad998918b7cf25d06bd",
+      "operations": {
+        "hooks": {
+          "add": [
+            "review-hook"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "mcps": {
+          "add": [
+            "review-mcp"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "plugins": {
+          "add": [
+            "review-plugin"
+          ],
+          "mask": [],
+          "replace": []
+        },
+        "skills": {
+          "add": [
+            "review-skill"
+          ],
+          "mask": [],
+          "replace": []
+        }
       }
     }
   },
-  "renderer_version": "profile-renderer-v1",
-  "version": 1
+  "renderer_version": "profile-renderer-v2",
+  "version": 2
 }

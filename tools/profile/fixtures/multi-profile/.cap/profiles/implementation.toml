@@ -1,6 +1,22 @@
-version = 1
+version = 2
 prompt = ".cap/prompts/implementation.md"
-skills = ["implementation-skill"]
-mcps = ["implementation-mcp"]
-hooks = ["implementation-hook"]
-plugins = ["implementation-plugin"]
+
+[skills]
+add = ["implementation-skill"]
+mask = []
+replace = []
+
+[mcps]
+add = ["implementation-mcp"]
+mask = []
+replace = []
+
+[hooks]
+add = ["implementation-hook"]
+mask = []
+replace = []
+
+[plugins]
+add = ["implementation-plugin"]
+mask = []
+replace = []
