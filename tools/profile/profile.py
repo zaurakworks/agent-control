@@ -22,12 +22,17 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 from urllib.parse import urlsplit
 
 
-RENDERER_VERSION = "profile-renderer-v1"
-LOCK_VERSION = 1
-MANIFEST_VERSION = 1
+RENDERER_VERSION = "profile-renderer-v2"
+LOCK_VERSION = 2
+MANIFEST_VERSION = 2
+PROFILE_VERSION = 2
+BASE_MANIFEST_VERSION = 1
+BASE_PIN_VERSION = 1
+BINDING_VERSION = 1
+REAL_HOME_PROFILE = "real-home"
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
-CLIENT_ADAPTER_VERSION = 7
+CLIENT_ADAPTER_VERSION = 8
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
 CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
 PROJECT_BYPASS_DIRS = frozenset(
@@ -428,12 +433,24 @@ class McpDefinition:
 
 
 @dataclass(frozen=True)
+class LayerOperations:
+    """Describe one explicit capability-layer mutation."""
+
+    add: tuple[str, ...]
+    mask: tuple[str, ...]
+    replace: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Profile:
-    """Hold one explicit, flat capability closure."""
+    """Hold one resolved single-base capability layer."""
 
     name: str
     source: Path
+    extends: str | None
+    chain: tuple[str, ...]
     prompt: Path
+    operations: Mapping[str, LayerOperations]
     skills: tuple[str, ...]
     mcps: tuple[str, ...]
     hooks: tuple[str, ...]
@@ -502,8 +519,31 @@ class StableDirectory:
         return self.descriptors[-1]
 
 
+def _load_layer_operations(value: Any, context: str) -> LayerOperations:
+    """Load one strict add/mask/replace table."""
+
+    if not isinstance(value, Mapping):
+        raise ProfileError(f"{context} must be a table")
+    _expect_keys(value, {"add", "mask", "replace"}, context)
+    operations = LayerOperations(
+        add=_identifier_list(value["add"], f"{context}.add"),
+        mask=_identifier_list(value["mask"], f"{context}.mask"),
+        replace=_identifier_list(value["replace"], f"{context}.replace"),
+    )
+    overlap = (
+        set(operations.add) & set(operations.mask)
+        | set(operations.add) & set(operations.replace)
+        | set(operations.mask) & set(operations.replace)
+    )
+    if overlap:
+        raise ProfileError(
+            f"{context} names must appear in exactly one operation: {sorted(overlap)}"
+        )
+    return operations
+
+
 def load_project(project_root: Path | str) -> Project:
-    """Load a project manifest, profiles, and capabilities with strict schemas."""
+    """Load and resolve a strict single-base profile project."""
 
     root = Path(project_root).expanduser().resolve(strict=True)
     if not root.is_dir():
@@ -519,46 +559,137 @@ def load_project(project_root: Path | str) -> Project:
     if not isinstance(raw_profiles, dict) or not raw_profiles:
         raise ProfileError("manifest.profiles must be a non-empty table")
 
-    profiles: dict[str, Profile] = {}
+    definitions: dict[str, dict[str, Any]] = {}
+    capability_fields = {
+        "skills": "skills",
+        "mcps": "mcp",
+        "hooks": "hooks",
+        "plugins": "plugins",
+    }
+    expected = {kind: set() for kind in CAPABILITY_KINDS}
     for name, raw_path in sorted(raw_profiles.items()):
         _validate_identifier(name, "profile name")
+        if name == REAL_HOME_PROFILE:
+            raise ProfileError(f"{REAL_HOME_PROFILE} is a reserved external base profile")
         if not isinstance(raw_path, str):
             raise ProfileError(f"manifest.profiles.{name} must be a path string")
         source = _resolve_file(root, raw_path, f"profile {name}")
         _require_under_cap(root, source, f"profile {name}")
         profile_data = _read_toml(source)
-        _expect_keys(
-            profile_data,
-            {"version", "prompt", "skills", "mcps", "hooks", "plugins"},
-            f"profile {name}",
-        )
-        if type(profile_data["version"]) is not int or profile_data["version"] != 1:
-            raise ProfileError(f"profile {name}.version must be 1")
+        required = {"version", "prompt", *capability_fields}
+        actual = set(profile_data)
+        missing = sorted(required - actual)
+        extra = sorted(actual - required - {"extends"})
+        if missing or extra:
+            raise ProfileError(
+                f"profile {name} keys mismatch: missing={missing}, extra={extra}"
+            )
+        if (
+            type(profile_data["version"]) is not int
+            or profile_data["version"] != PROFILE_VERSION
+        ):
+            raise ProfileError(f"profile {name}.version must be {PROFILE_VERSION}")
+        raw_extends = profile_data.get("extends")
+        if raw_extends is not None:
+            _validate_identifier(raw_extends, f"profile {name}.extends")
+            if raw_extends == name:
+                raise ProfileError(f"profile {name} cannot extend itself")
         raw_prompt = profile_data["prompt"]
         if not isinstance(raw_prompt, str):
             raise ProfileError(f"profile {name}.prompt must be a path string")
         prompt = _resolve_file(root, raw_prompt, f"profile {name} prompt")
         _require_under_cap(root, prompt, f"profile {name} prompt")
-        profiles[name] = Profile(
-            name=name,
-            source=source,
-            prompt=prompt,
-            skills=_identifier_list(profile_data["skills"], f"profile {name}.skills"),
-            mcps=_identifier_list(profile_data["mcps"], f"profile {name}.mcps"),
-            hooks=_identifier_list(profile_data["hooks"], f"profile {name}.hooks"),
-            plugins=_identifier_list(
-                profile_data["plugins"], f"profile {name}.plugins"
-            ),
-        )
+        operations = {
+            field: _load_layer_operations(
+                profile_data[field], f"profile {name}.{field}"
+            )
+            for field in capability_fields
+        }
+        for field, store_kind in capability_fields.items():
+            expected[store_kind].update(operations[field].add)
+            expected[store_kind].update(operations[field].replace)
+        definitions[name] = {
+            "source": source,
+            "extends": raw_extends,
+            "prompt": prompt,
+            "operations": operations,
+        }
 
-    expected = {
-        "skills": {item for profile in profiles.values() for item in profile.skills},
-        "mcp": {item for profile in profiles.values() for item in profile.mcps},
-        "hooks": {item for profile in profiles.values() for item in profile.hooks},
-        "plugins": {item for profile in profiles.values() for item in profile.plugins},
-    }
+    profiles: dict[str, Profile] = {}
+
+    def resolve(name: str, stack: tuple[str, ...] = ()) -> Profile:
+        if name in profiles:
+            return profiles[name]
+        if name in stack:
+            raise ProfileError(
+                f"profile inheritance cycle detected: {' -> '.join((*stack, name))}"
+            )
+        definition = definitions[name]
+        parent_name = definition["extends"]
+        parent: Profile | None = None
+        if parent_name and parent_name != REAL_HOME_PROFILE:
+            if parent_name not in definitions:
+                raise ProfileError(
+                    f"profile {name}.extends references unknown profile: {parent_name}"
+                )
+            parent = resolve(parent_name, (*stack, name))
+        parent_chain = (
+            parent.chain
+            if parent is not None
+            else ((REAL_HOME_PROFILE,) if parent_name == REAL_HOME_PROFILE else ())
+        )
+        resolved: dict[str, tuple[str, ...]] = {}
+        for field in capability_fields:
+            inherited = set(getattr(parent, field) if parent is not None else ())
+            operations = definition["operations"][field]
+            has_external_base = REAL_HOME_PROFILE in parent_chain
+            missing_masks = set(operations.mask) - inherited
+            missing_replacements = set(operations.replace) - inherited
+            if missing_masks and not has_external_base:
+                raise ProfileError(
+                    f"profile {name}.{field}.mask is not inherited: "
+                    f"{sorted(missing_masks)}"
+                )
+            if missing_replacements and not has_external_base:
+                raise ProfileError(
+                    f"profile {name}.{field}.replace is not inherited: "
+                    f"{sorted(missing_replacements)}"
+                )
+            duplicate_adds = set(operations.add) & inherited
+            if duplicate_adds:
+                raise ProfileError(
+                    f"profile {name}.{field}.add conflicts with inherited names: "
+                    f"{sorted(duplicate_adds)}"
+                )
+            inherited.difference_update(operations.mask)
+            inherited.difference_update(operations.replace)
+            inherited.update(operations.replace)
+            inherited.update(operations.add)
+            resolved[field] = tuple(sorted(inherited))
+        profile = Profile(
+            name=name,
+            source=definition["source"],
+            extends=parent_name,
+            chain=(*parent_chain, name),
+            prompt=definition["prompt"],
+            operations=definition["operations"],
+            skills=resolved["skills"],
+            mcps=resolved["mcps"],
+            hooks=resolved["hooks"],
+            plugins=resolved["plugins"],
+        )
+        profiles[name] = profile
+        return profile
+
+    for name in sorted(definitions):
+        resolve(name)
     mcps = _validate_capability_store(root, expected)
-    return Project(root=root, manifest=manifest_path, profiles=profiles, mcps=mcps)
+    return Project(
+        root=root,
+        manifest=manifest_path,
+        profiles=dict(sorted(profiles.items())),
+        mcps=mcps,
+    )
 
 
 def create_lock(project_root: Path | str) -> dict[str, Any]:
@@ -574,14 +705,28 @@ def create_lock(project_root: Path | str) -> dict[str, Any]:
     return payload
 
 
-def verify_project(project_root: Path | str) -> dict[str, Any]:
-    """Enforce global/project gates and verify the checked-in lock without rendering."""
+def verify_project(
+    project_root: Path | str,
+    *,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
+) -> dict[str, Any]:
+    """Verify the portable project lock and every selected base binding."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    for profile in project.profiles.values():
+        _check_profile_environment(
+            project,
+            profile,
+            desired,
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+        )
     return desired
 
 
@@ -590,15 +735,26 @@ def materialize_profile(
     client: str,
     profile_name: str,
     output_root: Path | str,
+    *,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
 ) -> str:
     """Verify and render one profile into an explicit, existing empty directory."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
     profile = _select_profile(project, profile_name)
+    _check_profile_environment(
+        project,
+        profile,
+        desired,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
+    )
     _validate_client(client)
     output = Path(output_root).expanduser().absolute()
     with _stable_directory(output, "render output") as output_directory:
@@ -1021,21 +1177,33 @@ def _prepare_execution(
     client: str,
     profile_name: str,
     forwarded_args: Sequence[str],
+    *,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
+    allow_active_drift: bool = False,
 ) -> tuple[Project, Profile, dict[str, Any], tuple[str, ...]]:
     """Validate every launch precondition before a client process can be created."""
 
     project = load_project(project_root)
     _require_git_root(project.root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
     profile = _select_profile(project, profile_name)
+    _check_profile_environment(
+        project,
+        profile,
+        desired,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
+        allow_active_drift=allow_active_drift,
+    )
     _validate_client(client)
     args = tuple(forwarded_args)
     _validate_forwarded_args(client, args)
     return project, profile, desired, args
-
 def _prepare_workdir(value: Path | str | None, default: Path) -> Path:
     """Resolve the client working directory without using mutable profile state."""
 
@@ -1058,6 +1226,10 @@ def _execute_runtime(
     runner: Callable[..., Any],
     capture_output: bool,
     workdir: Path | str | None = None,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
+    allow_active_drift: bool = False,
 ) -> tuple[int, str, str]:
     """Render, bind explicit auth, and invoke one client through the strict path."""
 
@@ -1099,7 +1271,11 @@ def _execute_runtime(
                     }:
                         environment[name] = ""
                     environment["AWS_EC2_METADATA_DISABLED"] = "true"
-                    environment["HOME"] = str(runtime_directory.path)
+                    if _profile_uses_real_home(profile):
+                        assert base_manifest is not None
+                        environment["HOME"] = _load_base_manifest(base_manifest)["home"]
+                    else:
+                        environment["HOME"] = str(runtime_directory.path)
                     environment["PI_AUTH_NO_BORROW"] = "1"
                 environment.update(spec.environment)
                 environment.update(auth_binding.environment)
@@ -1118,12 +1294,28 @@ def _execute_runtime(
                         errors="replace",
                     )
                 _check_project_pollution(project.root)
-                _check_global_pollution()
+                _check_profile_environment(
+                    project,
+                    profile,
+                    desired,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                    allow_active_drift=allow_active_drift,
+                )
                 if _input_records(project) != desired["inputs"]:
                     raise ProfileError("locked inputs drifted after lock verification")
                 _validate_stable_directory(runtime_directory)
                 completed = runner(list(spec.command), **run_options)
-                _check_global_pollution()
+                _check_profile_environment(
+                    project,
+                    profile,
+                    desired,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                    allow_active_drift=allow_active_drift,
+                )
                 return_code = getattr(completed, "returncode", None)
                 if type(return_code) is not int:
                     raise ProfileError(
@@ -1186,12 +1378,47 @@ def run_client(
     receipt_path: Path | str | None = None,
     workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
 ) -> int:
     """Launch one authenticated client in a verified temporary root and clean it up."""
 
     project, profile, desired, args = _prepare_execution(
-        project_root, client, profile_name, forwarded_args
+        project_root,
+        client,
+        profile_name,
+        forwarded_args,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
+        allow_active_drift=True,
     )
+    if _profile_uses_real_home(profile):
+        assert base_manifest is not None and base_pin is not None
+        _manifest, active_drift, passive_drift = _base_state(
+            base_manifest, base_pin
+        )
+        if passive_drift:
+            print(
+                "profile: warning: passive real-home drift: "
+                + ", ".join(passive_drift),
+                file=sys.stderr,
+            )
+        if active_drift:
+            print(
+                "profile: active real-home drift: " + ", ".join(active_drift),
+                file=sys.stderr,
+            )
+            if not sys.stdin.isatty():
+                raise ProfileError(
+                    "active real-home drift blocks non-interactive launch"
+                )
+            answer = input(
+                "Type 'continue' to launch once without updating lock or approval: "
+            )
+            if answer != "continue":
+                raise ProfileError("interactive launch cancelled")
     receipt_target = (
         _prepare_receipt_path(receipt_path) if receipt_path is not None else None
     )
@@ -1210,6 +1437,10 @@ def run_client(
             runner=runner or subprocess.run,
             capture_output=False,
             workdir=workdir,
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+            allow_active_drift=True,
         )
         receipt_bytes = _canonical_json(
             _receipt_payload(client, profile, desired, args, return_code)
@@ -1229,26 +1460,31 @@ def list_profiles(project_root: Path | str) -> tuple[str, ...]:
     """Return locked explicit profile names in deterministic order without choosing a default."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     _verify_lock(project, _desired_lock(project))
     return tuple(sorted(project.profiles))
 
 
 def explain_profile(project_root: Path | str, profile_name: str) -> dict[str, Any]:
-    """Return one locked profile's flat closure and normalized output hashes for all clients."""
+    """Return one locked profile layer, resolved closure, and client tree hashes."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
     profile = _select_profile(project, profile_name)
+    if not _profile_uses_real_home(profile):
+        _check_global_pollution()
+    locked = desired["profiles"][profile.name]
     return {
         "profile": profile.name,
+        "extends": profile.extends,
+        "chain": list(profile.chain),
         "prompt": profile.prompt.relative_to(project.root).as_posix(),
+        "operations": locked["operations"],
         "inventory": _profile_inventory(profile),
-        "clients": desired["profiles"][profile.name]["clients"],
+        "layer_digest": locked["layer_digest"],
+        "clients": locked["clients"],
     }
 
 
@@ -1516,15 +1752,26 @@ def probe_profile(
     client: str,
     profile_name: str,
     state_root: Path | str,
+    *,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Observe the rendered configuration plane without invoking an agent or model."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
     profile = _select_profile(project, profile_name)
+    _check_profile_environment(
+        project,
+        profile,
+        desired,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
+    )
     _validate_client(client)
     state = _state_root(project, state_root, require_empty=True)
     try:
@@ -1592,11 +1839,20 @@ def run_observed(
     receipt_path: Path | str | None = None,
     workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
 ) -> int:
     """Run one batch client, capture self-reported effective state, and clean its root."""
 
     project, profile, desired, args = _prepare_execution(
-        project_root, client, profile_name, forwarded_args
+        project_root,
+        client,
+        profile_name,
+        forwarded_args,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
     )
     state = _state_root(project, state_root, require_empty=True)
     reservation: ReceiptReservation | None = None
@@ -1626,6 +1882,9 @@ def run_observed(
             runner=runner or subprocess.run,
             capture_output=True,
             workdir=workdir,
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
         )
         ended = datetime.now(timezone.utc)
         text = stdout + "\n" + stderr
@@ -1699,15 +1958,26 @@ def diff_profile(
     client: str,
     profile_name: str,
     state_root: Path | str,
+    *,
+    base_manifest: Path | str | None = None,
+    base_pin: Path | str | None = None,
+    binding_dir: Path | str | None = None,
 ) -> int:
     """Compare one immutable declaration with the separately captured effective state."""
 
     project = load_project(project_root)
-    _check_global_pollution()
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
     profile = _select_profile(project, profile_name)
+    _check_profile_environment(
+        project,
+        profile,
+        desired,
+        base_manifest=base_manifest,
+        base_pin=base_pin,
+        binding_dir=binding_dir,
+    )
     _validate_client(client)
     state = _state_root(project, state_root, require_empty=False)
     try:
@@ -1809,6 +2079,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         project = Path(args.project)
+        if args.command == "base-lock":
+            payload = create_base_manifest(args.home, args.manifest)
+            _print_json(
+                {
+                    "status": "locked-not-approved",
+                    "profile": REAL_HOME_PROFILE,
+                    "effective_digest": payload["effective_digest"],
+                    "inventory_digest": payload["inventory_digest"],
+                }
+            )
+            return 0
+        if args.command == "base-approve":
+            payload = approve_base_manifest(args.manifest, args.pin)
+            _print_json(
+                {
+                    "status": "approved",
+                    "profile": REAL_HOME_PROFILE,
+                    "approved_digest": payload["approved_digest"],
+                }
+            )
+            return 0
+        if args.command == "bind":
+            payload = bind_profile(
+                project,
+                args.profile,
+                args.base_manifest,
+                args.base_pin,
+                args.binding_dir,
+            )
+            _print_json({"status": "bound", **payload})
+            return 0
         if args.command == "lock":
             payload = create_lock(project)
             _print_json(
@@ -1819,7 +2120,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "verify":
-            payload = verify_project(project)
+            payload = verify_project(
+                project,
+                base_manifest=args.base_manifest,
+                base_pin=args.base_pin,
+                binding_dir=args.binding_dir,
+            )
             _print_json(
                 {
                     "status": "ok",
@@ -1835,7 +2141,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "materialize":
             tree_hash = materialize_profile(
-                project, args.client, args.profile, args.output
+                project,
+                args.client,
+                args.profile,
+                args.output,
+                base_manifest=args.base_manifest,
+                base_pin=args.base_pin,
+                binding_dir=args.binding_dir,
             )
             _print_json(
                 {
@@ -1847,10 +2159,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "probe":
-            _print_json(probe_profile(project, args.client, args.profile, args.state))
+            _print_json(
+                probe_profile(
+                    project,
+                    args.client,
+                    args.profile,
+                    args.state,
+                    base_manifest=args.base_manifest,
+                    base_pin=args.base_pin,
+                    binding_dir=args.binding_dir,
+                )
+            )
             return 0
         if args.command == "diff":
-            return diff_profile(project, args.client, args.profile, args.state)
+            return diff_profile(
+                project,
+                args.client,
+                args.profile,
+                args.state,
+                base_manifest=args.base_manifest,
+                base_pin=args.base_pin,
+                binding_dir=args.binding_dir,
+            )
         forwarded = list(args.client_args)
         if forwarded and forwarded[0] == "--":
             forwarded.pop(0)
@@ -1863,6 +2193,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 auth_root=args.auth_root,
                 receipt_path=args.receipt,
                 workdir=args.workdir,
+                base_manifest=args.base_manifest,
+                base_pin=args.base_pin,
+                binding_dir=args.binding_dir,
             )
         return run_observed(
             project,
@@ -1873,6 +2206,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             auth_root=args.auth_root,
             receipt_path=args.receipt,
             workdir=args.workdir,
+            base_manifest=args.base_manifest,
+            base_pin=args.base_pin,
+            binding_dir=args.binding_dir,
         )
     except (ProfileError, OSError) as error:
         print(f"profile: error: {error}", file=sys.stderr)
@@ -1893,6 +2229,13 @@ def _add_auth(parser: argparse.ArgumentParser) -> None:
         help="private directory containing codex/, qoder/, and omp/ credentials",
     )
 
+def _add_base_binding(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
+    """Add explicit machine/workspace binding paths without hidden defaults."""
+
+    parser.add_argument("--base-manifest", required=required)
+    parser.add_argument("--base-pin", required=required)
+    parser.add_argument("--binding-dir", required=required)
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="profile")
@@ -1900,24 +2243,39 @@ def _build_parser() -> argparse.ArgumentParser:
         "--project", default=".", help="project root containing .cap/manifest.toml"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("lock", "verify", "list"):
-        subparsers.add_parser(name)
+    subparsers.add_parser("lock")
+    verify = subparsers.add_parser("verify")
+    _add_base_binding(verify)
+    subparsers.add_parser("list")
+    base_lock = subparsers.add_parser("base-lock")
+    base_lock.add_argument("--home", required=True)
+    base_lock.add_argument("--manifest", required=True)
+    base_approve = subparsers.add_parser("base-approve")
+    base_approve.add_argument("--manifest", required=True)
+    base_approve.add_argument("--pin", required=True)
+    bind = subparsers.add_parser("bind")
+    bind.add_argument("--profile", required=True)
+    _add_base_binding(bind, required=True)
     explain = subparsers.add_parser("explain")
     explain.add_argument("--profile", required=True)
     materialize = subparsers.add_parser("materialize")
     _add_selection(materialize)
+    _add_base_binding(materialize)
     materialize.add_argument("--output", required=True)
     probe = subparsers.add_parser("probe")
     _add_selection(probe)
+    _add_base_binding(probe)
     probe.add_argument("--state", required=True)
     diff = subparsers.add_parser("diff")
     _add_selection(diff)
+    _add_base_binding(diff)
     diff.add_argument("--state", required=True)
     launch = subparsers.add_parser("launch")
     _add_selection(launch)
     _add_auth(launch)
     launch.add_argument("--receipt")
     launch.add_argument("--workdir")
+    _add_base_binding(launch)
     launch.add_argument("client_args", nargs=argparse.REMAINDER)
     run = subparsers.add_parser("run")
     _add_selection(run)
@@ -1925,6 +2283,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--state", required=True)
     run.add_argument("--receipt")
     run.add_argument("--workdir")
+    _add_base_binding(run)
     run.add_argument("client_args", nargs=argparse.REMAINDER)
     return parser
 
@@ -2618,6 +2977,560 @@ def _check_global_pollution() -> None:
         )
 
 
+SECRET_KEY_PATTERN = re.compile(
+    r"(?:api[-_]?key|auth|bearer|cookie|credential|password|private[-_]?key|secret|token)",
+    re.IGNORECASE,
+)
+SECRET_LINE_PATTERN = re.compile(
+    r"(?im)^(\s*[\"']?[^:=\n]*(?:api[-_]?key|auth|bearer|cookie|credential|"
+    r"password|private[-_]?key|secret|token)[^:=\n]*[\"']?\s*[:=]\s*).*$"
+)
+REAL_HOME_CONFIG_KEYS: Mapping[str, set[str]] = {
+    ".claude.json": {"enabledPlugins", "hooks", "mcpServers", "plugins", "skills"},
+    ".gemini/settings.json": {
+        "extensions",
+        "hooks",
+        "mcpServers",
+        "plugins",
+        "skills",
+    },
+    ".config/opencode/opencode.json": {"instructions", "mcp", "plugin"},
+    ".omp/agent/config.yml": {
+        "extensions",
+        "hooks",
+        "mcp",
+        "mcpServers",
+        "plugins",
+        "rules",
+        "skills",
+    },
+    ".pi/agent/config.yml": {
+        "extensions",
+        "hooks",
+        "mcp",
+        "mcpServers",
+        "plugins",
+        "rules",
+        "skills",
+    },
+}
+
+
+def _redact_secret_values(value: Any, parent_key: str = "") -> Any:
+    """Remove secret-bearing values before any configuration content is hashed."""
+
+    if isinstance(value, Mapping):
+        redacted: dict[str, Any] = {}
+        for key, item in sorted(value.items(), key=lambda pair: str(pair[0])):
+            name = str(key)
+            if SECRET_KEY_PATTERN.search(name) or parent_key.casefold() in {
+                "env",
+                "environment",
+                "headers",
+            }:
+                redacted[name] = "<external-secret>"
+            else:
+                redacted[name] = _redact_secret_values(item, name)
+        return redacted
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_redact_secret_values(item, parent_key) for item in value]
+    return value
+
+
+def _redacted_file_bytes(path: Path) -> bytes:
+    """Read one bounded capability file and redact recognizable secret assignments."""
+
+    content = path.read_bytes()
+    if len(content) > 8 * 1024 * 1024:
+        raise ProfileError(f"real-home capability file exceeds 8 MiB: {path}")
+    suffix = path.suffix.casefold()
+    try:
+        if suffix == ".json":
+            parsed = _loads_strict_json(content.decode("utf-8"), str(path))
+            return _canonical_json(_redact_secret_values(parsed))
+        if suffix == ".toml":
+            parsed = tomllib.loads(content.decode("utf-8"))
+            return _canonical_json(_redact_secret_values(parsed))
+        text = content.decode("utf-8")
+    except (UnicodeError, tomllib.TOMLDecodeError, ProfileError):
+        return content
+    return SECRET_LINE_PATTERN.sub(r"\1<external-secret>", text).encode("utf-8")
+
+
+def _home_path_digest(path: Path) -> str:
+    """Hash one capability path as redacted content, mode, and lexical tree shape."""
+
+    records: dict[str, Any] = {}
+    entries = [path]
+    if path.is_dir() and not path.is_symlink():
+        entries.extend(sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()))
+    if len(entries) > 4096:
+        raise ProfileError(f"real-home capability tree exceeds 4096 entries: {path}")
+    for item in entries:
+        relative = "." if item == path else item.relative_to(path).as_posix()
+        info = item.lstat()
+        mode = f"{stat.S_IMODE(info.st_mode):04o}"
+        if item.is_symlink():
+            records[relative] = {
+                "type": "symlink",
+                "mode": mode,
+                "target_sha256": _sha256(os.readlink(item).encode("utf-8")),
+            }
+        elif item.is_dir():
+            records[relative] = {"type": "directory", "mode": mode}
+        elif item.is_file():
+            records[relative] = {
+                "type": "file",
+                "mode": mode,
+                "sha256": _sha256(_redacted_file_bytes(item)),
+            }
+        else:
+            raise ProfileError(f"unsupported real-home capability entry: {item}")
+    return f"sha256:{_sha256(_canonical_json(records))}"
+
+
+def _home_entry_kind(relative: str) -> str:
+    folded = relative.casefold()
+    if any(name in folded for name in ("agents.md", "claude.md", "gemini.md", "instructions")):
+        return "context"
+    if "skill" in folded:
+        return "skills"
+    if "mcp" in folded:
+        return "mcp"
+    if "hook" in folded:
+        return "hooks"
+    if "plugin" in folded or "extension" in folded:
+        return "plugins"
+    return "settings"
+
+def _home_capability_inventory(path: Path, kind: str) -> dict[str, list[str]]:
+    """Extract stable capability ids without recording capability contents."""
+
+    names: dict[str, set[str]] = {
+        field: set() for field in ("skills", "mcps", "hooks", "plugins")
+    }
+
+    def add_values(field: str, value: Any) -> None:
+        if isinstance(value, Mapping):
+            values = value.keys()
+        elif isinstance(value, list):
+            values = value
+        else:
+            return
+        names[field].update(
+            item for item in values if isinstance(item, str) and IDENTIFIER.fullmatch(item)
+        )
+
+    try:
+        if kind == "skills" and path.is_dir():
+            names["skills"].update(
+                skill.parent.name
+                for skill in path.rglob("SKILL.md")
+                if IDENTIFIER.fullmatch(skill.parent.name)
+            )
+        elif kind == "hooks" and path.is_dir():
+            names["hooks"].update(
+                item.name for item in path.iterdir() if IDENTIFIER.fullmatch(item.name)
+            )
+        elif kind == "plugins" and path.is_dir():
+            for marker in path.rglob("plugin.json"):
+                payload = _strict_json(marker)
+                if isinstance(payload, Mapping):
+                    name = payload.get("name")
+                    if isinstance(name, str) and IDENTIFIER.fullmatch(name):
+                        names["plugins"].add(name)
+        if path.is_file() and path.suffix.casefold() == ".json":
+            payload = _strict_json(path)
+            if isinstance(payload, Mapping):
+                add_values("mcps", payload.get("mcpServers"))
+                add_values("plugins", payload.get("enabledPlugins"))
+        elif path.is_file() and path.suffix.casefold() == ".toml":
+            payload = tomllib.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, Mapping):
+                add_values("mcps", payload.get("mcp_servers"))
+                add_values("mcps", payload.get("mcpServers"))
+    except (OSError, ProfileError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return {field: [] for field in ("skills", "mcps", "hooks", "plugins")}
+    return {field: sorted(values) for field, values in names.items()}
+
+
+def discover_real_home(home_root: Path | str) -> dict[str, Any]:
+    """Build a private, redacted inventory of one real HOME capability surface."""
+
+    home = Path(home_root).expanduser().resolve(strict=True)
+    if not home.is_dir():
+        raise ProfileError(f"real HOME is not a directory: {home}")
+    codex_config_path = home / ".codex" / "config.toml"
+    codex_config = _read_toml(codex_config_path) if codex_config_path.is_file() else {}
+    qoder_config_path = home / ".qoder" / "settings.json"
+    qoder_config = (
+        _strict_json(qoder_config_path) if qoder_config_path.is_file() else {}
+    )
+    candidates = set(GLOBAL_CAPABILITY_PATHS) | set(REAL_HOME_CONFIG_KEYS) | {
+        ".codex/config.toml",
+        ".qoder/settings.json",
+    }
+    entries: list[dict[str, Any]] = []
+    for relative in sorted(candidates):
+        path = home / relative
+        if not os.path.lexists(path):
+            continue
+        active = True
+        if relative in GLOBAL_CAPABILITY_PATHS:
+            active = not _global_path_is_passive(
+                relative, path, home, codex_config, qoder_config
+            )
+        if relative == ".codex/config.toml":
+            active = bool(codex_config) and _codex_config_has_active_capability(
+                codex_config
+            )
+        elif relative == ".qoder/settings.json":
+            active = bool(qoder_config) and _qoder_config_has_active_capability(
+                qoder_config, home
+            )
+        elif relative in REAL_HOME_CONFIG_KEYS:
+            keys = REAL_HOME_CONFIG_KEYS[relative]
+            if path.suffix.casefold() == ".json":
+                active = path.is_file() and _contains_mapping_key(
+                    _strict_json(path), keys
+                )
+            else:
+                active = path.is_file() and _text_has_top_level_key(path, keys)
+        kind = _home_entry_kind(relative)
+        capabilities = _home_capability_inventory(path, kind)
+        entries.append(
+            {
+                "path": relative,
+                "kind": kind,
+                "state": "active" if active else "passive",
+                "digest": _home_path_digest(path),
+                "capabilities": capabilities,
+            }
+        )
+    effective_records = [entry for entry in entries if entry["state"] == "active"]
+    return {
+        "version": BASE_MANIFEST_VERSION,
+        "profile": REAL_HOME_PROFILE,
+        "home": str(home),
+        "effective_digest": f"sha256:{_sha256(_canonical_json(effective_records))}",
+        "inventory_digest": f"sha256:{_sha256(_canonical_json(entries))}",
+        "entries": entries,
+    }
+
+
+def _controlled_output_path(value: Path | str, context: str) -> Path:
+    path = Path(value).expanduser().absolute()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink() or _path_has_symlink_component(path.parent):
+        raise ProfileError(f"{context} path must not traverse symlinks: {path}")
+    return path
+
+
+def create_base_manifest(
+    home_root: Path | str, manifest_path: Path | str
+) -> dict[str, Any]:
+    """Refresh the private real-home manifest without approving it."""
+
+    payload = discover_real_home(home_root)
+    target = _controlled_output_path(manifest_path, "base manifest")
+    _atomic_write(target, _canonical_json(payload), mode=0o600)
+    return payload
+
+
+def _load_base_manifest(path: Path | str) -> dict[str, Any]:
+    target = Path(path).expanduser().resolve(strict=True)
+    payload = _strict_json(target)
+    if not isinstance(payload, Mapping):
+        raise ProfileError("base manifest must be an object")
+    _expect_keys(
+        payload,
+        {
+            "version",
+            "profile",
+            "home",
+            "effective_digest",
+            "inventory_digest",
+            "entries",
+        },
+        "base manifest",
+    )
+    if payload["version"] != BASE_MANIFEST_VERSION:
+        raise ProfileError(f"base manifest.version must be {BASE_MANIFEST_VERSION}")
+    if payload["profile"] != REAL_HOME_PROFILE:
+        raise ProfileError(f"base manifest.profile must be {REAL_HOME_PROFILE}")
+    if not isinstance(payload["entries"], list):
+        raise ProfileError("base manifest.entries must be an array")
+    effective = [
+        entry
+        for entry in payload["entries"]
+        if isinstance(entry, Mapping) and entry.get("state") == "active"
+    ]
+    expected_effective = f"sha256:{_sha256(_canonical_json(effective))}"
+    expected_inventory = (
+        f"sha256:{_sha256(_canonical_json(payload['entries']))}"
+    )
+    if payload["effective_digest"] != expected_effective:
+        raise ProfileError("base manifest effective_digest is invalid")
+    if payload["inventory_digest"] != expected_inventory:
+        raise ProfileError("base manifest inventory_digest is invalid")
+    return dict(payload)
+
+
+def approve_base_manifest(
+    manifest_path: Path | str, pin_path: Path | str
+) -> dict[str, Any]:
+    """Approve one reviewed base digest without copying its private inventory."""
+
+    manifest = _load_base_manifest(manifest_path)
+    payload = {
+        "version": BASE_PIN_VERSION,
+        "profile": REAL_HOME_PROFILE,
+        "approved_digest": manifest["effective_digest"],
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "tool_version": RENDERER_VERSION,
+        "policy": "tiered-gate",
+    }
+    target = _controlled_output_path(pin_path, "workspace pin")
+    _atomic_write(target, _canonical_json(payload), mode=0o644)
+    return payload
+
+
+def _load_base_pin(path: Path | str) -> dict[str, Any]:
+    payload = _strict_json(Path(path).expanduser().resolve(strict=True))
+    if not isinstance(payload, Mapping):
+        raise ProfileError("workspace pin must be an object")
+    _expect_keys(
+        payload,
+        {
+            "version",
+            "profile",
+            "approved_digest",
+            "approved_at",
+            "tool_version",
+            "policy",
+        },
+        "workspace pin",
+    )
+    if payload["version"] != BASE_PIN_VERSION:
+        raise ProfileError(f"workspace pin.version must be {BASE_PIN_VERSION}")
+    if payload["profile"] != REAL_HOME_PROFILE:
+        raise ProfileError(f"workspace pin.profile must be {REAL_HOME_PROFILE}")
+    if payload["policy"] != "tiered-gate":
+        raise ProfileError("workspace pin.policy must be tiered-gate")
+    return dict(payload)
+
+
+def _profile_uses_real_home(profile: Profile) -> bool:
+    return REAL_HOME_PROFILE in profile.chain
+
+
+def _base_diff(
+    locked: Mapping[str, Any], live: Mapping[str, Any]
+) -> tuple[list[str], list[str]]:
+    locked_entries = {
+        entry["path"]: entry
+        for entry in locked["entries"]
+        if isinstance(entry, Mapping) and isinstance(entry.get("path"), str)
+    }
+    live_entries = {
+        entry["path"]: entry
+        for entry in live["entries"]
+        if isinstance(entry, Mapping) and isinstance(entry.get("path"), str)
+    }
+    active: list[str] = []
+    passive: list[str] = []
+    for path in sorted(set(locked_entries) | set(live_entries)):
+        before = locked_entries.get(path)
+        after = live_entries.get(path)
+        if before == after:
+            continue
+        if (before and before.get("state") == "active") or (
+            after and after.get("state") == "active"
+        ):
+            active.append(path)
+        else:
+            passive.append(path)
+    return active, passive
+
+
+def _validate_base_layer_operations(
+    project: Project, profile: Profile, manifest: Mapping[str, Any]
+) -> None:
+    """Resolve every operation against approved base ids and reject silent collisions."""
+
+    base_names: dict[str, set[str]] = {
+        field: {
+            name
+            for entry in manifest["entries"]
+            if isinstance(entry, Mapping) and entry.get("state") == "active"
+            for name in (
+                entry.get("capabilities", {}).get(field, ())
+                if isinstance(entry.get("capabilities"), Mapping)
+                else ()
+            )
+            if isinstance(name, str)
+        }
+        for field in ("skills", "mcps", "hooks", "plugins")
+    }
+    effective = {field: set(names) for field, names in base_names.items()}
+    for layer_name in profile.chain:
+        if layer_name == REAL_HOME_PROFILE:
+            continue
+        layer = project.profiles[layer_name]
+        for field in ("skills", "mcps", "hooks", "plugins"):
+            operations = layer.operations[field]
+            duplicate_adds = set(operations.add) & effective[field]
+            if duplicate_adds:
+                raise ProfileError(
+                    f"profile {layer.name}.{field}.add conflicts with base/layer names: "
+                    f"{sorted(duplicate_adds)}"
+                )
+            missing_masks = set(operations.mask) - effective[field]
+            if missing_masks:
+                raise ProfileError(
+                    f"profile {layer.name}.{field}.mask is not inherited: "
+                    f"{sorted(missing_masks)}"
+                )
+            missing_replacements = set(operations.replace) - effective[field]
+            if missing_replacements:
+                raise ProfileError(
+                    f"profile {layer.name}.{field}.replace is not inherited: "
+                    f"{sorted(missing_replacements)}"
+                )
+            effective[field].difference_update(operations.mask)
+            effective[field].difference_update(operations.replace)
+            effective[field].update(operations.replace)
+            effective[field].update(operations.add)
+
+
+def _base_state(
+    manifest_path: Path | str, pin_path: Path | str
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    manifest = _load_base_manifest(manifest_path)
+    pin = _load_base_pin(pin_path)
+    if pin["approved_digest"] != manifest["effective_digest"]:
+        raise ProfileError(
+            "workspace pin does not approve the current base manifest digest"
+        )
+    live = discover_real_home(manifest["home"])
+    active, passive = _base_diff(manifest, live)
+    return manifest, active, passive
+
+
+def _profile_layer_digest(project: Project, profile: Profile) -> str:
+    locked = _desired_lock(project)["profiles"][profile.name]
+    return locked["layer_digest"]
+
+
+def bind_profile(
+    project_root: Path | str,
+    profile_name: str,
+    manifest_path: Path | str,
+    pin_path: Path | str,
+    binding_dir: Path | str,
+) -> dict[str, Any]:
+    """Bind one portable profile layer to an approved machine-specific base."""
+
+    project = load_project(project_root)
+    _check_project_pollution(project.root)
+    desired = _desired_lock(project)
+    _verify_lock(project, desired)
+    profile = _select_profile(project, profile_name)
+    if not _profile_uses_real_home(profile):
+        raise ProfileError(f"profile {profile.name} does not extend {REAL_HOME_PROFILE}")
+    manifest, active, _passive = _base_state(manifest_path, pin_path)
+    _validate_base_layer_operations(project, profile, manifest)
+    if active:
+        raise ProfileError(f"active real-home drift detected: {', '.join(active)}")
+    layer_digest = desired["profiles"][profile.name]["layer_digest"]
+    effective_digest = f"sha256:{_sha256(_canonical_json({
+        'base_digest': manifest['effective_digest'],
+        'layer_digest': layer_digest,
+        'profile': profile.name,
+    }))}"
+    payload = {
+        "version": BINDING_VERSION,
+        "profile": profile.name,
+        "base_profile": REAL_HOME_PROFILE,
+        "base_digest": manifest["effective_digest"],
+        "layer_digest": layer_digest,
+        "effective_digest": effective_digest,
+    }
+    directory = Path(binding_dir).expanduser().absolute()
+    target = _controlled_output_path(
+        directory / f"{profile.name}.binding.json", "profile binding"
+    )
+    _atomic_write(target, _canonical_json(payload), mode=0o644)
+    return payload
+
+
+def _verify_profile_binding(
+    project: Project,
+    profile: Profile,
+    desired: Mapping[str, Any],
+    manifest_path: Path | str,
+    pin_path: Path | str,
+    binding_dir: Path | str,
+) -> tuple[list[str], list[str]]:
+    manifest, active, passive = _base_state(manifest_path, pin_path)
+    _validate_base_layer_operations(project, profile, manifest)
+    binding_path = (
+        Path(binding_dir).expanduser().resolve(strict=True)
+        / f"{profile.name}.binding.json"
+    )
+    binding = _strict_json(binding_path)
+    layer_digest = desired["profiles"][profile.name]["layer_digest"]
+    expected_effective = f"sha256:{_sha256(_canonical_json({
+        'base_digest': manifest['effective_digest'],
+        'layer_digest': layer_digest,
+        'profile': profile.name,
+    }))}"
+    expected = {
+        "version": BINDING_VERSION,
+        "profile": profile.name,
+        "base_profile": REAL_HOME_PROFILE,
+        "base_digest": manifest["effective_digest"],
+        "layer_digest": layer_digest,
+        "effective_digest": expected_effective,
+    }
+    if binding != expected:
+        raise ProfileError(
+            f"profile {profile.name} binding is stale; run profile bind after review"
+        )
+    return active, passive
+
+def _check_profile_environment(
+    project: Project,
+    profile: Profile,
+    desired: Mapping[str, Any],
+    *,
+    base_manifest: Path | str | None,
+    base_pin: Path | str | None,
+    binding_dir: Path | str | None,
+    allow_active_drift: bool = False,
+) -> list[str]:
+    """Verify either the approved real-home base or the legacy clean-home gate."""
+
+    if not _profile_uses_real_home(profile):
+        _check_global_pollution()
+        return []
+    if base_manifest is None or base_pin is None or binding_dir is None:
+        raise ProfileError(
+            f"profile {profile.name} requires --base-manifest, --base-pin, "
+            "and --binding-dir"
+        )
+    active, passive = _verify_profile_binding(
+        project,
+        profile,
+        desired,
+        base_manifest,
+        base_pin,
+        binding_dir,
+    )
+    if active and not allow_active_drift:
+        raise ProfileError(f"active real-home drift detected: {', '.join(active)}")
+    return [*(f"active:{path}" for path in active), *passive]
+
 def _desired_lock(project: Project) -> dict[str, Any]:
     profiles: dict[str, Any] = {}
     for name, profile in sorted(project.profiles.items()):
@@ -2625,7 +3538,23 @@ def _desired_lock(project: Project) -> dict[str, Any]:
             client: {"tree_hash": _tree_hash(_render_tree(project, client, profile))}
             for client in CLIENTS
         }
-        profiles[name] = {"inventory": _profile_inventory(profile), "clients": clients}
+        operations = {
+            kind: {
+                "add": list(profile.operations[kind].add),
+                "mask": list(profile.operations[kind].mask),
+                "replace": list(profile.operations[kind].replace),
+            }
+            for kind in ("skills", "mcps", "hooks", "plugins")
+        }
+        layer = {
+            "extends": profile.extends,
+            "chain": list(profile.chain),
+            "operations": operations,
+            "inventory": _profile_inventory(profile),
+            "clients": clients,
+        }
+        layer["layer_digest"] = f"sha256:{_sha256(_canonical_json(layer))}"
+        profiles[name] = layer
     return {
         "version": LOCK_VERSION,
         "renderer_version": RENDERER_VERSION,

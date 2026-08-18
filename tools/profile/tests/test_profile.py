@@ -543,7 +543,7 @@ class GateAndLockTests(ProfileTestCase):
                     stream.write(addition)
                 with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
                     profile.verify_project(project)
-        with mock.patch.object(profile, "RENDERER_VERSION", "profile-renderer-v2"):
+        with mock.patch.object(profile, "RENDERER_VERSION", "profile-renderer-v3"):
             with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
                 profile.verify_project(self.project)
 
@@ -571,7 +571,7 @@ class GateAndLockTests(ProfileTestCase):
         manifest = self.project / ".cap" / "manifest.toml"
         manifest.write_text(
             manifest.read_text(encoding="utf-8").replace(
-                "version = 1\n", 'version = 1\nunknown = "value"\n', 1
+                "version = 2\n", 'version = 2\nunknown = "value"\n', 1
             ),
             encoding="utf-8",
         )
@@ -600,7 +600,7 @@ class GateAndLockTests(ProfileTestCase):
     def test_path_escape_and_overlay_root_escape_are_rejected(self) -> None:
         manifest = self.project / ".cap" / "manifest.toml"
         manifest.write_text(
-            'version = 1\n\n[profiles]\nreview = "../outside.toml"\n',
+            'version = 2\n\n[profiles]\nreview = "../outside.toml"\n',
             encoding="utf-8",
         )
         with self.assertRaisesRegex(
@@ -667,6 +667,235 @@ class GateAndLockTests(ProfileTestCase):
         shutil.rmtree(target)
         with self.assertRaisesRegex(profile.ProfileError, "lacks required omp target"):
             profile.create_lock(self.project)
+
+
+class RealHomeLayerTests(ProfileTestCase):
+    def configure_layered_profile(self) -> tuple[Path, Path, Path]:
+        manifest = self.project / ".cap" / "manifest.toml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8")
+            + 'work = ".cap/profiles/work.toml"\n',
+            encoding="utf-8",
+        )
+        (self.project / ".cap" / "prompts" / "work.md").write_text(
+            "# Work layer\n", encoding="utf-8"
+        )
+        empty_operations = """
+[skills]
+add = ["implementation-skill"]
+mask = []
+replace = []
+
+[mcps]
+add = []
+mask = []
+replace = []
+
+[hooks]
+add = []
+mask = []
+replace = []
+
+[plugins]
+add = []
+mask = []
+replace = []
+"""
+        (self.project / ".cap" / "profiles" / "work.toml").write_text(
+            'version = 2\nextends = "real-home"\n'
+            'prompt = ".cap/prompts/work.md"\n'
+            + empty_operations,
+            encoding="utf-8",
+        )
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+        review.write_text(
+            review.read_text(encoding="utf-8").replace(
+                "version = 2\n", 'version = 2\nextends = "work"\n', 1
+            ),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        base_manifest = self.root / "state" / "real-home.lock.json"
+        base_pin = self.root / "workspace" / "real-home.pin.json"
+        binding_dir = self.root / "workspace" / "bindings"
+        profile.create_base_manifest(self.home, base_manifest)
+        profile.approve_base_manifest(base_manifest, base_pin)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        return base_manifest, base_pin, binding_dir
+
+    def test_resolves_single_base_layers_and_rejects_implicit_conflicts(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        project = profile.load_project(self.project)
+        self.assertEqual(project.profiles["review"].chain, ("real-home", "work", "review"))
+        self.assertEqual(
+            project.profiles["review"].skills,
+            ("implementation-skill", "review-skill"),
+        )
+        prepared = profile._prepare_execution(
+            self.project,
+            "omp",
+            "review",
+            (),
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+        )
+        self.assertEqual(prepared[1].name, "review")
+
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        review.write_text(
+            review.read_text(encoding="utf-8").replace(
+                'add = ["review-skill"]', 'add = ["review-skill", "review-skill"]', 1
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "contains duplicates"):
+            profile.load_project(self.project)
+
+    def test_mask_and_replace_resolve_only_inherited_capabilities(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        review = self.project / ".cap" / "profiles" / "review.toml"
+        original = review.read_text(encoding="utf-8")
+
+        review.write_text(
+            original.replace("mask = []", 'mask = ["implementation-skill"]', 1),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        masked = profile.load_project(self.project).profiles["review"]
+        self.assertEqual(masked.skills, ("review-skill",))
+
+        review.write_text(
+            original.replace("replace = []", 'replace = ["implementation-skill"]', 1),
+            encoding="utf-8",
+        )
+        profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project, "review", base_manifest, base_pin, binding_dir
+        )
+        replaced = profile.load_project(self.project).profiles["review"]
+        self.assertEqual(
+            replaced.skills, ("implementation-skill", "review-skill")
+        )
+
+    def test_base_lock_redacts_secrets_and_separates_passive_drift(self) -> None:
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"first"}}}}',
+            encoding="utf-8",
+        )
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text('model = "one"\n', encoding="utf-8")
+        manifest_path = self.root / "state" / "real-home.lock.json"
+        locked = profile.create_base_manifest(self.home, manifest_path)
+        serialized = manifest_path.read_text(encoding="utf-8")
+        self.assertNotIn("first", serialized)
+
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"second"}}}}',
+            encoding="utf-8",
+        )
+        secret_only = profile.discover_real_home(self.home)
+        self.assertEqual(locked["effective_digest"], secret_only["effective_digest"])
+
+        (codex / "config.toml").write_text('model = "two"\n', encoding="utf-8")
+        passive_only = profile.discover_real_home(self.home)
+        active, passive = profile._base_diff(locked, passive_only)
+        self.assertEqual(active, [])
+        self.assertEqual(passive, [".codex/config.toml"])
+
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"node","env":{"API_TOKEN":"second"}}}}',
+            encoding="utf-8",
+        )
+        active_change = profile.discover_real_home(self.home)
+        active, _ = profile._base_diff(locked, active_change)
+        self.assertEqual(active, [".mcp.json"])
+
+    def test_omp_uses_real_home_while_runtime_state_remains_isolated(self) -> None:
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        captured: dict[str, object] = {}
+
+        def runner(command: list[str], **options: object) -> SimpleNamespace:
+            captured["command"] = command
+            captured["environment"] = options["env"]
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        result = profile.run_client(
+            self.project,
+            "omp",
+            "review",
+            (),
+            auth_root=self.auth_root,
+            runner=runner,
+            base_manifest=base_manifest,
+            base_pin=base_pin,
+            binding_dir=binding_dir,
+        )
+        self.assertEqual(result, 0)
+        environment = captured["environment"]
+        assert isinstance(environment, dict)
+        self.assertEqual(environment["HOME"], str(self.home))
+        self.assertNotEqual(environment["PI_CODING_AGENT_DIR"], str(self.home))
+        self.assertEqual(environment["PI_CONFIG_DIR"], environment["PI_CODING_AGENT_DIR"])
+
+    def test_add_rejects_collision_with_approved_base_capability(self) -> None:
+        skill = self.home / ".codex" / "skills" / "review-skill"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("# ambient\n", encoding="utf-8")
+        with self.assertRaisesRegex(profile.ProfileError, "conflicts with base"):
+            self.configure_layered_profile()
+
+    def test_active_drift_blocks_batch_and_requires_interactive_continue(self) -> None:
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"python3"}}}', encoding="utf-8"
+        )
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"node"}}}', encoding="utf-8"
+        )
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        with mock.patch.object(sys.stdin, "isatty", return_value=False):
+            with self.assertRaisesRegex(profile.ProfileError, "non-interactive"):
+                profile.run_client(
+                    self.project,
+                    "omp",
+                    "review",
+                    (),
+                    auth_root=self.auth_root,
+                    runner=runner,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                )
+        runner.assert_not_called()
+
+        with (
+            mock.patch.object(sys.stdin, "isatty", return_value=True),
+            mock.patch("builtins.input", return_value="continue"),
+        ):
+            self.assertEqual(
+                profile.run_client(
+                    self.project,
+                    "omp",
+                    "review",
+                    (),
+                    auth_root=self.auth_root,
+                    runner=runner,
+                    base_manifest=base_manifest,
+                    base_pin=base_pin,
+                    binding_dir=binding_dir,
+                ),
+                0,
+            )
+        runner.assert_called_once()
+
 
 
 class LaunchTests(ProfileTestCase):
@@ -1653,7 +1882,7 @@ class ObserverContractTests(ProfileTestCase):
     def test_codex_probe_accepts_a_profile_with_no_mcp_servers(self) -> None:
         profile_path = self.project / ".cap" / "profiles" / "review.toml"
         original = profile_path.read_text(encoding="utf-8")
-        updated = original.replace('mcps = ["review-mcp"]', "mcps = []")
+        updated = original.replace('add = ["review-mcp"]', "add = []", 1)
         self.assertNotEqual(updated, original)
         profile_path.write_text(updated, encoding="utf-8")
         (self.project / ".cap" / "capabilities" / "mcp" / "review-mcp.json").unlink()
