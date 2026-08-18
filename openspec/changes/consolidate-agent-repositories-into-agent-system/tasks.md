@@ -59,15 +59,15 @@
 
 ## 8. 切换入口并归档源仓
 
-- [ ] 8.1 为 `agent-contracts`、`agent-plugins`、`agent-assembly` 更新 README 首屏、Issue 模板、开放 Issue/PR 和 release/安装入口，明确 successor 路径、source head 与 archive 后只读语义
+- [x] 8.1 为 `agent-contracts`、`agent-plugins`、`agent-assembly` 更新 README 首屏、Issue 模板、开放 Issue/PR 和 release/安装入口，明确 successor 路径、source head 与 archive 后只读语义
 - [ ] 8.2 在逐源资产、调用方、验证、生效和回滚门全部通过后，将 `agent-contracts`、`agent-plugins`、`agent-assembly` 依次设为 GitHub archive；任一未知结果只阻止对应 source，不批量越过
 - [ ] 8.3 在全部批准结论毕业、private 当前工作入口关闭且 successor 可自足后，更新 `agent-state-lab` private README 并设为 private archive；不删除仓或公开原始证据
 - [ ] 8.4 回读四个 source 的 archive/visibility/README、目标仓 canonical URL、默认分支、Actions、Issues/PR、Marketplace 和 redirect，生成不含 secret 的最终迁移回执
 
 ## 9. 本地物理收敛与最终验收
 
-- [ ] 9.1 更新 `_org` remote/local/family inventory、searched roots、证据时间、duplicate/legacy/dirty 分类和 move plan，明确 `~/work/agent-system` 为唯一 canonical 主仓
-- [ ] 9.2 在不移动 active common dir 的前提下建立或迁入 `~/work/agent-system`，验证 origin/head/branch/工作树后为新任务统一使用 `~/work/worktrees/agent-system/<slug>`
+- [x] 9.1 更新 `_org` remote/local/family inventory、searched roots、证据时间、duplicate/legacy/dirty 分类和 move plan，明确 `~/work/agent-system` 为唯一 canonical 主仓
+- [x] 9.2 在不移动 active common dir 的前提下建立或迁入 `~/work/agent-system`，验证 origin/head/branch/工作树后为新任务统一使用 `~/work/worktrees/agent-system/<slug>`
 - [ ] 9.3 逐个处理旧 `agent-control`、`agent-plugins`、`agent-assembly` clone 和 worktree：先保全 dirty/untracked/local-only commit，再仅通过 owning main repo 的 Git worktree API remove/prune；未获删除授权的普通 clone 保留并标记
 - [ ] 9.4 更新 `WORKSPACE.md` 和维护入口，明确一个公开活跃 `agent-system`、private archived state-lab、archived source 历史和外部 `work-skills`/private-kb/ticket-decision-core 的独立边界
 - [ ] 9.5 从干净 canonical clone 重跑全局检查、真实 smoke、OpenSpec strict validation 和远端 archive 回读，分别报告声明态、标准合规、配置态、生效态与仍为 `unknown` 的端
