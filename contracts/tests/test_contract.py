@@ -240,6 +240,26 @@ goal-example-001
             "维护者评审下一份边界明确的执行合同。",
         )
 
+    def test_capture_accepts_deployment_owned_repository(self) -> None:
+        old = "https://github.com/zaurakworks/agent-system"
+        new = "https://github.com/2233admin/agent-system"
+        self.runner.execution["url"] = self.runner.execution["url"].replace(old, new)
+        self.runner.execution["body"] = self.runner.execution["body"].replace(old, new)
+        self.runner.goal["url"] = self.runner.goal["url"].replace(old, new)
+        relation = self.runner.relation["data"]["repository"]["issue"]
+        relation["url"] = relation["url"].replace(old, new)
+        relation["parent"]["url"] = relation["parent"]["url"].replace(old, new)
+        relation["parent"]["repository"]["nameWithOwner"] = "2233admin/agent-system"
+        package = contract.capture(f"{new}/issues/4", self.client)
+        self.assertEqual(package["source"]["issueUrl"], f"{new}/issues/4")
+        self.assertEqual(package["parentGoal"]["issueUrl"], f"{new}/issues/1")
+        self.assertEqual(self.client.repository, "2233admin/agent-system")
+
+    def test_resolve_issue_url_accepts_repo_and_number(self) -> None:
+        self.assertEqual(
+            contract._resolve_issue_url("4", "2233admin/agent-system"),
+            "https://github.com/2233admin/agent-system/issues/4",
+        )
 
 if __name__ == "__main__":
     unittest.main()
