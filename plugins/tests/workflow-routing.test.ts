@@ -1,4 +1,4 @@
-// 当前 Plugin／Skill 来源、路由、预算、生成物与退役负例的符合性检查。
+// 当前 Plugin／Skill 来源、路由、预算、生成物与装配边界的符合性检查。
 // 运行：node plugins/tests/workflow-routing.test.ts
 //
 // 只校验版本化来源，不代表任何运行端已经安装或产生净收益。
@@ -90,14 +90,7 @@ const pluginDirectories = (path: string): string[] =>
       existsSync(join(path, entry, '.claude-plugin', 'plugin.json')),
   );
 const config = JSON.parse(read(join(repoRoot, 'tests', 'workflow-routing.json'))) as Config;
-const retiredSkills = [
-  'issue-workflow',
-  'issue-contract-compaction',
-  'issue-delivery',
-  'objective-to-issues',
-  'pr-integration',
-  'operating-ledger-maintenance',
-] as const;
+const profileSkillImports = read(join(repositoryRoot, '.cap', 'skill-imports.toml'));
 
 function markdownBytesRecursively(root: string): number {
   if (!existsSync(root)) return 0;
@@ -135,7 +128,7 @@ assert.deepEqual(
   Object.keys(config.pluginVersions).sort(),
   'pluginVersions 必须恰好覆盖当前 Plugin 目录',
 );
-assert.ok(!pluginNames.includes('github-collaboration'), '退役 Plugin 目录不得保留');
+assert.ok(pluginNames.includes('github-collaboration'), 'GitHub 协作 Plugin 必须作为可发布资产保留');
 assert.ok(
   !existsSync(join(repoRoot, 'docs', 'issue-workflow-walkthrough.md')),
   '退役工作流的当前走读不得保留',
@@ -168,10 +161,6 @@ for (const plugin of pluginNames) {
 
 const declared = Object.keys(config.skills).sort();
 assert.deepEqual(declared, [...skillPlugin.keys()].sort(), '路由声明必须恰好覆盖物理 Skill');
-for (const retired of retiredSkills) {
-  assert.ok(!declared.includes(retired), `${retired}: 退役 Skill 不得留在路由声明`);
-}
-
 const codexMarketplace = JSON.parse(read(join(repositoryRoot, '.agents', 'plugins', 'marketplace.json')));
 const claudeMarketplace = JSON.parse(read(join(repositoryRoot, '.claude-plugin', 'marketplace.json')));
 for (const [name, marketplace] of [
@@ -187,7 +176,7 @@ for (const [name, marketplace] of [
   for (const entry of entries) {
     assert.equal(entry.version, config.pluginVersions[entry.name], `${name} ${entry.name}: 版本漂移`);
   }
-  assert.ok(!entries.some((entry) => entry.name === 'github-collaboration'), `${name}: 退役 Plugin 仍可安装`);
+  assert.ok(entries.some((entry) => entry.name === 'github-collaboration'), `${name}: GitHub 协作 Plugin 未列为可安装资产`);
 }
 
 // ---------- 2. description、路由边与剩余行为合同 ----------
@@ -224,10 +213,6 @@ for (const skill of declared) {
   }
   for (const marker of requiredBodyMarkers[skill] ?? []) {
     assert.ok(body.includes(marker), `${skill}: 正文丢失「${marker}」`);
-  }
-  assert.ok(!body.includes('github-collaboration'), `${skill}: 正文仍引用退役 Plugin`);
-  for (const retired of retiredSkills) {
-    assert.ok(!body.includes(retired), `${skill}: 正文仍调用退役 Skill ${retired}`);
   }
   assert.equal(config.skills[skill].plugin, skillPlugin.get(skill), `${skill}: Plugin 声明与物理位置不符`);
 
@@ -313,8 +298,9 @@ for (const [skill, entry] of Object.entries(config.skillLifecycle.entries)) {
   }
 }
 
-assert.equal(config.complexityBudget.maxSkills, declared.length, '退役后数量门必须收紧到当前 Skill 数，不留增长余量');
-assert.ok(config.complexityBudget.comment.includes('当前 7 个 Skill 不留数量余量'), '数量门说明必须记录退役后的新基线');
+assert.equal(config.complexityBudget.maxSkills, declared.length, '数量门必须收紧到当前 Skill 数，不留增长余量');
+assert.ok(config.complexityBudget.comment.includes(`当前 ${declared.length} 个 Skill 不留数量余量`), '数量门说明必须记录当前基线');
+assert.ok(config.complexityBudget.comment.includes('当前装配只读 .cap/skill-imports.toml'), '数量门必须区分资产清单与 profile 装配');
 assert.deepEqual(config.complexityBudget.baseline, {
   observedAt: '2026-08-15',
   skills: 12,
@@ -351,26 +337,28 @@ for (const marker of [
 ]) {
   assert.ok(overviewText.includes(marker), `选型面缺少分层事实「${marker}」`);
 }
-for (const retired of retiredSkills) {
-  assert.ok(!overviewText.includes(`## ${retired}`), `${retired}: 退役 Skill 仍出现在当前选型面`);
-}
-
-// ---------- 4. README 当前入口与退役负例 ----------
+// ---------- 4. README 当前入口与装配边界 ----------
 const readme = read(join(repoRoot, 'README.md'));
 const overviewLines = readme.split('\n').filter((line) => line.includes('仓库目前包含'));
 assert.equal(overviewLines.length, 1, 'README 必须有且只有一句当前版本总览');
 const currentOverview = overviewLines[0];
-assert.ok(currentOverview.includes('七个可安装 Plugin'), 'README 当前总览必须说明 7 个 Plugin');
+assert.ok(currentOverview.includes('八个可安装 Plugin'), 'README 当前总览必须说明 8 个 Plugin');
 for (const [plugin, version] of Object.entries(config.pluginVersions)) {
   assert.ok(currentOverview.includes(`\`${plugin}\` \`${version}\``), `README 当前总览缺少 ${plugin} ${version}`);
 }
-assert.ok(!currentOverview.includes('github-collaboration'), 'README 当前总览仍把退役 Plugin 列为可安装');
 for (const skill of declared) assert.ok(readme.includes(skill), `README 未提及当前 Skill ${skill}`);
 assert.ok(
-  readme.includes('`github-collaboration` 已退役') &&
-    readme.includes('不再提供安装入口') &&
-    readme.includes('agent-plugins#18'),
-  'README 必须明确记录 github-collaboration 的退役事实与决定来源',
+  readme.includes('仓库资产、Marketplace 可安装目录和 CAP profile 装配是三个不同状态') &&
+    readme.includes('`.cap/skill-imports.toml`') &&
+    profileSkillImports.includes('source = "plugins/grilling/skills/grilling"') &&
+    !profileSkillImports.includes('plugins/github-collaboration/skills') &&
+    !profileSkillImports.includes('plugins/self-improvement/skills'),
+  'README 与 CAP imports 必须明确区分可安装资产和当前 profile 装配',
+);
+assert.ok(
+  readme.includes('`github-collaboration` 与 `self-improvement` 同级') &&
+    readme.includes('自动进入当前 profile'),
+  'README 必须记录 GitHub 协作与自改进同级但不自动装配',
 );
 
 console.log(`PASS: ${declared.length} 个 Skill、${pluginNames.length} 个 Plugin、${config.scenarios.length} 个验收场景`);

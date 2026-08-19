@@ -5,6 +5,6 @@
   "author": {
     "name": "zaurakworks"
   },
-  "repository": "https://github.com/zaurakworks/agent-plugins",
+  "repository": "https://github.com/zaurakworks/agent-system",
   "skills": "./skills/"
 }

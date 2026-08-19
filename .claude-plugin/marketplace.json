@@ -32,16 +32,20 @@
       "source": "./plugins/adaptive-problem-solving"
     },
     {
-      "name": "github-collaboration",
-      "version": "0.3.18",
-      "description": "Drive a GitHub issue subtree from any Session, including bounded continuation, safe natural owner decisions, contract compaction, delivery, integration, and reclamation.",
-      "source": "./plugins/github-collaboration"
+      "name": "skill-maintenance",
+      "version": "0.1.0",
+      "source": "./plugins/skill-maintenance"
     },
     {
       "name": "resource-observability",
       "version": "0.2.4",
       "description": "只读的 Codex／Claude 账户容量与单会话 Token 回执；不负责调度。",
       "source": "./plugins/resource-observability"
+    },
+    {
+      "name": "github-collaboration",
+      "version": "0.3.18",
+      "source": "./plugins/github-collaboration"
     }
   ]
 }

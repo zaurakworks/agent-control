@@ -696,7 +696,7 @@ test_contains_all(
     ],
     "经营总账权威保留显式触发的候选路由",
 )
-retired_workflow_terms = [
+unassembled_workflow_terms = [
     "github-collaboration",
     "issue-workflow",
     "issue-delivery",
@@ -712,14 +712,14 @@ for surface_name, surface_text in [
     ("协作权威", collaboration_authority),
     ("经营总账权威", ledger_authority),
 ]:
-    dead_callers = [term for term in retired_workflow_terms if term in surface_text]
+    direct_callers = [term for term in unassembled_workflow_terms if term in surface_text]
     add_check_result(
-        not dead_callers,
+        not direct_callers,
         (
-            f"{surface_name} 不含已退役 GitHub 工作流调用者"
-            if not dead_callers
-            else f"{surface_name} 不含已退役 GitHub 工作流调用者；发现："
-            + "、".join(dead_callers)
+            f"{surface_name} 不直接调用未装配 GitHub 工作流资产"
+            if not direct_callers
+            else f"{surface_name} 不直接调用未装配 GitHub 工作流资产；发现："
+            + "、".join(direct_callers)
         ),
     )
 add_check_result(
