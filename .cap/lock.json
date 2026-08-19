@@ -161,7 +161,7 @@
     },
     ".cap/prompts/assembly-helper.md": {
       "mode": "0644",
-      "sha256": "2d535366e95d951337791c547cb93fe94b3353a0de4d01713b323a28eb409fb1",
+      "sha256": "71560d233597b6672113dce0713860e6e1a8be6c5ced2bc934c6c3c90b66e378",
       "type": "file"
     },
     ".cap/prompts/general.md": {
@@ -189,13 +189,13 @@
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:22239f8f5f0ff2e5be5b50026a41c5f35605fc47d75ee4aa7ac6add3ca1fad90"
+          "tree_hash": "sha256:8945f9044aabecf930387e1210097c56ff13f254088a4358ff527bb9373c4d8a"
         },
         "omp": {
-          "tree_hash": "sha256:27fd270f9ad18c3930d4619281f5a18e8fe1bd58e0bb7f1ac8ffc4f12ffd3a82"
+          "tree_hash": "sha256:2b053c38b353d43b3a80fa6f6c9911a4e26f1beda5afd864e4239f7fb755becf"
         },
         "qoder": {
-          "tree_hash": "sha256:c02caa48c89c443e2d8486c0f77dfc67230b3db29482343787417027a94ff650"
+          "tree_hash": "sha256:98b1b81bb530682503c6a5e93d8fd70c0bda4b5295c71d4207eda240ed699e69"
         }
       },
       "extends": "work",
@@ -219,7 +219,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:62769b99035c7b6ccf2188d8bb9b1938d4e9cd970b2e800062b85913caf2350c",
+      "layer_digest": "sha256:6d540208ad2c99310d3054053ebd11cd9da9ff1e28f95f7f09a33b887f687f99",
       "operations": {
         "hooks": {
           "add": [],
