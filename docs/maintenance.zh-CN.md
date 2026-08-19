@@ -9,7 +9,7 @@
 
    ```bash
    uv run cap show
-   uv run cap show assembly-helper
+   uv run cap show agent-assembler
    ```
 
 3. 确认本次变更属于哪一层：
@@ -24,13 +24,13 @@
 ## 修改时
 
 - 保持 id 为小写连字符。
-- 项目新增或替换的运行时能力必须落在当前仓库 `.cap/capabilities/` 下，并由 profile 的 `allow`／`deny`／`override` 显式引用。
+- 项目新增或替换的运行时能力必须位于当前仓库：默认放在 `.cap/capabilities/`；需要复用仓内唯一 Skill 正文时，由 manifest 明示项目相对、非 symlink、lock 覆盖的 source。profile 必须用 `allow`／`deny`／`override` 显式引用。
 - 用户环境只允许通过已批准的 `machine-context`、pin、asset inventory 和 assembly binding 进入；inventory 只是观察面，不自动授权 Agent-facing 能力。
 - 不把认证材料、token、个人运行态、临时 receipt、machine-context manifest、pin 或 binding 写入本仓。
 - 常驻 prompt 只放短约束；长流程放 Skill。
 - 快速迭代阶段，Skill 的 `description` 和正文使用中文；`name`、目录 id、路径、命令和配置键保持规范形式。
-- `.cap/capabilities/skills/<name>/SKILL.md` 是唯一全文合同；不在 `docs/skills/` 维护需要逐项同步的另一语言镜像。
-- 外部仓库内容先作为证据读取；复制进本仓后必须说明来源、边界和验证方式。
+- 本地 Skill 的 `SKILL.md` 或 manifest 指向的项目 Skill source 是唯一全文合同；不在 `docs/skills/` 或 `.cap` 维护需要逐项同步的镜像。
+- 外部仓库内容先作为证据读取；引入本仓后必须说明来源、边界和验证方式。
 
 ## OpenSpec 工作流
 
@@ -56,7 +56,7 @@ uv run cap skills-validate
 uv run cap lock
 
 # 3. 项目层变化后重建 assembly binding；不得自动刷新 machine-context pin
-for profile in general assembly-helper; do
+for profile in general agent-assembler; do
   uv run cap \
     --machine-context-manifest "$HOME/.agent-system-state/machine-context/manifest.json" \
     --machine-context-pin "$HOME/.agent-system-state/machine-context/pin.json" \
@@ -68,7 +68,7 @@ done
 uv run cap verify
 
 # 5. 查看最终公共 inventory，并展开一个 CLI 的真实目标文件树
-uv run cap show assembly-helper
+uv run cap show agent-assembler
 uv run cap show general
 uv run cap show general --cli omp
 
@@ -76,7 +76,7 @@ uv run cap show general --cli omp
 npx openspec validate <change-id> --strict --json
 ```
 
-裸 `cap` 进入 TUI，只选择 profile；默认是 `general`，选择后直接启动默认 `omp`。TUI 不再选择客户端或 AI 配置方式。需要修改 Agent 系统配置时，直接进入 `assembly-helper`，由该 profile 根据当前项目文件恢复源头、修改所需文件并重新完成 lock、binding、render 和 verify。`cap show` 专用于查看；`run` 与带 `--output` 的 `render` 是参数完整、可在非 TTY 中执行的自动化接口。旧 `interactive` / `i` 不保留兼容层。
+裸 `cap` 进入 TUI，只选择 profile；默认是 `general`，选择后直接启动默认 `omp`。需要修改 Agent 系统配置时，直接进入 `agent-assembler`，由该执行角色从负责人目标和当前项目源文件恢复合同、完成装配，再重建 lock、binding、render 和 verify。事实可调查时直接执行；产品取舍、长期依赖、外部副作用和不可逆风险仍由负责人决定。`grilling` 只有在负责人直接要求或明确接受建议后才能运行。`cap show` 专用于查看；`run` 与带 `--output` 的 `render` 是参数完整、可在非 TTY 中执行的自动化接口。旧 `interactive` / `i` 不保留兼容层。
 
 Profile engine 已打包在当前 `agent-system` uv 项目中，仅由 `uv run cap` 内部调用；用户不直接运行底层 profile engine，也不依赖 sibling checkout。
 
@@ -113,7 +113,7 @@ uv run cap migrate-omp-runtime --rollback
 运行门禁保持：
 
 - machine-context active drift、当前项目 manifest/lock/pin/binding 先验证；
-- Agent-facing asset inventory 默认拒绝，只有显式 project-defaults、role 或 external import 才能进入 closure；
+- Agent-facing asset inventory 默认拒绝，只有显式 project-defaults、role、项目 Skill import 或 external import 才能进入 closure；
 - ambient Skill、MCP、Hook、Plugin discovery 关闭；
 - `--no-extensions`、`--no-rules`；
 - 全局 runtime MCP denylist；
@@ -125,7 +125,7 @@ Session默认按encoded cwd组织只是查找/展示约定，不是授权边界�
 真实验证要求：
 
 - 至少两个不同workdir共享一次登录/settings；
-- `general`、`assembly-helper`使用不同已验证global generations；
+- `general`、`agent-assembler`使用不同已验证global generations；
 - 显式同一Session path跨cwd/profile恢复；
 - 不把cwd目录分组报告为安全隔离；
 - 不同workdir/profile并发时global SQLite与CAS不变；

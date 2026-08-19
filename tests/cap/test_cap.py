@@ -52,7 +52,7 @@ class CapEntryTest(unittest.TestCase):
         profile = cap._tui_profile(
             screen,
             FakeCurses,
-            ["assembly-helper", "general"],
+            ["agent-assembler", "general"],
         )
 
         self.assertEqual(profile, "general")
@@ -63,6 +63,8 @@ class CapEntryTest(unittest.TestCase):
     def test_profile_defaults_to_general_and_accepts_chinese_name(self) -> None:
         parser = cap._build_parser()
         self.assertEqual(parser.parse_args(["run"]).profile, "general")
+        self.assertEqual(cap.RUNNABLE_PROFILES, ("general", "agent-assembler"))
+        self.assertNotIn("assembly-helper", cap.PROFILE_LABELS)
 
         stdout = io.StringIO()
         with (
@@ -71,13 +73,26 @@ class CapEntryTest(unittest.TestCase):
         ):
             selected = cap._choose(
                 "profile",
-                ["general", "assembly-helper"],
+                ["general", "agent-assembler"],
                 "general",
                 cap.PROFILE_LABELS,
             )
 
         self.assertEqual(selected, "general")
         self.assertIn("general（通用工程） [默认]", stdout.getvalue())
+
+    def test_skill_validation_includes_manifest_imports(self) -> None:
+        project = Path(__file__).resolve().parents[2]
+        report = cap._skill_metadata_report(project)
+
+        self.assertEqual(report["standard_conformance"], "ok")
+        grilling = next(
+            skill for skill in report["skills"] if skill["id"] == "grilling"
+        )
+        self.assertEqual(
+            grilling["path"],
+            "plugins/grilling/skills/grilling/SKILL.md",
+        )
 
     def test_help_remains_explicit_and_old_aliases_fail(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -193,7 +208,7 @@ class CapShowTest(unittest.TestCase):
         explanation = {"profile": "general", "inventory": {"skills": []}, "clients": {}}
         stdout = io.StringIO()
         with (
-            patch.object(cap, "_available_profiles", return_value=["assembly-helper", "general"]),
+            patch.object(cap, "_available_profiles", return_value=["agent-assembler", "general"]),
             patch.object(cap, "_choose", side_effect=["general", "不展开"]) as choose,
             patch.object(cap, "_profile_json", return_value=explanation),
             patch.object(cap, "_render_preview") as render_preview,
@@ -497,7 +512,7 @@ class SharedRuntimeTest(unittest.TestCase):
             commands: list[list[str]] = []
             for profile, skills in (
                 ("general", ["openspec-apply-change"]),
-                ("assembly-helper", ["assembly-helper"]),
+                ("agent-assembler", ["agent-assembler"]),
             ):
                 generation = root / profile
                 generation.mkdir()
@@ -515,7 +530,7 @@ class SharedRuntimeTest(unittest.TestCase):
                 )
 
         for command, profile in zip(
-            commands, ("general", "assembly-helper"), strict=True
+            commands, ("general", "agent-assembler"), strict=True
         ):
             self.assertEqual(
                 command[command.index("--append-system-prompt") + 1],
@@ -541,7 +556,7 @@ class ProfileGenerationTest(unittest.TestCase):
         self.home.mkdir()
         self.bindings = self.root / "bindings"
         self.bindings.mkdir()
-        for profile in ("general", "assembly-helper"):
+        for profile in ("general", "agent-assembler"):
             (self.bindings / f"{profile}.binding.json").write_text(
                 json.dumps(
                     {
@@ -592,7 +607,7 @@ class ProfileGenerationTest(unittest.TestCase):
         skills = (
             ["openspec-apply-change"]
             if profile == "general"
-            else ["assembly-helper", "openspec-apply-change"]
+            else ["agent-assembler", "openspec-apply-change"]
         )
         (output / "skills").mkdir()
         for skill in skills:
@@ -704,9 +719,9 @@ class ProfileGenerationTest(unittest.TestCase):
                         materialize,
                         [
                             "general",
-                            "assembly-helper",
+                            "agent-assembler",
                             "general",
-                            "assembly-helper",
+                            "agent-assembler",
                         ],
                     )
                 )

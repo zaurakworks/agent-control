@@ -34,6 +34,7 @@ from agent_system.cap.config import (
 )
 
 from agent_system.cap.support import _base_args, _binding_args, _passthrough, _run_path, _workdir
+from agent_system.profile import cli as profile_cli
 from agent_system.omp.runtime import (
     _MigrationError,
     _agent_home_dir,
@@ -58,7 +59,7 @@ from agent_system.omp.runtime import (
 )
 PROFILE_LABELS = {
     "general": "通用工程",
-    "assembly-helper": "装配助手",
+    "agent-assembler": "Agent 装配者",
 }
 
 def _decode_frontmatter_scalar(raw: str, path: Path, line: int) -> str:
@@ -109,33 +110,49 @@ def _skill_metadata_report(project: Path) -> dict[str, object]:
     skill_root = project / ".cap" / "capabilities" / "skills"
     issues: list[str] = []
     skills: list[dict[str, str]] = []
+    skill_dirs: dict[str, Path] = {}
     if not skill_root.is_dir():
         issues.append(f"{skill_root}: Skill 目录不存在")
     else:
-        for skill_dir in sorted(path for path in skill_root.iterdir() if path.is_dir()):
-            skill_file = skill_dir / "SKILL.md"
-            relative = skill_file.relative_to(project).as_posix()
-            if skill_dir.is_symlink() or skill_file.is_symlink():
-                issues.append(f"{relative}: 不允许 symlink")
-                continue
-            if not skill_file.is_file():
-                issues.append(f"{relative}: 文件不存在")
-                continue
-            try:
-                metadata = _read_skill_metadata(skill_file)
-            except (OSError, UnicodeError, ValueError) as exc:
-                issues.append(str(exc))
-                continue
+        skill_dirs.update(
+            (path.name, path) for path in skill_root.iterdir() if path.is_dir()
+        )
 
-            name = metadata.get("name", "")
-            description = metadata.get("description", "")
-            if not 1 <= len(name) <= 64 or not SKILL_NAME_PATTERN.fullmatch(name):
-                issues.append(f"{relative}: name 必须是 1–64 字符的小写字母、数字和单连字符 id")
-            elif name != skill_dir.name:
-                issues.append(f"{relative}: name {name!r} 与目录 {skill_dir.name!r} 不一致")
-            if not 1 <= len(description) <= 1024:
-                issues.append(f"{relative}: description 必须是 1–1024 个字符")
-            skills.append({"id": skill_dir.name, "path": relative, "name": name})
+    try:
+        project_model = profile_cli.load_project(project)
+    except profile_cli.ProfileError as exc:
+        issues.append(f"CAP 项目无效：{exc}")
+    else:
+        for name, imported in project_model.skill_imports.items():
+            if name in skill_dirs:
+                issues.append(f"Skill {name} 同时存在于 capability store 和 project import")
+                continue
+            skill_dirs[name] = imported.source
+
+    for skill_id, skill_dir in sorted(skill_dirs.items()):
+        skill_file = skill_dir / "SKILL.md"
+        relative = skill_file.relative_to(project).as_posix()
+        if skill_dir.is_symlink() or skill_file.is_symlink():
+            issues.append(f"{relative}: 不允许 symlink")
+            continue
+        if not skill_file.is_file():
+            issues.append(f"{relative}: 文件不存在")
+            continue
+        try:
+            metadata = _read_skill_metadata(skill_file)
+        except (OSError, UnicodeError, ValueError) as exc:
+            issues.append(str(exc))
+            continue
+
+        name = metadata.get("name", "")
+        description = metadata.get("description", "")
+        if not 1 <= len(name) <= 64 or not SKILL_NAME_PATTERN.fullmatch(name):
+            issues.append(f"{relative}: name 必须是 1–64 字符的小写字母、数字和单连字符 id")
+        elif name != skill_id:
+            issues.append(f"{relative}: name {name!r} 与目录 {skill_id!r} 不一致")
+        if not 1 <= len(description) <= 1024:
+            issues.append(f"{relative}: description 必须是 1–1024 个字符")
+        skills.append({"id": skill_id, "path": relative, "name": name})
 
     return {
         "standard_conformance": "ok" if not issues else "invalid",
@@ -163,8 +180,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  cap show general --cli omp\n"
             "\n"
             "显式自动化：\n"
-            "  cap run assembly-helper -- -p \"帮我装配一个 review-agent\"\n"
-            "  cap render assembly-helper --cli omp --output /tmp/rendered-cap\n"
+            "  cap run agent-assembler -- -p \"帮我装配一个 review-agent\"\n"
+            "  cap render agent-assembler --cli omp --output /tmp/rendered-cap\n"
             "  cap verify\n"
             "  cap skills-validate\n"
         ),
@@ -882,7 +899,7 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(args, "profile_tool_command", None) == "run" and not args.client_args:
         print(
             "cap run 需要在 -- 后提供客户端 batch 参数；否则目标 CLI 可能进入交互/恢复等待，看起来像卡住。\n"
-            "示例：cap run assembly-helper -- -p \"帮我装配一个 review-agent\"\n"
+            "示例：cap run agent-assembler -- -p \"帮我装配一个 review-agent\"\n"
             "如果要交互式启动，请使用裸 cap",
             file=sys.stderr,
         )

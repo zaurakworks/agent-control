@@ -26,6 +26,32 @@ def copy_fixture(target: Path) -> Path:
     (target / "CONTEXT.md").replace(target / "AGENTS.md")
     return target
 
+def configure_skill_import(project: Path, name: str, source: str) -> None:
+    manifest_path = project / ".cap" / "manifest.toml"
+    manifest = manifest_path.read_text(encoding="utf-8")
+    updated_manifest = manifest.replace(
+        'defaults = ".cap/project-defaults.toml"\n',
+        'defaults = ".cap/project-defaults.toml"\n'
+        'skill_imports = ".cap/skill-imports.toml"\n',
+        1,
+    )
+    if updated_manifest == manifest:
+        raise AssertionError("fixture manifest defaults declaration changed")
+    manifest_path.write_text(updated_manifest, encoding="utf-8")
+    (project / ".cap" / "skill-imports.toml").write_text(
+        f'version = 1\n\n[[imports]]\nname = "{name}"\nsource = "{source}"\n',
+        encoding="utf-8",
+    )
+    profile_path = project / ".cap" / "profiles" / "review.toml"
+    profile_text = profile_path.read_text(encoding="utf-8")
+    updated_profile = profile_text.replace(
+        'allow = ["review-skill"]',
+        f'allow = ["review-skill", "{name}"]',
+        1,
+    )
+    if updated_profile == profile_text:
+        raise AssertionError("fixture review Skill declaration changed")
+    profile_path.write_text(updated_profile, encoding="utf-8")
 
 
 class ProfileTestCase(unittest.TestCase):
@@ -148,6 +174,110 @@ class MaterializationTests(ProfileTestCase):
                     self.assertNotIn(f"{other}-mcp", rendered)
                     self.assertNotIn(f"{other}-hook", rendered)
                     self.assertNotIn(f"{other}-plugin", rendered)
+
+    def test_project_skill_import_is_locked_explained_and_rendered_from_one_source(
+        self,
+    ) -> None:
+        source = self.project / "plugins" / "sample" / "skills" / "imported-skill"
+        source.mkdir(parents=True)
+        skill_file = source / "SKILL.md"
+        skill_file.write_text(
+            "---\nname: imported-skill\n"
+            "description: Imported fixture Skill.\n---\n\n"
+            "imported-skill-sentinel\n",
+            encoding="utf-8",
+        )
+        configure_skill_import(
+            self.project,
+            "imported-skill",
+            "plugins/sample/skills/imported-skill",
+        )
+        profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project,
+            "review",
+            self.machine_context_manifest,
+            self.machine_context_pin,
+            self.binding_dir,
+        )
+
+        explanation = profile.explain_profile(self.project, "review")
+        self.assertEqual(
+            explanation["skill_imports"],
+            [
+                {
+                    "name": "imported-skill",
+                    "source": "plugins/sample/skills/imported-skill",
+                }
+            ],
+        )
+        locked = json.loads(
+            (self.project / ".cap" / "lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            locked["project_skill_imports"],
+            [
+                {
+                    "name": "imported-skill",
+                    "source": "plugins/sample/skills/imported-skill",
+                }
+            ],
+        )
+        self.assertIn(
+            "plugins/sample/skills/imported-skill/SKILL.md",
+            locked["inputs"],
+        )
+        self.assertIn(".cap/project-defaults.toml", locked["inputs"])
+        self.assertIn(".cap/runtime/omp.toml", locked["inputs"])
+
+        output = self.output_directory("imported-skill-render")
+        self.materialize_profile(self.project, "omp", "review", output)
+        rendered_skill = output / "skills" / "imported-skill" / "SKILL.md"
+        self.assertIn(
+            "imported-skill-sentinel",
+            rendered_skill.read_text(encoding="utf-8"),
+        )
+        self.assertFalse(
+            (
+                self.project / ".cap" / "capabilities" / "skills" / "imported-skill"
+            ).exists()
+        )
+
+        with skill_file.open("a", encoding="utf-8") as stream:
+            stream.write("changed\n")
+        with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
+            self.verify_project(self.project)
+
+    def test_project_skill_import_rejects_escape_and_symlink_sources(self) -> None:
+        external = self.root / "external" / "imported-skill"
+        external.mkdir(parents=True)
+        (external / "SKILL.md").write_text(
+            "---\nname: imported-skill\ndescription: Imported fixture Skill.\n---\n",
+            encoding="utf-8",
+        )
+
+        escaped = self.root / "escaped-import"
+        copy_fixture(escaped)
+        configure_skill_import(escaped, "imported-skill", "../external/imported-skill")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "normalized POSIX relative path"
+        ):
+            profile.load_project(escaped)
+
+        linked = self.root / "linked-import"
+        copy_fixture(linked)
+        link = linked / "plugins" / "sample" / "skills" / "imported-skill"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(external, target_is_directory=True)
+        configure_skill_import(
+            linked,
+            "imported-skill",
+            "plugins/sample/skills/imported-skill",
+        )
+        with self.assertRaisesRegex(
+            profile.ProfileError, "must not traverse a symlink"
+        ):
+            profile.load_project(linked)
 
     def test_renders_native_mcp_shapes_and_fixed_environment_values(self) -> None:
         codex = self.output_directory("codex")

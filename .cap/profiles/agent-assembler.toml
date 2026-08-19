@@ -1,10 +1,11 @@
 version = 3
-prompt = ".cap/prompts/assembly-helper.md"
+prompt = ".cap/prompts/agent-assembler.md"
 runtime = { omp = "default" }
 
 [skills]
 allow = [
-  "assembly-helper",
+  "agent-assembler",
+  "grilling",
   "agent-prompt-design",
   "agent-skill-design",
   "capability-profile-closure",

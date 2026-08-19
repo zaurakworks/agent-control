@@ -30,6 +30,7 @@ BASE_MANIFEST_VERSION = 3
 BASE_PIN_VERSION = 3
 BINDING_VERSION = 3
 OVERLAY_VERSION = 2
+PROJECT_SKILL_IMPORTS_VERSION = 1
 EVIDENCE_VERSION = 2
 MACHINE_CONTEXT_NAME = "machine-context"
 REAL_HOME_PROFILE = "real-home"  # legacy migration format only
@@ -448,6 +449,14 @@ class CapabilityOperations:
 
 
 @dataclass(frozen=True)
+class ProjectSkillImport:
+    """Bind one project-owned Skill id to its canonical source directory."""
+
+    name: str
+    source: Path
+
+
+@dataclass(frozen=True)
 class Profile:
     """Hold one resolved capability layer, including its source root."""
 
@@ -481,6 +490,10 @@ class Project:
 
     root: Path
     manifest: Path
+    defaults: Path
+    runtime_policy: Path
+    skill_imports_manifest: Path | None
+    skill_imports: Mapping[str, ProjectSkillImport]
     profiles: Mapping[str, Profile]
     mcps: Mapping[str, McpDefinition]
     external_imports: tuple[Mapping[str, Any], ...]
@@ -593,6 +606,46 @@ def _load_external_imports(
     return tuple(result)
 
 
+def _load_project_skill_imports(
+    root: Path, manifest_path: Path
+) -> dict[str, ProjectSkillImport]:
+    """Load canonical project-local Skill sources outside the .cap store."""
+
+    data = _read_toml(manifest_path)
+    _expect_keys(data, {"version", "imports"}, "project Skill imports")
+    if type(data["version"]) is not int or data["version"] != PROJECT_SKILL_IMPORTS_VERSION:
+        raise ProfileError(
+            f"project Skill imports.version must be {PROJECT_SKILL_IMPORTS_VERSION}"
+        )
+    raw_imports = data["imports"]
+    if not isinstance(raw_imports, list):
+        raise ProfileError("project Skill imports.imports must be an array")
+    imports: dict[str, ProjectSkillImport] = {}
+    for index, item in enumerate(raw_imports):
+        context = f"project Skill imports.imports[{index}]"
+        if not isinstance(item, Mapping):
+            raise ProfileError(f"{context} must be a table")
+        _expect_keys(item, {"name", "source"}, context)
+        name = _validate_identifier(item["name"], f"{context}.name")
+        source_value = item["source"]
+        if not isinstance(source_value, str):
+            raise ProfileError(f"{context}.source must be a path string")
+        source = _resolve_directory(root, source_value, f"{context}.source")
+        if source.is_relative_to(root / ".cap"):
+            raise ProfileError(
+                f"{context}.source must be outside .cap; use the capability store"
+            )
+        if source.name != name:
+            raise ProfileError(
+                f"{context}.source directory {source.name!r} must match {name!r}"
+            )
+        _validate_capability_tree(root, "skills", source)
+        if name in imports:
+            raise ProfileError(f"project Skill import is duplicated: {name}")
+        imports[name] = ProjectSkillImport(name=name, source=source)
+    return imports
+
+
 def _load_overlay_spec(root: Path, private_overlay: Path | str | None) -> OverlaySpec | None:
     if private_overlay is None:
         return None
@@ -622,7 +675,17 @@ def load_project(
     _read_nonempty_text(root_instructions, "root instructions")
     manifest_path = _resolve_file(root, ".cap/manifest.toml", "manifest")
     manifest = _read_toml(manifest_path)
-    _expect_keys(manifest, {"version", "defaults", "runtime", "profiles"}, "manifest")
+    required_manifest_keys = {"version", "defaults", "runtime", "profiles"}
+    actual_manifest_keys = set(manifest)
+    missing_manifest_keys = sorted(required_manifest_keys - actual_manifest_keys)
+    extra_manifest_keys = sorted(
+        actual_manifest_keys - required_manifest_keys - {"skill_imports"}
+    )
+    if missing_manifest_keys or extra_manifest_keys:
+        raise ProfileError(
+            "manifest keys mismatch: "
+            f"missing={missing_manifest_keys}, extra={extra_manifest_keys}"
+        )
     if type(manifest["version"]) is not int or manifest["version"] != MANIFEST_VERSION:
         raise ProfileError(f"manifest.version must be {MANIFEST_VERSION}")
     raw_profiles = manifest["profiles"]
@@ -644,6 +707,18 @@ def load_project(
         raise ProfileError("OMP runtime policy.version must be 1")
     if runtime_data["client"] != "omp" or not isinstance(runtime_data["policy"], Mapping):
         raise ProfileError("OMP runtime policy must target omp and contain a table")
+
+    skill_imports_manifest: Path | None = None
+    skill_imports: dict[str, ProjectSkillImport] = {}
+    raw_skill_imports = manifest.get("skill_imports")
+    if raw_skill_imports is not None:
+        if not isinstance(raw_skill_imports, str):
+            raise ProfileError("manifest.skill_imports must be a path string")
+        skill_imports_manifest = _resolve_file(
+            root, raw_skill_imports, "project Skill imports"
+        )
+        _require_under_cap(root, skill_imports_manifest, "project Skill imports")
+        skill_imports = _load_project_skill_imports(root, skill_imports_manifest)
 
     capability_fields = {
         "skills": "skills",
@@ -671,9 +746,15 @@ def load_project(
     expected_by_root: dict[Path, dict[str, set[str]]] = {
         root: {kind: set() for kind in CAPABILITY_KINDS}
     }
+    imported_skill_names = set(skill_imports)
     for field, store_kind in capability_fields.items():
-        expected_by_root[root][store_kind].update(default_operations[field].allow)
-        expected_by_root[root][store_kind].update(default_operations[field].override)
+        names = {
+            *default_operations[field].allow,
+            *default_operations[field].override,
+        }
+        if store_kind == "skills":
+            names.difference_update(imported_skill_names)
+        expected_by_root[root][store_kind].update(names)
 
     overlay = _load_overlay_spec(root, private_overlay)
     definitions: dict[str, dict[str, Any]] = {}
@@ -727,8 +808,13 @@ def load_project(
                 for field in capability_fields
             }
             for field, store_kind in capability_fields.items():
-                expected[store_kind].update(operations[field].allow)
-                expected[store_kind].update(operations[field].override)
+                names = {
+                    *operations[field].allow,
+                    *operations[field].override,
+                }
+                if store_kind == "skills":
+                    names.difference_update(imported_skill_names)
+                expected[store_kind].update(names)
             definitions[name] = {
                 "source": source,
                 "source_root": source_root,
@@ -752,6 +838,13 @@ def load_project(
             raise ProfileError("private overlay manifest.version must be 3")
         load_definitions(overlay.root, overlay_manifest, "private", private=True)
 
+    def capability_origin(field: str, name: str, source_root: Path) -> Path:
+        if field == "skills" and name in skill_imports:
+            return skill_imports[name].source
+        store_kind = capability_fields[field]
+        base = source_root / ".cap" / "capabilities" / store_kind
+        return base / f"{name}.json" if store_kind == "mcp" else base / name
+
     profiles: dict[str, Profile] = {}
     for name, definition in sorted(definitions.items()):
         resolved: dict[str, tuple[str, ...]] = {}
@@ -760,7 +853,7 @@ def load_project(
             operations = definition["operations"][field]
             inherited = set(default_operations[field].allow)
             origins[field] = {
-                capability: defaults_path.parent
+                capability: capability_origin(field, capability, root)
                 for capability in inherited
             }
             denied = set(operations.deny)
@@ -782,7 +875,9 @@ def load_project(
             for capability in denied:
                 origins[field].pop(capability, None)
             for capability in (*operations.override, *operations.allow):
-                origins[field][capability] = definition["source_root"]
+                origins[field][capability] = capability_origin(
+                    field, capability, definition["source_root"]
+                )
             inherited.update(overrides)
             inherited.update(operations.allow)
             resolved[field] = tuple(sorted(inherited))
@@ -802,12 +897,25 @@ def load_project(
             plugins=resolved["plugins"],
             runtime=definition["runtime"],
         )
+    referenced_imports = {
+        skill
+        for profile in profiles.values()
+        for skill in profile.skills
+        if skill in skill_imports
+    }
+    unreferenced_imports = sorted(imported_skill_names - referenced_imports)
+    if unreferenced_imports:
+        raise ProfileError(f"project Skill imports are unreferenced: {unreferenced_imports}")
     mcps: dict[str, McpDefinition] = {}
     for source_root, expected in expected_by_root.items():
         mcps.update(_validate_capability_store(source_root, expected))
     return Project(
         root=root,
         manifest=manifest_path,
+        defaults=defaults_path,
+        runtime_policy=runtime_path,
+        skill_imports_manifest=skill_imports_manifest,
+        skill_imports=dict(sorted(skill_imports.items())),
         profiles=dict(sorted(profiles.items())),
         mcps=dict(sorted(mcps.items())),
         external_imports=external_imports,
@@ -1651,6 +1759,14 @@ def explain_profile(
         "operations": locked["operations"],
         "inventory": _profile_inventory(profile),
         "external_imports": list(project.external_imports),
+        "skill_imports": [
+            {
+                "name": imported.name,
+                "source": imported.source.relative_to(project.root).as_posix(),
+            }
+            for imported in project.skill_imports.values()
+            if imported.name in profile.skills
+        ],
         "evidence": {
             "declared": "ok",
             "configured": "lock-verified",
@@ -2648,6 +2764,22 @@ def _resolve_file(root: Path, value: str, context: str) -> Path:
     return resolved
 
 
+def _resolve_directory(root: Path, value: str, context: str) -> Path:
+    relative = _safe_relative(value, context)
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ProfileError(f"{context} must not traverse a symlink: {value}")
+    try:
+        resolved = current.resolve(strict=True)
+    except OSError as error:
+        raise ProfileError(f"{context} does not exist: {value}") from error
+    if not resolved.is_relative_to(root) or not resolved.is_dir():
+        raise ProfileError(f"{context} must resolve to a project directory: {value}")
+    return resolved
+
+
 def _require_under_cap(root: Path, path: Path, context: str) -> None:
     cap_root = root / ".cap"
     if not path.is_relative_to(cap_root):
@@ -2660,14 +2792,23 @@ def _validate_capability_store(
     base = root / ".cap" / "capabilities"
     _require_directory(base, "capability store")
     children = {item.name for item in base.iterdir()}
-    if children != set(CAPABILITY_KINDS):
+    known_kinds = set(CAPABILITY_KINDS)
+    extra_kinds = sorted(children - known_kinds)
+    missing_required_kinds = sorted(
+        kind for kind in known_kinds - children if expected[kind]
+    )
+    if extra_kinds or missing_required_kinds:
         raise ProfileError(
-            f"capability store kinds mismatch: missing={sorted(set(CAPABILITY_KINDS) - children)}, "
-            f"extra={sorted(children - set(CAPABILITY_KINDS))}"
+            "capability store kinds mismatch: "
+            f"missing={missing_required_kinds}, extra={extra_kinds}"
         )
     mcps: dict[str, McpDefinition] = {}
     for kind in CAPABILITY_KINDS:
         kind_root = base / kind
+        if not kind_root.exists():
+            if kind_root.is_symlink() or expected[kind]:
+                _require_directory(kind_root, f"capability kind {kind}")
+            continue
         _require_directory(kind_root, f"capability kind {kind}")
         if kind == "mcp":
             actual = set()
@@ -3603,10 +3744,10 @@ def discover_asset_inventory(home_root: Path | str) -> dict[str, Any]:
         if entry["kind"] in CAPABILITY_KINDS
     ]
     instruction_entries = observed_entries("context")
-    inventory_digest = f"sha256:{_sha256(_canonical_json({
+    inventory_digest = "sha256:" + _sha256(_canonical_json({
         "capability": capability_entries,
         "instruction": instruction_entries,
-    }))}"
+    }))
     return {
         "version": 1,
         "kind": "asset-inventory",
@@ -4023,11 +4164,11 @@ def bind_profile(
     if active:
         raise ProfileError(f"active machine-context drift detected: {', '.join(active)}")
     layer_digest = desired["profiles"][profile.name]["layer_digest"]
-    effective_digest = f"sha256:{_sha256(_canonical_json({
+    effective_digest = "sha256:" + _sha256(_canonical_json({
         "machine_context_digest": manifest["effective_digest"],
         "layer_digest": layer_digest,
         "profile": profile.name,
-    }))}"
+    }))
     target = Path(binding_dir).expanduser().absolute() / f"{profile.name}.binding.json"
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     payload = {
@@ -4060,11 +4201,11 @@ def _verify_profile_binding(
     )
     binding = _strict_json(binding_path)
     layer_digest = desired["profiles"][profile.name]["layer_digest"]
-    expected_effective = f"sha256:{_sha256(_canonical_json({
+    expected_effective = "sha256:" + _sha256(_canonical_json({
         "machine_context_digest": manifest["effective_digest"],
         "layer_digest": layer_digest,
         "profile": profile.name,
-    }))}"
+    }))
     expected = {
         "version": BINDING_VERSION,
         "profile": profile.name,
@@ -4178,6 +4319,14 @@ def _desired_lock(project: Project) -> dict[str, Any]:
         "external_imports": list(project.external_imports),
         "profiles": profiles,
     }
+    if project.skill_imports:
+        payload["project_skill_imports"] = [
+            {
+                "name": item.name,
+                "source": item.source.relative_to(project.root).as_posix(),
+            }
+            for item in project.skill_imports.values()
+        ]
     if project.overlay is not None:
         payload["source_layers"] = [
             {"kind": "public", "root": "project"},
@@ -4206,7 +4355,17 @@ def _profile_inventory(profile: Profile) -> dict[str, list[str]]:
 
 def _input_records(project: Project) -> dict[str, Any]:
     if project.overlay is None:
-        paths: set[Path] = {project.manifest, project.root / "AGENTS.md"}
+        paths: set[Path] = {
+            project.manifest,
+            project.defaults,
+            project.runtime_policy,
+            project.root / "AGENTS.md",
+        }
+        if project.skill_imports_manifest is not None:
+            paths.add(project.skill_imports_manifest)
+        for item in project.skill_imports.values():
+            paths.add(item.source)
+            paths.update(item.source.rglob("*"))
         for profile in project.profiles.values():
             paths.update({profile.source, profile.prompt})
         capability_root = project.root / ".cap" / "capabilities"
@@ -4237,6 +4396,30 @@ def _input_records(project: Project) -> dict[str, Any]:
         ("public/AGENTS.md", project.root / "AGENTS.md"),
         ("public/.cap/manifest.toml", project.manifest),
     ]
+    entries.extend(
+        (
+            "public/" + path.relative_to(project.root).as_posix(),
+            path,
+        )
+        for path in (project.defaults, project.runtime_policy)
+    )
+    if project.skill_imports_manifest is not None:
+        entries.append(
+            (
+                "public/" + project.skill_imports_manifest.relative_to(project.root).as_posix(),
+                project.skill_imports_manifest,
+            )
+        )
+    for item in project.skill_imports.values():
+        relative = item.source.relative_to(project.root).as_posix()
+        entries.append((f"public/{relative}", item.source))
+        entries.extend(
+            (
+                "public/" + path.relative_to(project.root).as_posix(),
+                path,
+            )
+            for path in item.source.rglob("*")
+        )
     roots: dict[Path, str] = {project.root: "public"}
     if project.overlay is not None:
         roots[project.overlay.root] = "private"
@@ -4341,7 +4524,6 @@ def _render_tree(
         source_root = profile.origins["skills"].get(skill)
         if source_root is None:
             raise ProfileError(f"skill {skill} has no verified source")
-        source_root = source_root / ".cap" / "capabilities" / "skills" / skill
         for source in sorted(
             source_root.rglob("*"),
             key=lambda path: path.relative_to(source_root).as_posix(),
@@ -4361,9 +4543,7 @@ def _render_tree(
             source_root = profile.origins[kind].get(name)
             if source_root is None:
                 raise ProfileError(f"{kind[:-1]} {name} has no verified source")
-            target = (
-                source_root / ".cap" / "capabilities" / kind / name / "targets" / client
-            )
+            target = source_root / "targets" / client
             if not target.is_dir() or target.is_symlink():
                 raise ProfileError(f"{kind[:-1]} {name} lacks required {client} target")
             for source in sorted(

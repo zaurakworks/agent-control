@@ -1,7 +1,6 @@
 ---
 name: grilling
-description: >-
-  仅在用户直接要求 grilling／盘问／压力测试，或明确接受建议后，用结构化问题压力测试计划、决定或想法；复杂性、关键词或 Agent 偏好不构成同意。Use structured questions to stress-test a plan, decision, or idea only on direct request or explicit acceptance; complexity or keywords are not consent.
+description: 仅在用户直接要求 grilling／盘问／压力测试，或明确接受建议后，用结构化问题压力测试计划、决定或想法；复杂性、关键词或 Agent 偏好不构成同意。Use structured questions to stress-test a plan, decision, or idea only on direct request or explicit acceptance; complexity or keywords are not consent.
 license: MIT
 ---
 

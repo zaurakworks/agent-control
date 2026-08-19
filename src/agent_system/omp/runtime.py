@@ -379,7 +379,7 @@ def _choose_canonical(
     if len(existing) == 1:
         return existing[0]
     general = summaries["general"]
-    helper = summaries["assembly-helper"]
+    helper = summaries["agent-assembler"]
     if general.schema_digest != helper.schema_digest:
         raise _MigrationError("legacy OMP database schemas differ")
     if general.auth_count and helper.auth_count:
@@ -387,7 +387,7 @@ def _choose_canonical(
             raise _MigrationError("legacy OMP authentication identities differ")
         return "general"
     if helper.auth_count:
-        return "assembly-helper"
+        return "agent-assembler"
     return "general"
 
 def _merge_session_inventory(

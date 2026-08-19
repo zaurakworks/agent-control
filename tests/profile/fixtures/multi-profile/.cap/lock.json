@@ -233,6 +233,11 @@
       "sha256": "ed0d3e4527f62fb12545fa5d842d54114a3239cede6549009d28d5260ebe9d11",
       "type": "file"
     },
+    ".cap/project-defaults.toml": {
+      "mode": "0644",
+      "sha256": "e0fc85719cd802e78a2acb13f9220878dff823d063ebe553f43d66279642d204",
+      "type": "file"
+    },
     ".cap/prompts/implementation.md": {
       "mode": "0644",
       "sha256": "37e597509bce794adae7a81123e17946b4344362dc45656176f1ae1102286e99",
@@ -241,6 +246,11 @@
     ".cap/prompts/review.md": {
       "mode": "0644",
       "sha256": "7b4902e0f98337dc6bb9fd52f3756eda37663c51747b631c6ddf22a2e5f0fdcd",
+      "type": "file"
+    },
+    ".cap/runtime/omp.toml": {
+      "mode": "0644",
+      "sha256": "a82e3af68edcc297fd0b9dedf35180aafaf479cad3fcc95ca9393446bbbe8350",
       "type": "file"
     },
     "AGENTS.md": {

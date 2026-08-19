@@ -53,12 +53,12 @@ def test_external_import_requires_approved_profile_and_digest() -> None:
                     "source": "user-home",
                     "digest": "sha256:asset",
                     "approved": True,
-                    "profiles": ("assembly-helper",),
+                    "profiles": ("agent-assembler",),
                 },
             )
         },
     )()
-    profile = type("Profile", (), {"name": "assembly-helper"})()
+    profile = type("Profile", (), {"name": "agent-assembler"})()
     inventory = {
         "capability_entries": [
             {
@@ -97,12 +97,12 @@ def test_external_import_rejects_unapproved_or_mismatched_assets(
                     "source": "user-home",
                     "digest": digest,
                     "approved": approved,
-                    "profiles": ("assembly-helper",),
+                    "profiles": ("agent-assembler",),
                 },
             )
         },
     )()
-    profile = type("Profile", (), {"name": "assembly-helper"})()
+    profile = type("Profile", (), {"name": "agent-assembler"})()
     inventory = {
         "capability_entries": [
             {
