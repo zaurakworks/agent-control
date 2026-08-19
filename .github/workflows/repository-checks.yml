@@ -37,6 +37,16 @@ jobs:
       - name: Test CAP and OMP packages
         run: uv run python -m unittest tests/cap/test_cap.py
 
+      - name: Smoke packaged CAP entrypoint
+        env:
+          UV_TOOL_DIR: ${{ runner.temp }}/uv-tools
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/uv-tool-bin
+        run: |
+          mkdir -p "$UV_TOOL_BIN_DIR"
+          uv tool install --force .
+          "$UV_TOOL_BIN_DIR/cap" --project "$PWD" show general
+          "$UV_TOOL_BIN_DIR/cap" --project "$PWD" show agent-assembler
+
       - name: Check federated entry contract
         run: python scripts/test_federated_entry.py
 
