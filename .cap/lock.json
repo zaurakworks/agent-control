@@ -146,7 +146,7 @@
     },
     ".cap/profiles/assembly-helper.toml": {
       "mode": "0644",
-      "sha256": "8912337beff08c87356a3c0584acbc6781168c426821f56e1d7f7ff62d5aa02e",
+      "sha256": "28dc4291267780743c9ac8a44a0700544d7ddbf5142f75e94e959968d06b8bee",
       "type": "file"
     },
     ".cap/profiles/general.toml": {
@@ -161,7 +161,7 @@
     },
     ".cap/prompts/assembly-helper.md": {
       "mode": "0644",
-      "sha256": "84783e959e3cec177f9e037b75b58a3b6ce5ce92b83f3dfefc2a2bd1d2c9d5d8",
+      "sha256": "2d535366e95d951337791c547cb93fe94b3353a0de4d01713b323a28eb409fb1",
       "type": "file"
     },
     ".cap/prompts/general.md": {
@@ -189,13 +189,13 @@
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:3de424a465736013f216bf7c1b679cd8042854216b7e7ad55c2b2f1b833d7239"
+          "tree_hash": "sha256:22239f8f5f0ff2e5be5b50026a41c5f35605fc47d75ee4aa7ac6add3ca1fad90"
         },
         "omp": {
-          "tree_hash": "sha256:068fdc459db2541ec605b0ac13f5356ea077d2cf6488125a15da683403d5593a"
+          "tree_hash": "sha256:27fd270f9ad18c3930d4619281f5a18e8fe1bd58e0bb7f1ac8ffc4f12ffd3a82"
         },
         "qoder": {
-          "tree_hash": "sha256:331e677b71f374d9a480f2874f01fa0428bed0ec8373499767ab46f2ccbcc8e8"
+          "tree_hash": "sha256:c02caa48c89c443e2d8486c0f77dfc67230b3db29482343787417027a94ff650"
         }
       },
       "extends": "work",
@@ -219,7 +219,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:40bc99efe7d6ea6111773cedc07a18033e0d07834c6a24b915e73a0ed2e6e5e1",
+      "layer_digest": "sha256:62769b99035c7b6ccf2188d8bb9b1938d4e9cd970b2e800062b85913caf2350c",
       "operations": {
         "hooks": {
           "add": [],
@@ -228,7 +228,9 @@
         },
         "mcps": {
           "add": [],
-          "mask": [],
+          "mask": [
+            "idea"
+          ],
           "replace": []
         },
         "plugins": {

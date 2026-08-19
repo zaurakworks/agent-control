@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 import os
 import shutil
 import sys
@@ -8,6 +9,7 @@ import tempfile
 import subprocess
 import threading
 import tomllib
+from contextlib import redirect_stderr
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -897,6 +899,31 @@ replace = []
         active_change = profile.discover_real_home(self.home)
         active, _ = profile._base_diff(locked, active_change)
         self.assertEqual(active, [".mcp.json"])
+    def test_warns_when_base_mcp_is_outside_project_declared_closure(self) -> None:
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text(
+            '[mcp_servers.idea]\ncommand = "python3"\n',
+            encoding="utf-8",
+        )
+        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+        output = self.output_directory("unexpected-mcp")
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            profile.materialize_profile(
+                self.project,
+                "omp",
+                "review",
+                output,
+                base_manifest=base_manifest,
+                base_pin=base_pin,
+                binding_dir=binding_dir,
+            )
+        warning = stderr.getvalue()
+        self.assertIn("profile: warning:", warning)
+        self.assertIn("out-of-scope base MCP(s): idea", warning)
+        self.assertIn(".codex/config.toml", warning)
+
 
     def test_omp_uses_real_home_while_runtime_state_remains_isolated(self) -> None:
         base_manifest, base_pin, binding_dir = self.configure_layered_profile()
