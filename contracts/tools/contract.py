@@ -18,11 +18,11 @@ except ImportError:  # Direct execution: python contracts/tools/contract.py
     from validate import validate_instance, validate_semantics
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = "zaurakworks/agent-system"
-OWNER, REPOSITORY_NAME = REPOSITORY.split("/", 1)
+DEFAULT_REPOSITORY = "zaurakworks/agent-system"
 ISSUE_URL_RE = re.compile(
-    r"^https://github\.com/zaurakworks/agent-system/issues/([1-9][0-9]*)$"
+    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/issues/([1-9][0-9]*)$"
 )
+REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 CONTRACT_ID_RE = re.compile(r"^exec-[a-z0-9][a-z0-9-]*$")
 GOAL_ID_RE = re.compile(r"^goal-[a-z0-9][a-z0-9-]*$")
 VERSION_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -74,9 +74,19 @@ class ContractError(RuntimeError):
 class GhClient:
     """Narrow argv-only adapter for this repository's required GitHub operations."""
 
-    def __init__(self, runner: Runner = subprocess.run) -> None:
+    def __init__(self, runner: Runner = subprocess.run, repository: str | None = None) -> None:
         self._runner = runner
+        self.repository = repository
 
+    def bind(self, repository: str) -> None:
+        if not REPO_RE.fullmatch(repository):
+            raise ContractError("repository must be owner/repo")
+        self.repository = repository
+
+    def _repo(self) -> str:
+        if not self.repository:
+            raise ContractError("repository is required; pass --repo owner/repo or a full Issue URL")
+        return self.repository
     def _invoke(self, args: Sequence[str], input_text: str | None = None) -> Any:
         argv = ["gh", *args]
         completed = self._runner(
@@ -102,14 +112,15 @@ class GhClient:
                 "view",
                 str(number),
                 "--repo",
-                REPOSITORY,
+                self._repo(),
                 "--json",
                 "number,title,body,updatedAt,url,state",
             ]
         )
-        return _validate_issue_payload(payload, number)
+        return _validate_issue_payload(payload, number, self._repo())
 
     def parent(self, number: int) -> dict[str, Any] | None:
+        owner, name = self._repo().split("/", 1)
         payload = self._invoke(
             [
                 "api",
@@ -117,9 +128,9 @@ class GhClient:
                 "-f",
                 f"query={PARENT_QUERY}",
                 "-F",
-                f"owner={OWNER}",
+                f"owner={owner}",
                 "-F",
-                f"name={REPOSITORY_NAME}",
+                f"name={name}",
                 "-F",
                 f"number={number}",
             ]
@@ -129,7 +140,7 @@ class GhClient:
             parent = issue["parent"]
         except (KeyError, TypeError) as exc:
             raise ContractError("GitHub returned a malformed native-parent response") from exc
-        if issue.get("number") != number or issue.get("url") != issue_url(number):
+        if issue.get("number") != number or issue.get("url") != issue_url(number, self._repo()):
             raise ContractError("native-parent response identifies a different source Issue")
         if parent is None:
             return None
@@ -148,7 +159,7 @@ class GhClient:
                 "api",
                 "--method",
                 "POST",
-                f"repos/{REPOSITORY}/issues/{number}/comments",
+                f"repos/{self._repo()}/issues/{number}/comments",
                 "--input",
                 "-",
             ],
@@ -159,18 +170,25 @@ class GhClient:
         return payload
 
 
-def issue_url(number: int) -> str:
-    return f"https://github.com/{REPOSITORY}/issues/{number}"
+def parse_issue_url(url: str) -> tuple[str, int]:
+    match = ISSUE_URL_RE.fullmatch(url)
+    if not match:
+        raise ContractError("unsupported Issue URL; expected https://github.com/{owner}/{repo}/issues/{n}")
+    return f"{match.group(1)}/{match.group(2)}", int(match.group(3))
+
+
+def issue_url(number: int, repository: str) -> str:
+    if not REPO_RE.fullmatch(repository):
+        raise ContractError("repository must be owner/repo")
+    return f"https://github.com/{repository}/issues/{number}"
 
 
 def issue_number(url: str) -> int:
-    match = ISSUE_URL_RE.fullmatch(url)
-    if not match:
-        raise ContractError(f"unsupported Issue URL; only {REPOSITORY} is allowed")
-    return int(match.group(1))
+    _, number = parse_issue_url(url)
+    return number
 
 
-def _validate_issue_payload(payload: Any, expected_number: int) -> dict[str, Any]:
+def _validate_issue_payload(payload: Any, expected_number: int, repository: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ContractError("GitHub returned a malformed Issue")
     expected = {
@@ -184,7 +202,7 @@ def _validate_issue_payload(payload: Any, expected_number: int) -> dict[str, Any
     for field, field_type in expected.items():
         if not isinstance(payload.get(field), field_type):
             raise ContractError(f"GitHub Issue is missing valid {field}")
-    if payload["number"] != expected_number or payload["url"] != issue_url(expected_number):
+    if payload["number"] != expected_number or payload["url"] != issue_url(expected_number, repository):
         raise ContractError("GitHub returned a different Issue than requested")
     if not VERSION_RE.fullmatch(payload["updatedAt"]):
         raise ContractError("GitHub Issue updatedAt is not a supported version scalar")
@@ -314,12 +332,14 @@ def capture_execution(issue: Mapping[str, Any], client: GhClient) -> dict[str, A
     if contract_ref != f"{contract_id}@{revision}":
         raise ContractError("Immutable contract reference must equal contractId@revision")
 
-    parent_number = issue_number(parent_url)
+    parent_repo, parent_number = parse_issue_url(parent_url)
+    if parent_repo != client._repo():
+        raise ContractError("parent Goal must live in the same repository as the Execution Contract")
     native_parent = client.parent(issue["number"])
     expected_parent = {
         "number": parent_number,
         "url": parent_url,
-        "repository": REPOSITORY,
+        "repository": parent_repo,
     }
     if native_parent != expected_parent:
         raise ContractError("native GitHub parent does not match the stated Parent Goal")
@@ -359,7 +379,8 @@ def capture_execution(issue: Mapping[str, Any], client: GhClient) -> dict[str, A
 
 
 def capture(url: str, client: GhClient) -> dict[str, Any]:
-    number = issue_number(url)
+    repository, number = parse_issue_url(url)
+    client.bind(repository)
     issue = client.issue(number)
     if issue["url"] != url:
         raise ContractError("captured Issue URL differs from the requested URL")
@@ -530,7 +551,8 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     capture_parser = subparsers.add_parser("capture", help="capture a supported Issue")
-    capture_parser.add_argument("issue_url")
+    capture_parser.add_argument("issue", help="full Issue URL, or issue number with --repo")
+    capture_parser.add_argument("--repo", help="owner/repo when issue is a number")
     capture_parser.add_argument("--output", type=Path)
 
     for command, help_text in (
@@ -548,12 +570,24 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_issue_url(issue: str, repo: str | None) -> str:
+    if ISSUE_URL_RE.fullmatch(issue):
+        repository, _ = parse_issue_url(issue)
+        if repo and repo != repository:
+            raise ContractError("--repo does not match the Issue URL repository")
+        return issue
+    if not issue.isdigit() or issue.startswith("0"):
+        raise ContractError("issue must be a GitHub Issue URL or a positive issue number")
+    repository = repo or DEFAULT_REPOSITORY
+    return issue_url(int(issue), repository)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     client = GhClient()
     try:
         if args.command == "capture":
-            package = capture(args.issue_url, client)
+            package = capture(_resolve_issue_url(args.issue, args.repo), client)
             output = args.output or ROOT / "run-packages" / f"issue-{package['source']['issueNumber']}.json"
             _write_package(package, output)
             print(output.resolve())
@@ -565,6 +599,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             validate_receipt(receipt, package)
             print("Receipt is schema-valid and bound to the captured snapshot.")
             return 0
+        source_url = package.get("source", {}).get("issueUrl") if isinstance(package, dict) else None
+        if isinstance(source_url, str):
+            client.bind(parse_issue_url(source_url)[0])
         if args.command == "receipt-render":
             print(render_receipt(receipt, package, client), end="")
             return 0
