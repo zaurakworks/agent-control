@@ -1,0 +1,6 @@
+interface:
+  display_name: "Issue Contract Compaction"
+  short_description: "Consolidate a long GitHub issue discussion back into a handoff-ready contract"
+
+policy:
+  allow_implicit_invocation: true

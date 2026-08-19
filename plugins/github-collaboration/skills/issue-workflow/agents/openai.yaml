@@ -1,0 +1,6 @@
+interface:
+  display_name: "Issue Workflow"
+  short_description: "Drive an issue subtree and safely bind natural owner decisions"
+
+policy:
+  allow_implicit_invocation: true
