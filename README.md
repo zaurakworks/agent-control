@@ -61,6 +61,7 @@ Session 的职责由负责人当前明确指令、公开自足的 Issue 合同�
 - `AGENTS.md`：Codex 的最小仓库入口，只保留仓库增量并回指 `entrypoints/agent-system.md`；公共系统规则的唯一版本化正文由后者承载；
 - `CLAUDE.md`：Claude Code 导入同一份入口规则，并在本仓内加载 `entrypoints/agent-system.md`；用户级入口只保留与任务无关的锚点，本仓正文不进全局常驻面；
 - [`src/agent_system/`](./src/agent_system/):唯一的 profile、CAP 与 OMP Python 实现；用户统一通过 `uv run cap` 使用，profile engine 仅作为 CAP 的内部执行层；接口边界见 [`docs/profile.md`](./docs/profile.md) 和 [`docs/maintenance.zh-CN.md`](./docs/maintenance.zh-CN.md)。
+- `docs/cap-guide.zh-CN.md`：面向使用者的 CAP 中文入门、日常命令、资产范围和故障排查路径。
 
 私有旧仓、迁移索引、历史记录、分析和实验只提供来源；公共产品政策必须在本仓自足表达，历史材料不能反向产生当前授权。
 
