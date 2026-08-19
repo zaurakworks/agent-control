@@ -50,6 +50,37 @@ real-home -> work -> general
 
 `work` 是共享工作层；`general` 和 `assembly-helper` 是可运行的叶子 profile。
 
+#### `real-home -> work` 到底是什么意思
+
+这不是两个目录，也不是两个 Agent 依次启动。它是一条“从底座到角色”的配置继承链：
+
+| 层 | 谁维护 | 作用 | 当前例子 |
+| --- | --- | --- | --- |
+| `real-home` | 当前机器的审批状态 | 提供这台机器上被发现、并经过 pin 审批的基座摘要 | 用户 HOME 中发现的 Skill、MCP、Hook、Plugin、context |
+| `work` | 本仓库 | 给多个 profile 提供共同的工作能力 | 六个 OpenSpec Skill |
+| `general` | 本仓库 | 通用工程角色的 prompt 和专属能力 | 当前没有额外能力 |
+| `assembly-helper` | 本仓库 | Agent 装配角色的 prompt 和专属能力 | 装配相关 Skill，并屏蔽 `idea` MCP |
+
+箭头表示“后面的层在前面层的基础上继续合成”。它不会把 real-home 的文件复制进仓库，也不会自动允许所有基座能力。最终 profile 只看到经过 `add`、`mask`、`replace` 计算后的闭包。
+
+可以把它类比成：
+
+```text
+机器底座       +       项目公共层       +       角色层       =       一次运行的 profile
+real-home              work                    general
+                                                assembly-helper
+```
+
+例如：机器的 `real-home` 发现了 `idea` MCP；`work` 不增加 MCP；`assembly-helper` 用 `mask = ["idea"]` 屏蔽它，所以 `assembly-helper` 的最终 MCP inventory 仍然是空。
+
+如果只想知道“我现在实际能选什么”，先看：
+
+```bash
+uv run cap agents
+uv run cap show general
+uv run cap show assembly-helper
+```
+
 ### 能力闭包
 
 能力闭包是某个 profile 最终能看到的 Skill、MCP、Hook、Plugin 集合。
