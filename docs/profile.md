@@ -1,6 +1,6 @@
 # profile —— v3 装配、运行策略与证据
 
-`uv run cap` 是唯一用户入口。profile engine 只作为 CAP 内部执行层。v3 将宿主上下文、资产观察、项目默认能力、叶子 role 和 client runtime policy 分开；`general` 与 `assembly-helper` 是当前可运行的叶子 role。当前实现并验证 OMP adapter，Codex/Claude 只消费后续合同，不共享 OMP native 配置。
+`uv run cap` 是唯一用户入口。profile engine 只作为 CAP 内部执行层。v3 将宿主上下文、资产观察、项目默认能力、叶子 role 和 client runtime policy 分开；`general` 与 `agent-assembler` 是当前可运行的叶子 role。当前实现并验证 OMP adapter，Codex/Claude 只消费后续合同，不共享 OMP native 配置。
 
 ## 源模型
 
@@ -8,9 +8,11 @@
 AGENTS.md
 .cap/manifest.toml
 .cap/project-defaults.toml
+.cap/skill-imports.toml                 # 可选：仓内唯一 Skill source 声明
 .cap/profiles/<role>.toml
 .cap/prompts/<role>.md
 .cap/capabilities/{skills,mcp,hooks,plugins}/...
+plugins/<plugin>/skills/<skill>/...     # manifest 明示时可作 Skill source
 .cap/runtime/omp.toml
 .cap/lock.json
 
@@ -22,6 +24,7 @@ $HOME/.agent-system-state/bindings/<role>.binding.json
 - `machine-context`：已批准宿主底座摘要和 drift 输入，不授予 Agent-facing 能力。
 - `asset-inventory`：对用户目录候选的只读观察，默认不进入 closure。
 - `project-defaults`：项目拥有或显式批准的公共能力。
+- `project Skill import`：可选的仓内唯一 Skill source；必须位于项目根内、非 symlink、被 role 引用并纳入 lock/render。
 - `role profile`：prompt、角色能力增量和可选 runtime override。
 - `runtime policy`：client/runtime-id 的语义 preference；不属于 Skill、MCP、Hook、Plugin 或 prompt。
 
@@ -47,15 +50,15 @@ enable_project_mcp = false
 ```bash
 uv run cap profiles
 uv run cap agents
-uv run cap show assembly-helper
-uv run cap show assembly-helper --cli omp
+uv run cap show agent-assembler
+uv run cap show agent-assembler --cli omp
 uv run cap skills-validate
 uv run cap lock
 uv run cap assembly-bind general
-uv run cap assembly-bind assembly-helper
+uv run cap assembly-bind agent-assembler
 uv run cap verify
-uv run cap render assembly-helper --cli omp --output <existing-empty-dir>
-uv run cap run assembly-helper --cli omp -- --help
+uv run cap render agent-assembler --cli omp --output <existing-empty-dir>
+uv run cap run agent-assembler --cli omp -- --help
 ```
 
 启动前必须通过项目 lock、machine-context pin、assembly binding、asset closure、runtime policy 和 generation 校验。OMP 启动固定使用 `--no-extensions`、`--no-rules`、Skill allowlist、隔离 `PI_CONFIG_FILES` 和认证/ambient credential 清理。`config.yml`、`mcp.json` 等 native 文件名只属于 adapter 输出。

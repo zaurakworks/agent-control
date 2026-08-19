@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-18
+goal: Reassemble agent-assembler as the end-to-end CAP v3 assembly executor while preserving explicit capability closure and evidence boundaries.

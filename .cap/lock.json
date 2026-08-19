@@ -36,6 +36,14 @@
     ".cap/capabilities/skills": {
       "type": "directory"
     },
+    ".cap/capabilities/skills/agent-assembler": {
+      "type": "directory"
+    },
+    ".cap/capabilities/skills/agent-assembler/SKILL.md": {
+      "mode": "0644",
+      "sha256": "7b1fa548d137dcf3658a5ad533aeabbca9c56c870f7fe8ee5666cb1985a82e09",
+      "type": "file"
+    },
     ".cap/capabilities/skills/agent-behavior-evaluation": {
       "type": "directory"
     },
@@ -60,14 +68,6 @@
       "sha256": "432d7fc4813c413b6691ebdce9563087c8ab8627e0cebcc26c22343ed7d2727a",
       "type": "file"
     },
-    ".cap/capabilities/skills/assembly-helper": {
-      "type": "directory"
-    },
-    ".cap/capabilities/skills/assembly-helper/SKILL.md": {
-      "mode": "0644",
-      "sha256": "15df2e52070339fe6980f56e5c5a0fc6d2de1c1729766ec90814d33f692f3bd3",
-      "type": "file"
-    },
     ".cap/capabilities/skills/capability-lifecycle": {
       "type": "directory"
     },
@@ -81,7 +81,7 @@
     },
     ".cap/capabilities/skills/capability-profile-closure/SKILL.md": {
       "mode": "0644",
-      "sha256": "8febbda7a15e5f397a075e71adeff40af036e0f6cbbfbf3bdc30054fd397a9b0",
+      "sha256": "90f571894a618d4d4643aff57c321a1ebc3ab1f8522ffe8fb7371f250fa97110",
       "type": "file"
     },
     ".cap/capabilities/skills/openspec-apply-change": {
@@ -142,12 +142,12 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "4a33b5dab16a53118df174adee8b812629d50f22d5cf81b16cce5b37acd6e783",
+      "sha256": "b82ccb655092ff8e3266b9c1be62c5e6ea88a106436f1b2285145efe48173df6",
       "type": "file"
     },
-    ".cap/profiles/assembly-helper.toml": {
+    ".cap/profiles/agent-assembler.toml": {
       "mode": "0644",
-      "sha256": "8e200251386260829dad5e47c818fbc805ed5b35a11702ce0bd68edb5148b083",
+      "sha256": "e1fdfb3802e22717b484aaaf371c69e646379e23ffe7d9546ed08f412dd8dc38",
       "type": "file"
     },
     ".cap/profiles/general.toml": {
@@ -155,9 +155,14 @@
       "sha256": "0db2e1afcb854ef9ce40496453c02dd56175bf0ec3700c1c0c2b8779547a3c96",
       "type": "file"
     },
-    ".cap/prompts/assembly-helper.md": {
+    ".cap/project-defaults.toml": {
       "mode": "0644",
-      "sha256": "ddb910ce96f66f60fa9019a6c1616712dea646375cf99b15882747932dc06881",
+      "sha256": "36a5e81b49cc5468c4a5f3f65e8735d438ac3ee52a3f1c7feed20b6afb97b52e",
+      "type": "file"
+    },
+    ".cap/prompts/agent-assembler.md": {
+      "mode": "0644",
+      "sha256": "e49ac68f4bf1dc30c3b4357c8efd9fb48187864078a5a0d263f7d73eac5a0731",
       "type": "file"
     },
     ".cap/prompts/general.md": {
@@ -165,27 +170,53 @@
       "sha256": "379eed5fe34a52a73b0eefb7d1d1dac5ce66cf67d59d57dd6f221c09864973e9",
       "type": "file"
     },
+    ".cap/runtime/omp.toml": {
+      "mode": "0644",
+      "sha256": "ba33d929ca3bd07040e66c7d44ec6ee9a983a0649f2c574401c1a6461b12d99e",
+      "type": "file"
+    },
+    ".cap/skill-imports.toml": {
+      "mode": "0644",
+      "sha256": "4e783b88fab0dec0b7689631df0ce17a8b4aac46905883ac5812e689852b687e",
+      "type": "file"
+    },
     "AGENTS.md": {
       "mode": "0644",
       "sha256": "0535a512da2614f6d0b9b60e504dce62de8cf66326d34e6aa150e6ebe663b3cb",
       "type": "file"
+    },
+    "plugins/grilling/skills/grilling": {
+      "type": "directory"
+    },
+    "plugins/grilling/skills/grilling/SKILL.md": {
+      "mode": "0644",
+      "sha256": "3083aab61a62801470025da2800b902bc14503be33dec6a1a5e5ba4da1466d07",
+      "type": "file"
+    },
+    "plugins/grilling/skills/grilling/agents": {
+      "type": "directory"
+    },
+    "plugins/grilling/skills/grilling/agents/openai.yaml": {
+      "mode": "0644",
+      "sha256": "0467d3ddfb9d8d7d58077d69845c301e402a956e7bed504efad9794b18b1a5fd",
+      "type": "file"
     }
   },
   "profiles": {
-    "assembly-helper": {
+    "agent-assembler": {
       "chain": [
         "project-defaults",
-        "assembly-helper"
+        "agent-assembler"
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:d9466fa40d780289573097c25e145d7bdbb9877c2dfc5ec971f85e780269757f"
+          "tree_hash": "sha256:8a37dc3fcd7253b6a8419dcc813b0856bd099340cfb1130554b969188bf6f37f"
         },
         "omp": {
-          "tree_hash": "sha256:d81504279da2cebb5a603c92dfaee19502baee590d060e977106f058bc7238b9"
+          "tree_hash": "sha256:00533f2e2550229ca525576afeb091d2ebbf5274b69660bc8ee31fb9b7173974"
         },
         "qoder": {
-          "tree_hash": "sha256:934c39f2ded10f1a11398ab93d4f12c262fc61820952c7a54e96d29417805f5a"
+          "tree_hash": "sha256:f154cab46f25dae5864ae47ab34bd7c4619ab7e0ba25c55a19e5737debac69f8"
         }
       },
       "defaults": "project-defaults",
@@ -194,12 +225,13 @@
         "mcps": [],
         "plugins": [],
         "skills": [
+          "agent-assembler",
           "agent-behavior-evaluation",
           "agent-prompt-design",
           "agent-skill-design",
-          "assembly-helper",
           "capability-lifecycle",
           "capability-profile-closure",
+          "grilling",
           "openspec-apply-change",
           "openspec-archive-change",
           "openspec-explore",
@@ -209,7 +241,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:0f1203443b06216950cfba497415ce375cbf556c4e384ac0457c1e25e4c8a623",
+      "layer_digest": "sha256:d1bfe9499a0f82b9b7ff9fa676c3ae7831dd69e9ac210cee5c2ff0fbb5a70cda",
       "operations": {
         "hooks": {
           "allow": [],
@@ -228,7 +260,8 @@
         },
         "skills": {
           "allow": [
-            "assembly-helper",
+            "agent-assembler",
+            "grilling",
             "agent-prompt-design",
             "agent-skill-design",
             "capability-profile-closure",
@@ -251,13 +284,13 @@
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:683863f5e8cea680f2c6f1840f84b90b7b0d45d2dddd25f4319e8067d0b6977c"
+          "tree_hash": "sha256:ab91ee030512abcdaff9f220472818917881b8bf52c72629b3c6f2485b44b6c7"
         },
         "omp": {
-          "tree_hash": "sha256:e37765a6a4c35bbca443fdffad5fbe1abd544a0973717a767397d1a3b2e07256"
+          "tree_hash": "sha256:1a3f20d0a726e4e65a65bc02f68492cbc14000c776888be4e02d573e6e691cce"
         },
         "qoder": {
-          "tree_hash": "sha256:219d5e215223ad44bf31d8e14638f97bf62e7a0b7692c2e9dd8b30dba5eef58e"
+          "tree_hash": "sha256:b431e620c7714331f1f44dbf9bd34f4beb3050bbe580ad6dfb1edb8e57a7754e"
         }
       },
       "defaults": "project-defaults",
@@ -274,7 +307,7 @@
           "openspec-update-change"
         ]
       },
-      "layer_digest": "sha256:7c369f098210b4d9a1bf64c9b631f28f7a0a170550ebbaf244d5a75a693a0fa7",
+      "layer_digest": "sha256:16cc58dd1ff20d70234309b42de528323e3c18bbeddb0d9422efd88373a9ce81",
       "operations": {
         "hooks": {
           "allow": [],
@@ -302,6 +335,12 @@
       }
     }
   },
+  "project_skill_imports": [
+    {
+      "name": "grilling",
+      "source": "plugins/grilling/skills/grilling"
+    }
+  ],
   "renderer_version": "profile-renderer-v3",
   "version": 3
 }

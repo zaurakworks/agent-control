@@ -34,6 +34,7 @@ from agent_system.cap.config import (
 )
 
 from agent_system.cap.support import _base_args, _binding_args, _passthrough, _run_path, _workdir
+from agent_system.profile import cli as profile_cli
 from agent_system.omp.runtime import (
     _MigrationError,
     _agent_home_dir,
@@ -58,7 +59,7 @@ from agent_system.omp.runtime import (
 )
 PROFILE_LABELS = {
     "general": "通用工程",
-    "assembly-helper": "装配助手",
+    "agent-assembler": "Agent 装配者",
 }
 
 def _decode_frontmatter_scalar(raw: str, path: Path, line: int) -> str:
@@ -81,6 +82,26 @@ def _decode_frontmatter_scalar(raw: str, path: Path, line: int) -> str:
         raise ValueError(f"{path}:{line}: 本项目只允许简单字符串 frontmatter")
     return value
 
+def _decode_frontmatter_block(
+    marker: str,
+    block_lines: list[str],
+    path: Path,
+    line: int,
+) -> str:
+    payload = f"value: {marker}\n" + "\n".join(block_lines)
+    try:
+        decoded = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{path}:{line}: 无效块标量") from exc
+    value = decoded.get("value") if isinstance(decoded, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{path}:{line}: 元数据值不能为空")
+    return value
+
+
+BLOCK_SCALAR_PATTERN = re.compile(r"[>|][-+]?")
+
+
 def _read_skill_metadata(path: Path) -> dict[str, str]:
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0].strip() != "---":
@@ -91,51 +112,92 @@ def _read_skill_metadata(path: Path) -> dict[str, str]:
         raise ValueError(f"{path}: 缺少 YAML frontmatter 结束分隔符") from exc
 
     metadata: dict[str, str] = {}
-    for index, line in enumerate(lines[1:closing], 2):
+    index = 1
+    while index < closing:
+        line = lines[index]
+        line_number = index + 1
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
+            index += 1
             continue
         if line[0].isspace():
-            raise ValueError(f"{path}:{index}: 本项目不允许嵌套 frontmatter")
+            raise ValueError(f"{path}:{line_number}: 本项目不允许嵌套 frontmatter")
         key, separator, raw = line.partition(":")
         if not separator or not re.fullmatch(r"[A-Za-z0-9_-]+", key):
-            raise ValueError(f"{path}:{index}: 无效 frontmatter 字段")
+            raise ValueError(f"{path}:{line_number}: 无效 frontmatter 字段")
         if key in metadata:
-            raise ValueError(f"{path}:{index}: 重复 frontmatter 字段 {key}")
-        metadata[key] = _decode_frontmatter_scalar(raw, path, index)
+            raise ValueError(f"{path}:{line_number}: 重复 frontmatter 字段 {key}")
+
+        marker = raw.strip()
+        if BLOCK_SCALAR_PATTERN.fullmatch(marker):
+            index += 1
+            block_lines: list[str] = []
+            while index < closing:
+                continuation = lines[index]
+                if continuation and not continuation[0].isspace():
+                    break
+                block_lines.append(continuation)
+                index += 1
+            metadata[key] = _decode_frontmatter_block(
+                marker,
+                block_lines,
+                path,
+                line_number,
+            )
+            continue
+
+        metadata[key] = _decode_frontmatter_scalar(raw, path, line_number)
+        index += 1
     return metadata
+
 
 def _skill_metadata_report(project: Path) -> dict[str, object]:
     skill_root = project / ".cap" / "capabilities" / "skills"
     issues: list[str] = []
     skills: list[dict[str, str]] = []
+    skill_dirs: dict[str, Path] = {}
     if not skill_root.is_dir():
         issues.append(f"{skill_root}: Skill 目录不存在")
     else:
-        for skill_dir in sorted(path for path in skill_root.iterdir() if path.is_dir()):
-            skill_file = skill_dir / "SKILL.md"
-            relative = skill_file.relative_to(project).as_posix()
-            if skill_dir.is_symlink() or skill_file.is_symlink():
-                issues.append(f"{relative}: 不允许 symlink")
-                continue
-            if not skill_file.is_file():
-                issues.append(f"{relative}: 文件不存在")
-                continue
-            try:
-                metadata = _read_skill_metadata(skill_file)
-            except (OSError, UnicodeError, ValueError) as exc:
-                issues.append(str(exc))
-                continue
+        skill_dirs.update(
+            (path.name, path) for path in skill_root.iterdir() if path.is_dir()
+        )
 
-            name = metadata.get("name", "")
-            description = metadata.get("description", "")
-            if not 1 <= len(name) <= 64 or not SKILL_NAME_PATTERN.fullmatch(name):
-                issues.append(f"{relative}: name 必须是 1–64 字符的小写字母、数字和单连字符 id")
-            elif name != skill_dir.name:
-                issues.append(f"{relative}: name {name!r} 与目录 {skill_dir.name!r} 不一致")
-            if not 1 <= len(description) <= 1024:
-                issues.append(f"{relative}: description 必须是 1–1024 个字符")
-            skills.append({"id": skill_dir.name, "path": relative, "name": name})
+    try:
+        project_model = profile_cli.load_project(project)
+    except profile_cli.ProfileError as exc:
+        issues.append(f"CAP 项目无效：{exc}")
+    else:
+        for name, imported in project_model.skill_imports.items():
+            if name in skill_dirs:
+                issues.append(f"Skill {name} 同时存在于 capability store 和 project import")
+                continue
+            skill_dirs[name] = imported.source
+
+    for skill_id, skill_dir in sorted(skill_dirs.items()):
+        skill_file = skill_dir / "SKILL.md"
+        relative = skill_file.relative_to(project).as_posix()
+        if skill_dir.is_symlink() or skill_file.is_symlink():
+            issues.append(f"{relative}: 不允许 symlink")
+            continue
+        if not skill_file.is_file():
+            issues.append(f"{relative}: 文件不存在")
+            continue
+        try:
+            metadata = _read_skill_metadata(skill_file)
+        except (OSError, UnicodeError, ValueError) as exc:
+            issues.append(str(exc))
+            continue
+
+        name = metadata.get("name", "")
+        description = metadata.get("description", "")
+        if not 1 <= len(name) <= 64 or not SKILL_NAME_PATTERN.fullmatch(name):
+            issues.append(f"{relative}: name 必须是 1–64 字符的小写字母、数字和单连字符 id")
+        elif name != skill_id:
+            issues.append(f"{relative}: name {name!r} 与目录 {skill_id!r} 不一致")
+        if not 1 <= len(description) <= 1024:
+            issues.append(f"{relative}: description 必须是 1–1024 个字符")
+        skills.append({"id": skill_id, "path": relative, "name": name})
 
     return {
         "standard_conformance": "ok" if not issues else "invalid",
@@ -163,8 +225,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  cap show general --cli omp\n"
             "\n"
             "显式自动化：\n"
-            "  cap run assembly-helper -- -p \"帮我装配一个 review-agent\"\n"
-            "  cap render assembly-helper --cli omp --output /tmp/rendered-cap\n"
+            "  cap run agent-assembler -- -p \"帮我装配一个 review-agent\"\n"
+            "  cap render agent-assembler --cli omp --output /tmp/rendered-cap\n"
             "  cap verify\n"
             "  cap skills-validate\n"
         ),
@@ -882,7 +944,7 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(args, "profile_tool_command", None) == "run" and not args.client_args:
         print(
             "cap run 需要在 -- 后提供客户端 batch 参数；否则目标 CLI 可能进入交互/恢复等待，看起来像卡住。\n"
-            "示例：cap run assembly-helper -- -p \"帮我装配一个 review-agent\"\n"
+            "示例：cap run agent-assembler -- -p \"帮我装配一个 review-agent\"\n"
             "如果要交互式启动，请使用裸 cap",
             file=sys.stderr,
         )

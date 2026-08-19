@@ -21,9 +21,9 @@ CAP 管理四类 Agent-facing 能力：
 
 同时管理这些 v3 输入和证据：
 
-- **Role**：叶子角色，例如 `general`、`assembly-helper`；
+- **Role**：叶子角色，例如 `general`、`agent-assembler`；
 - **Prompt**：role 的常驻行为约束；
-- **项目声明**：`.cap/manifest.toml`、`project-defaults.toml`、`.cap/profiles/*.toml`；
+- **项目声明**：`.cap/manifest.toml`、`project-defaults.toml`、`.cap/skill-imports.toml`、`.cap/profiles/*.toml`；
 - **宿主与观察**：machine-context manifest/pin、asset inventory；
 - **锁定与运行**：`.cap/lock.json`、assembly binding、runtime policy、generation、receipt。
 
@@ -44,20 +44,19 @@ Profile 是一次运行的装配选择。每个 profile 有：
 
 ```text
 machine-context + project-defaults + general
-                                  assembly-helper
+                                  agent-assembler
 ```
 
+`machine-context` 只描述经 pin 批准的宿主底座；asset inventory 只观察候选，不授予能力；`project-defaults` 描述项目公共能力；`general` 与 `agent-assembler` 是可运行的叶子 role。用户目录不会被隐式继承为 Agent-facing 能力。
 
-`machine-context` 只描述经 pin 批准的宿主底座；asset inventory 只观察候选，不授予能力；`project-defaults` 描述项目公共能力；`general` 与 `assembly-helper` 是可运行的叶子 role。用户目录不会被隐式继承为 Agent-facing 能力。
-
-例如，用户 HOME 中即使存在 `idea` MCP，inventory 也只记录观察证据；assembly-helper 的有效 MCP 仍为空。`cap show`、lock、binding 和 verify 的通过属于声明态或配置态，不等于客户端原生生效态。
+例如，用户 HOME 中即使存在 `idea` MCP，inventory 也只记录观察证据；`agent-assembler` 的有效 MCP 仍为空。它的 `grilling` 来自 manifest 明示的项目 Skill import，而不是用户级 Plugin 安装态。`cap show`、lock、binding 和 verify 的通过属于声明态或配置态，不等于客户端原生生效态。
 
 如果只想知道“我现在实际能选什么”，先看：
 
 ```bash
 uv run cap agents
 uv run cap show general
-uv run cap show assembly-helper
+uv run cap show agent-assembler
 ```
 
 ### 能力闭包
@@ -71,7 +70,7 @@ deny = ["ambient-skill"]
 override = ["shared-skill"]
 ```
 
-- `allow`：只能引用当前项目内存在或有 provenance 的 external import；
+- `allow`：只能引用 `.cap` capability store、manifest 明示的项目 Skill import，或有 provenance 的 external import；
 - `deny`：屏蔽已观察或已继承候选；
 - `override`：在不解除系统安全门禁的前提下替换已声明实现；
 - 不要直接改 render 目录或客户端 native 配置来“临时修复”。
@@ -95,7 +94,7 @@ override = ["shared-skill"]
 ```bash
 uv run cap agents
 uv run cap profiles
-uv run cap show assembly-helper
+uv run cap show agent-assembler
 uv run cap show general --cli omp
 ```
 
@@ -115,7 +114,7 @@ uv run cap
 显式运行：
 
 ```bash
-uv run cap run assembly-helper -- -p "检查当前 Agent 装配边界"
+uv run cap run agent-assembler -- -p "检查当前 Agent 装配边界"
 ```
 
 需要真实客户端交互时使用 `use`（它是 `launch` 的用户入口别名）。脚本和自动化优先使用显式 profile、client、auth-root 和 workdir。
@@ -128,14 +127,14 @@ uv run cap run assembly-helper -- -p "检查当前 Agent 装配边界"
 uv run cap skills-validate
 uv run cap lock
 uv run cap assembly-bind general
-uv run cap assembly-bind assembly-helper
+uv run cap assembly-bind agent-assembler
 uv run cap verify
 ```
 
 说明：
 
-1. `skills-validate`：检查 Skill frontmatter、目录名和描述；
-2. `lock`：锁定项目 defaults、role、policy 和渲染结果；
+1. `skills-validate`：检查本地与项目 import Skill 的 frontmatter、目录名和描述；
+2. `lock`：锁定项目 defaults、Skill import、role、policy 和渲染结果；
 3. `assembly-bind`：绑定已批准的 machine-context digest；
 4. `verify`：检查 lock、pin、binding、asset closure 和 runtime policy。
 
@@ -147,10 +146,18 @@ uv run cap verify
 
 ```bash
 mkdir -p /private/tmp/cap-render
-uv run cap render assembly-helper --cli omp --output /private/tmp/cap-render
+uv run cap render agent-assembler --cli omp --output /private/tmp/cap-render
 ```
 
 OMP 的 `config.yml`、`mcp.json` 等文件名只属于 adapter 输出；它们不能成为项目能力或跨客户端配置源。
+
+## 4. 使用 Agent 装配者
+
+`agent-assembler` 是执行角色，不是建议助手。它从负责人目标恢复 Agent 合同，从零选择能力，修改 manifest、profile、prompt、Skill 和当前调用方，再生成 lock、binding、render 并按证据层交付。事实能由仓库或工具确定时直接调查；只有产品取舍、授权、长期依赖、外部副作用或不可逆风险需要负责人决定。
+
+它的专用能力闭包包括总装配、prompt 设计、Skill 设计、能力生命周期、profile closure、行为评测、变更包和 `grilling`，并继承项目 OpenSpec 工作流。MCP、Hook、Plugin 均为空。`grilling` 常驻不等于自动盘问：只有负责人直接要求 grilling／盘问／压力测试，或明确接受一次建议后才能执行。
+
+`.cap/skill-imports.toml` 把 `grilling` 绑定到仓内唯一正文 `plugins/grilling/skills/grilling/SKILL.md`。source 必须位于项目根内、不得经过 symlink、必须与 Skill id 同名，并进入 lock inputs、标准验证和客户端 render；不得在 `.cap` 复制第二份正文。
 
 因此看到某个用户级能力存在，不等于它已被当前 profile 允许。它必须同时通过 profile 闭包和客户端启动门禁。
 

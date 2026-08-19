@@ -1,23 +1,28 @@
 # Skill 目录
 
-运行时 Skill 位于 `.cap/capabilities/skills/<name>/SKILL.md`。快速迭代阶段，中文 `SKILL.md` 同时是唯一执行合同和唯一全文维护源；本目录只提供导航和摘要，不维护第二份全文镜像。
+运行时 Skill 默认位于 `.cap/capabilities/skills/<name>/SKILL.md`；manifest 也可声明项目根内、非 symlink、由 lock 覆盖的唯一 Skill source。当前 `grilling` 直接使用 `plugins/grilling/skills/grilling/SKILL.md`，不在 `.cap` 复制。快速迭代阶段，中文 `SKILL.md` 同时是唯一执行合同和唯一全文维护源；本目录只提供导航和摘要。
 
 ## 阅读顺序
 
-1. 创建、审查或修改 Agent 装配时，先读 [`assembly-helper`](../.cap/capabilities/skills/assembly-helper/SKILL.md)。
-2. 设计常驻提示词时，读 [`agent-prompt-design`](../.cap/capabilities/skills/agent-prompt-design/SKILL.md)。
-3. 设计条件性多步骤能力时，读 [`agent-skill-design`](../.cap/capabilities/skills/agent-skill-design/SKILL.md)。
-4. 修改 `.cap` 声明或 lock 时，读 [`capability-profile-closure`](../.cap/capabilities/skills/capability-profile-closure/SKILL.md)。
-5. 调研、引入、升级或退役外部能力时，读 [`capability-lifecycle`](../.cap/capabilities/skills/capability-lifecycle/SKILL.md)。
-6. 需要建立基线、证明改善或检查回归时，读 [`agent-behavior-evaluation`](../.cap/capabilities/skills/agent-behavior-evaluation/SKILL.md)。
-7. 变更较大、需要 durable proposal/delta/design/tasks 时，读 [`spec-change-pack`](../.cap/capabilities/skills/spec-change-pack/SKILL.md)。
-8. 进入具体 OpenSpec 阶段时，按意图选择下面六个 `openspec-*` Workflow Skill；不要用 `spec-change-pack` 代替阶段入口。
+1. 创建、重装、审查或 clean cutover Agent 时，先读 [`agent-assembler`](../.cap/capabilities/skills/agent-assembler/SKILL.md)。
+2. 只有负责人直接要求 grilling／盘问／压力测试或明确接受建议时，读 [`grilling`](../plugins/grilling/skills/grilling/SKILL.md)。
+3. 设计常驻提示词时，读 [`agent-prompt-design`](../.cap/capabilities/skills/agent-prompt-design/SKILL.md)。
+4. 设计条件性多步骤能力时，读 [`agent-skill-design`](../.cap/capabilities/skills/agent-skill-design/SKILL.md)。
+5. 修改 `.cap` 声明或 lock 时，读 [`capability-profile-closure`](../.cap/capabilities/skills/capability-profile-closure/SKILL.md)。
+6. 调研、引入、升级或退役外部能力时，读 [`capability-lifecycle`](../.cap/capabilities/skills/capability-lifecycle/SKILL.md)。
+7. 需要建立基线、证明改善或检查回归时，读 [`agent-behavior-evaluation`](../.cap/capabilities/skills/agent-behavior-evaluation/SKILL.md)。
+8. 变更较大、需要 durable proposal/delta/design/tasks 时，读 [`spec-change-pack`](../.cap/capabilities/skills/spec-change-pack/SKILL.md)。
+9. 进入具体 OpenSpec 阶段时，按意图选择下面六个 `openspec-*` Workflow Skill；不要用 `spec-change-pack` 代替阶段入口。
 
 ## 当前 Skills
 
-### `assembly-helper`
+### `agent-assembler`
 
-总入口。恢复 Agent 合同，选择必要的 prompt、Skill、生命周期、闭包和变更包流程，并交付准确证据边界。
+执行总入口。恢复 Agent 合同和人工决定，从目标选择能力，完成 manifest、profile、prompt、Skill、调用方与派生状态，并交付准确证据边界。
+
+### `grilling`
+
+在明示同意后通过结构化问题压力测试计划、决定或想法。复杂性、关键词或 Agent 偏好不构成同意；未同意时不得自动盘问。
 
 ### `agent-prompt-design`
 
@@ -81,7 +86,8 @@ OpenSpec 基础工作流
 general
     └── OpenSpec 基础工作流
 
-assembly-helper
+agent-assembler
+    ├── grilling（仅明示同意后）
     ├── agent-prompt-design
     ├── agent-skill-design
     ├── capability-lifecycle
