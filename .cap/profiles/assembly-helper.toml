@@ -9,7 +9,7 @@ replace = []
 
 [mcps]
 add = []
-mask = []
+mask = ["idea"]
 replace = []
 
 [hooks]

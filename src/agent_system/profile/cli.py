@@ -835,6 +835,7 @@ def verify_project(
             base_pin=base_pin,
             binding_dir=binding_dir,
         )
+        _warn_out_of_scope_base_mcps(project, profile, base_manifest)
     return desired
 def materialize_profile(
     project_root: Path | str,
@@ -866,6 +867,7 @@ def materialize_profile(
         base_pin=base_pin,
         binding_dir=binding_dir,
     )
+    _warn_out_of_scope_base_mcps(project, profile, base_manifest)
     _validate_client(client)
     output = Path(output_root).expanduser().absolute()
     with _stable_directory(output, "render output") as output_directory:
@@ -1316,6 +1318,7 @@ def _prepare_execution(
         binding_dir=binding_dir,
         allow_active_drift=allow_active_drift,
     )
+    _warn_out_of_scope_base_mcps(project, profile, base_manifest)
     _validate_client(client)
     args = tuple(forwarded_args)
     _validate_forwarded_args(client, args)
@@ -1916,6 +1919,7 @@ def probe_profile(
         base_pin=base_pin,
         binding_dir=binding_dir,
     )
+    _warn_out_of_scope_base_mcps(project, profile, base_manifest)
     _validate_client(client)
     state = _state_root(project, state_root, require_empty=True)
     try:
@@ -2129,6 +2133,7 @@ def diff_profile(
         base_pin=base_pin,
         binding_dir=binding_dir,
     )
+    _warn_out_of_scope_base_mcps(project, profile, base_manifest)
     _validate_client(client)
     state = _state_root(project, state_root, require_empty=False)
     try:
@@ -3647,6 +3652,63 @@ def _base_diff(
     return active, passive
 
 
+def _project_declared_capabilities(
+    project: Project, profile: Profile, field: str
+) -> set[str]:
+    """Return capabilities explicitly selected by project layers, excluding real-home."""
+
+    declared: set[str] = set()
+    for layer_name in profile.chain:
+        if layer_name == REAL_HOME_PROFILE:
+            continue
+        operations = project.profiles[layer_name].operations[field]
+        declared.update(operations.add)
+        declared.update(operations.replace)
+    return declared
+
+
+def _out_of_scope_base_mcps(
+    project: Project, profile: Profile, manifest: Mapping[str, Any]
+) -> list[tuple[str, str]]:
+    """Return active base MCP ids not explicitly selected by project layers."""
+
+    declared = _project_declared_capabilities(project, profile, "mcps")
+    findings: set[tuple[str, str]] = set()
+    for entry in manifest["entries"]:
+        if not isinstance(entry, Mapping) or entry.get("state") != "active":
+            continue
+        path = entry.get("path")
+        capabilities = entry.get("capabilities")
+        if not isinstance(path, str) or not isinstance(capabilities, Mapping):
+            continue
+        names = capabilities.get("mcps")
+        if not isinstance(names, list):
+            continue
+        for name in names:
+            if isinstance(name, str) and name not in declared:
+                findings.add((name, path))
+    return sorted(findings)
+
+
+def _warn_out_of_scope_base_mcps(
+    project: Project, profile: Profile, manifest_path: Path | str | None
+) -> None:
+    """Warn the operator before an ambient base MCP can surprise the selected profile."""
+
+    if manifest_path is None or not _profile_uses_real_home(profile):
+        return
+    manifest = _load_base_manifest(manifest_path)
+    findings = _out_of_scope_base_mcps(project, profile, manifest)
+    if not findings:
+        return
+    details = ", ".join(f"{name} ({path})" for name, path in findings)
+    print(
+        f"profile: warning: {profile.name} has out-of-scope base MCP(s): {details}; "
+        "they are not part of the project-declared capability closure",
+        file=sys.stderr,
+    )
+
+
 def _validate_base_layer_operations(
     project: Project, profile: Profile, manifest: Mapping[str, Any]
 ) -> None:
@@ -3740,6 +3802,7 @@ def bind_profile(
         raise ProfileError(f"profile {profile.name} does not extend {REAL_HOME_PROFILE}")
     manifest, active, _passive = _base_state(manifest_path, pin_path)
     _validate_base_layer_operations(project, profile, manifest)
+    _warn_out_of_scope_base_mcps(project, profile, manifest_path)
     if active:
         raise ProfileError(f"active real-home drift detected: {', '.join(active)}")
     layer_digest = desired["profiles"][profile.name]["layer_digest"]
