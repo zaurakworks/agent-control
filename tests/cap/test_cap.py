@@ -119,7 +119,7 @@ class CapEntryTest(unittest.TestCase):
                 str(root),
                 "--home",
                 str(root / "home"),
-                "--agent-home-root",
+                "--agent-state-root",
                 str(root / "agent-homes"),
                 "--profile-tool",
                 str(root / "profile.py"),
@@ -145,11 +145,11 @@ class CapEntryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             common = [
-                "--base-manifest",
+                "--machine-context-manifest",
                 str(root / "base.json"),
-                "--base-pin",
+                "--machine-context-pin",
                 str(root / "pin.json"),
-                "--binding-dir",
+                "--assembly-binding-dir",
                 str(root / "bindings"),
             ]
             verify = cap._build_parser().parse_args([*common, "verify"])
@@ -378,7 +378,7 @@ class SharedRuntimeTest(unittest.TestCase):
             )
             expected = (
                 home
-                / ".cap-user-state"
+                / ".agent-system-state"
                 / "runtimes"
                 / "omp"
                 / "default"
@@ -554,6 +554,13 @@ class ProfileGenerationTest(unittest.TestCase):
         for project_name in ("project", "project-copy"):
             cap_dir = self.root / project_name / ".cap"
             cap_dir.mkdir(parents=True)
+            runtime_dir = cap_dir / "runtime"
+            runtime_dir.mkdir()
+            (runtime_dir / "omp.toml").write_text(
+                'version = 1\nclient = "omp"\n\n[policy]\n'
+                'memory_backend = "off"\nenable_project_mcp = false\n',
+                encoding="utf-8",
+            )
             (cap_dir / "lock.json").write_text(
                 json.dumps(
                     {
@@ -722,6 +729,7 @@ class ProfileGenerationTest(unittest.TestCase):
                 result[2],
                 manifest["source_context"],
                 manifest["source_digest"],
+                manifest["runtime_policy"],
             )
 
     def test_global_cas_rebuilds_and_reuses_across_worktrees(self) -> None:
@@ -878,6 +886,83 @@ class OmpRuntimeMigrationTest(unittest.TestCase):
         )
         self.assertNotIn("account", json.dumps(public))
         self.assertEqual(set(sessions), {"project/source.jsonl"})
+    def test_dry_run_is_read_only_and_secret_safe(self) -> None:
+        source = self.make_runtime(
+            cap._project_shared_omp_home(self.args),
+            identity="account",
+            config={"memory": {"backend": "sqlite"}, "theme": {"dark": "titanium"}},
+            sessions={"project/source.jsonl": "source\n"},
+        )
+        before = {
+            path.relative_to(source).as_posix(): path.read_bytes()
+            for path in source.rglob("*")
+            if path.is_file()
+        }
+
+        public, _, _, config, _ = cap._migration_plan(self.args)
+
+        after = {
+            path.relative_to(source).as_posix(): path.read_bytes()
+            for path in source.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(after, before)
+        self.assertEqual(config["memory"], {"backend": "off"})
+        self.assertNotIn("account", json.dumps(public))
+        self.assertFalse(cap._agent_home_dir(self.args).exists())
+        self.assertFalse(cap._migration_backup_root(self.args).exists())
+
+    def test_apply_quarantines_legacy_state_until_cleanup(self) -> None:
+        source = self.make_runtime(
+            cap._project_shared_omp_home(self.args),
+            identity="account",
+            sessions={"project/source.jsonl": "source\n"},
+        )
+        public, summaries, canonical, config, sessions = cap._migration_plan(
+            self.args
+        )
+
+        result = cap._apply_omp_runtime_migration(
+            self.args, public, summaries, canonical, config, sessions
+        )
+
+        backup = cap._migration_backup_root(self.args) / "project-shared"
+        self.assertEqual(result["status"], "migrated-global")
+        self.assertTrue(source.is_dir())
+        self.assertTrue(backup.is_dir())
+        self.assertEqual(
+            (backup / "sessions" / "project/source.jsonl").read_text(
+                encoding="utf-8"
+            ),
+            "source\n",
+        )
+        self.assertTrue((backup / "agent.db").is_file())
+    def test_rollback_restores_legacy_runtime_and_removes_new_target(self) -> None:
+        source = self.make_runtime(
+            cap._project_shared_omp_home(self.args),
+            identity="account",
+            config={"theme": {"dark": "before"}},
+            sessions={"project/source.jsonl": "source\n"},
+        )
+        public, summaries, canonical, config, sessions = cap._migration_plan(
+            self.args
+        )
+        cap._apply_omp_runtime_migration(
+            self.args, public, summaries, canonical, config, sessions
+        )
+        (cap._agent_home_dir(self.args) / "config.yml").write_text(
+            "theme:\n  dark: changed\n", encoding="utf-8"
+        )
+
+        result = cap._rollback_omp_runtime(self.args)
+
+        self.assertEqual(result["status"], "rolled-back")
+        self.assertEqual(
+            (source / "config.yml").read_text(encoding="utf-8"),
+            "memory:\n  backend: 'off'\ntheme:\n  dark: before\n",
+        )
+        self.assertFalse(cap._agent_home_dir(self.args).exists())
+        self.assertFalse(cap._migration_backup_root(self.args).exists())
 
     def test_apply_installs_global_runtime_and_is_idempotent(self) -> None:
         self.make_runtime(

@@ -61,6 +61,59 @@ class ProfileTestCase(unittest.TestCase):
         for credential in self.auth_root.rglob("*"):
             credential.chmod(0o700 if credential.is_dir() else 0o600)
 
+        self.machine_context_manifest = self.root / "machine-context.json"
+        self.machine_context_pin = self.root / "machine-context.pin.json"
+        self.binding_dir = self.root / "bindings"
+        profile.create_base_manifest(
+            self.home, self.machine_context_manifest
+        )
+        profile.approve_base_manifest(
+            self.machine_context_manifest, self.machine_context_pin
+        )
+        for profile_name in ("review", "implementation"):
+            profile.bind_profile(
+                self.project,
+                profile_name,
+                self.machine_context_manifest,
+                self.machine_context_pin,
+                self.binding_dir,
+            )
+    def _machine_context_kwargs(self) -> dict[str, Path]:
+        return {
+            "base_manifest": self.machine_context_manifest,
+            "base_pin": self.machine_context_pin,
+            "binding_dir": self.binding_dir,
+        }
+
+    def materialize_profile(self, *args: object, **kwargs: object) -> str:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.materialize_profile(*args, **options)
+
+    def verify_project(self, *args: object, **kwargs: object) -> dict[str, object]:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.verify_project(*args, **options)
+
+    def probe_profile(self, *args: object, **kwargs: object) -> dict[str, object]:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.probe_profile(*args, **options)
+
+    def run_client(self, *args: object, **kwargs: object) -> int:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.run_client(*args, **options)
+
+    def run_observed(self, *args: object, **kwargs: object) -> int:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.run_observed(*args, **options)
+
+    def diff_profile(self, *args: object, **kwargs: object) -> int:
+        options = self._machine_context_kwargs()
+        options.update(kwargs)
+        return profile.diff_profile(*args, **options)
     def output_directory(self, name: str) -> Path:
         """Create and return one empty render output directory."""
 
@@ -78,9 +131,7 @@ class MaterializationTests(ProfileTestCase):
             for client in profile.CLIENTS:
                 with self.subTest(profile=profile_name, client=client):
                     output = self.output_directory(f"{profile_name}-{client}")
-                    tree_hash = profile.materialize_profile(
-                        self.project, client, profile_name, output
-                    )
+                    tree_hash = self.materialize_profile(self.project, client, profile_name, output)
                     self.assertTrue(tree_hash.startswith("sha256:"))
                     rendered = "\n".join(
                         path.relative_to(output).as_posix()
@@ -102,9 +153,9 @@ class MaterializationTests(ProfileTestCase):
         codex = self.output_directory("codex")
         qoder = self.output_directory("qoder")
         omp = self.output_directory("omp")
-        profile.materialize_profile(self.project, "codex", "review", codex)
-        profile.materialize_profile(self.project, "qoder", "review", qoder)
-        profile.materialize_profile(self.project, "omp", "review", omp)
+        self.materialize_profile(self.project, "codex", "review", codex)
+        self.materialize_profile(self.project, "qoder", "review", qoder)
+        self.materialize_profile(self.project, "omp", "review", omp)
 
         codex_config = tomllib.loads(
             (codex / "config.toml").read_text(encoding="utf-8")
@@ -146,27 +197,25 @@ class MaterializationTests(ProfileTestCase):
         output.mkdir()
         output_alias = alias_root / output.name
         with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
-            profile.materialize_profile(self.project, "codex", "review", output_alias)
+            self.materialize_profile(self.project, "codex", "review", output_alias)
 
         state = self.project / "case-state"
         state.mkdir()
         state_alias = alias_root / state.name
         with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
-            profile.probe_profile(self.project, "codex", "review", state_alias)
+            self.probe_profile(self.project, "codex", "review", state_alias)
 
         receipt_parent = self.project / "case-receipt"
         receipt_parent.mkdir()
         runner = mock.Mock()
         subprocess.run(["git", "init", "-q", str(self.project)], check=True)
         with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=alias_root / receipt_parent.name / "receipt.json",
-                runner=runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=alias_root / receipt_parent.name / "receipt.json",
+            runner=runner,
+            auth_root=self.auth_root,)
         runner.assert_not_called()
 
     def test_concurrent_profiles_render_to_independent_trees(self) -> None:
@@ -174,10 +223,10 @@ class MaterializationTests(ProfileTestCase):
         implementation = self.output_directory("concurrent-implementation")
         with ThreadPoolExecutor(max_workers=2) as executor:
             review_future = executor.submit(
-                profile.materialize_profile, self.project, "qoder", "review", review
+                self.materialize_profile, self.project, "qoder", "review", review
             )
             implementation_future = executor.submit(
-                profile.materialize_profile,
+                self.materialize_profile,
                 self.project,
                 "qoder",
                 "implementation",
@@ -198,24 +247,22 @@ class MaterializationTests(ProfileTestCase):
         linked_ancestor = self.root / "linked-ancestor"
         linked_ancestor.symlink_to(target, target_is_directory=True)
         with self.assertRaisesRegex(profile.ProfileError, "non-symlink directory"):
-            profile.materialize_profile(
-                self.project, "codex", "review", linked_ancestor / "output"
-            )
+            self.materialize_profile(self.project, "codex", "review", linked_ancestor / "output")
 
     def test_render_requires_an_existing_empty_non_symlink_directory(self) -> None:
         missing = self.root / "missing"
         with self.assertRaisesRegex(profile.ProfileError, "existing non-symlink"):
-            profile.materialize_profile(self.project, "codex", "review", missing)
+            self.materialize_profile(self.project, "codex", "review", missing)
         occupied = self.output_directory("occupied")
         (occupied / "keep.txt").write_text("occupied", encoding="utf-8")
         with self.assertRaisesRegex(profile.ProfileError, "must be empty"):
-            profile.materialize_profile(self.project, "codex", "review", occupied)
+            self.materialize_profile(self.project, "codex", "review", occupied)
 
     def test_render_rejects_output_inside_project(self) -> None:
         output = self.project / "runtime"
         output.mkdir()
         with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
-            profile.materialize_profile(self.project, "codex", "review", output)
+            self.materialize_profile(self.project, "codex", "review", output)
         self.assertEqual(list(output.iterdir()), [])
 
     def test_render_rejects_global_native_root(self) -> None:
@@ -224,7 +271,7 @@ class MaterializationTests(ProfileTestCase):
         with self.assertRaisesRegex(
             profile.ProfileError, "outside global capability roots"
         ):
-            profile.materialize_profile(self.project, "codex", "review", output)
+            self.materialize_profile(self.project, "codex", "review", output)
         self.assertEqual(list(output.iterdir()), [])
 
     def test_render_directory_swap_cannot_redirect_materialized_files(self) -> None:
@@ -252,40 +299,19 @@ class MaterializationTests(ProfileTestCase):
             with self.assertRaisesRegex(
                 profile.ProfileError, "stable directory changed"
             ):
-                profile.materialize_profile(self.project, "codex", "review", output)
+                self.materialize_profile(self.project, "codex", "review", output)
         self.assertEqual(list(redirect.iterdir()), [])
 
 
 class GateAndLockTests(ProfileTestCase):
-    def test_global_capability_pollution_is_rejected(self) -> None:
-        global_configs = (
-            (".agents/skills/global-skill/SKILL.md", "pollution"),
-            (".claude.json", '{"mcpServers": {}}'),
-            (".codex/config.toml", 'developer_instructions = "pollution"'),
-            (".codex/config.toml", "[features]\nmulti_agent = true\n"),
-            (".codex/config.toml", 'model_provider = "rogue"\n'),
-            (".codex/config.toml", '[agents.reviewer]\ndescription = "pollution"\n'),
-            (".codex/AGENTS.md", "pollution"),
-            (".codex/hooks.json", "{}"),
-            (".config/opencode/opencode.json", '{"model": "safe", "mcp": {}}'),
-            (".gemini/settings.json", '{"mcpServers": {}}'),
-            (".omp/agent/config.yml", "skills:\n  includeSkills: []\n"),
-            (".omp/agent/mcp.json", "{}"),
-            (".omp/agent/extensions/rogue.ts", "// not Orca managed\n"),
-            (".qoder/settings.json", '{"enabledPlugins": {"pollution": true}}'),
-            (".qoder/AGENTS.md", "pollution"),
-        )
-        for index, (relative, content) in enumerate(global_configs):
-            with self.subTest(relative=relative):
-                home = self.root / f"polluted-home-{index}"
-                path = home / relative
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
-                with mock.patch.dict(os.environ, {"HOME": str(home)}):
-                    with self.assertRaisesRegex(
-                        profile.ProfileError, "global capability pollution"
-                    ):
-                        profile.verify_project(self.project)
+    def test_machine_context_active_assets_are_rejected(self) -> None:
+        path = self.home / ".agents" / "skills" / "global-skill" / "SKILL.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("pollution", encoding="utf-8")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "active machine-context drift"
+        ):
+            self.verify_project(self.project)
 
     def test_runtime_only_global_configs_are_allowed(self) -> None:
         configs = {
@@ -308,7 +334,7 @@ class GateAndLockTests(ProfileTestCase):
             path = self.home / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-        profile.verify_project(self.project)
+        self.verify_project(self.project)
 
     def test_only_known_qoder_host_hooks_are_ignored(self) -> None:
         qoder_settings = self.home / ".qoder" / "settings.json"
@@ -340,7 +366,7 @@ class GateAndLockTests(ProfileTestCase):
             "SessionEnd": [],
         }
         qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
-        profile.verify_project(self.project)
+        self.verify_project(self.project)
 
         hooks["PreToolUse"][0]["hooks"].append(
             {
@@ -351,9 +377,9 @@ class GateAndLockTests(ProfileTestCase):
         )
         qoder_settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
         with self.assertRaisesRegex(
-            profile.ProfileError, "global capability pollution"
+            profile.ProfileError, "active machine-context drift"
         ):
-            profile.verify_project(self.project)
+            self.verify_project(self.project)
 
     def test_minimal_host_floor_and_disabled_global_caches_are_allowed(self) -> None:
         codex_skills = self.home / ".codex" / "skills" / ".system"
@@ -413,8 +439,7 @@ class GateAndLockTests(ProfileTestCase):
             '{"enabledPlugins": {"cached-plugin@test-marketplace": false}}',
             encoding="utf-8",
         )
-
-        profile.verify_project(self.project)
+        self.verify_project(self.project)
 
     def test_codex_skill_symlink_alias_is_not_treated_as_disabled(self) -> None:
         actual = self.home / "outside-skill" / "SKILL.md"
@@ -438,11 +463,10 @@ class GateAndLockTests(ProfileTestCase):
             ),
             encoding="utf-8",
         )
-
         with self.assertRaisesRegex(
-            profile.ProfileError, "global capability pollution"
+            profile.ProfileError, "active machine-context drift"
         ):
-            profile.verify_project(self.project)
+            self.verify_project(self.project)
 
     def test_qoder_cache_requires_matching_disabled_plugin_identity(self) -> None:
         rogue = (
@@ -459,11 +483,10 @@ class GateAndLockTests(ProfileTestCase):
             '{"enabledPlugins": {"different-plugin@rogue-marketplace": false}}',
             encoding="utf-8",
         )
-
         with self.assertRaisesRegex(
-            profile.ProfileError, "global capability pollution"
+            profile.ProfileError, "active machine-context drift"
         ):
-            profile.verify_project(self.project)
+            self.verify_project(self.project)
 
     def test_project_native_bypasses_are_rejected(self) -> None:
         bypasses = (
@@ -481,10 +504,6 @@ class GateAndLockTests(ProfileTestCase):
             ".vscode/mcp.json",
             ".windsurf/mcp_config.json",
             "opencode.json",
-            "CLAUDE.md",
-            "nested/AGENTS.md",
-            "nested/AGENTS.override.md",
-            "nested/CLAUDE.md",
             "nested/QODER.md",
         )
         for index, relative in enumerate(bypasses):
@@ -497,7 +516,7 @@ class GateAndLockTests(ProfileTestCase):
                 with self.assertRaisesRegex(
                     profile.ProfileError, "project capability bypass"
                 ):
-                    profile.verify_project(project)
+                    self.verify_project(project)
 
     def test_managed_dual_marketplace_and_claude_import_are_allowed(self) -> None:
         project = self.root / "managed-publication"
@@ -557,7 +576,7 @@ class GateAndLockTests(ProfileTestCase):
             encoding="utf-8",
         )
 
-        profile.verify_project(project)
+        self.verify_project(project)
 
         claude_marketplace.write_text(
             json.dumps(
@@ -577,7 +596,7 @@ class GateAndLockTests(ProfileTestCase):
         with self.assertRaisesRegex(
             profile.ProfileError, "project capability bypass"
         ):
-            profile.verify_project(project)
+            self.verify_project(project)
 
     def test_project_native_bypasses_are_case_insensitive(self) -> None:
         bypasses = (
@@ -596,7 +615,7 @@ class GateAndLockTests(ProfileTestCase):
                 with self.assertRaisesRegex(
                     profile.ProfileError, "project capability bypass"
                 ):
-                    profile.verify_project(project)
+                    self.verify_project(project)
 
     def test_symlinked_provider_directory_is_rejected(self) -> None:
         external = self.root / "external-claude"
@@ -604,7 +623,7 @@ class GateAndLockTests(ProfileTestCase):
         (external / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
         (self.project / ".claude").symlink_to(external, target_is_directory=True)
         with self.assertRaisesRegex(profile.ProfileError, "project capability bypass"):
-            profile.verify_project(self.project)
+            self.verify_project(self.project)
 
     def test_lock_detects_input_and_renderer_drift(self) -> None:
         mutations = (
@@ -624,10 +643,10 @@ class GateAndLockTests(ProfileTestCase):
                 with (project / relative).open("a", encoding="utf-8") as stream:
                     stream.write(addition)
                 with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
-                    profile.verify_project(project)
-        with mock.patch.object(profile, "RENDERER_VERSION", "profile-renderer-v3"):
+                    self.verify_project(project)
+        with mock.patch.object(profile, "RENDERER_VERSION", "profile-renderer-v4"):
             with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
-                profile.verify_project(self.project)
+                self.verify_project(self.project)
 
     def test_list_and_explain_reject_stale_lock(self) -> None:
         with (self.project / ".cap" / "prompts" / "review.md").open(
@@ -643,7 +662,7 @@ class GateAndLockTests(ProfileTestCase):
                     operation()
 
     def test_lock_file_matches_current_fixture(self) -> None:
-        current = profile.verify_project(self.project)
+        current = self.verify_project(self.project)
         lock = json.loads(
             (self.project / ".cap" / "lock.json").read_text(encoding="utf-8")
         )
@@ -653,7 +672,7 @@ class GateAndLockTests(ProfileTestCase):
         manifest = self.project / ".cap" / "manifest.toml"
         manifest.write_text(
             manifest.read_text(encoding="utf-8").replace(
-                "version = 2\n", 'version = 2\nunknown = "value"\n', 1
+                "version = 3\n", 'version = 3\nunknown = "value"\n', 1
             ),
             encoding="utf-8",
         )
@@ -682,7 +701,11 @@ class GateAndLockTests(ProfileTestCase):
     def test_path_escape_and_overlay_root_escape_are_rejected(self) -> None:
         manifest = self.project / ".cap" / "manifest.toml"
         manifest.write_text(
-            'version = 2\n\n[profiles]\nreview = "../outside.toml"\n',
+            manifest.read_text(encoding="utf-8").replace(
+                'review = ".cap/profiles/review.toml"',
+                'review = "../outside.toml"',
+                1,
+            ),
             encoding="utf-8",
         )
         with self.assertRaisesRegex(
@@ -705,7 +728,6 @@ class GateAndLockTests(ProfileTestCase):
         conflict.write_text("opaque conflict", encoding="utf-8")
         with self.assertRaisesRegex(profile.ProfileError, "must contain only hooks/"):
             profile.create_lock(self.project)
-
     def test_hook_and_plugin_targets_cannot_cross_owned_namespaces(self) -> None:
         escapes = (
             ("hooks", "review-hook", "skills/review-skill/SKILL.md"),
@@ -751,260 +773,79 @@ class GateAndLockTests(ProfileTestCase):
             profile.create_lock(self.project)
 
 
-class RealHomeLayerTests(ProfileTestCase):
-    def configure_layered_profile(self) -> tuple[Path, Path, Path]:
-        manifest = self.project / ".cap" / "manifest.toml"
-        manifest.write_text(
-            manifest.read_text(encoding="utf-8")
-            + 'work = ".cap/profiles/work.toml"\n',
-            encoding="utf-8",
-        )
-        (self.project / ".cap" / "prompts" / "work.md").write_text(
-            "# Work layer\n", encoding="utf-8"
-        )
-        empty_operations = """
-[skills]
-add = ["implementation-skill"]
-mask = []
-replace = []
 
-[mcps]
-add = []
-mask = []
-replace = []
 
-[hooks]
-add = []
-mask = []
-replace = []
 
-[plugins]
-add = []
-mask = []
-replace = []
-"""
-        (self.project / ".cap" / "profiles" / "work.toml").write_text(
-            'version = 2\nextends = "real-home"\n'
-            'prompt = ".cap/prompts/work.md"\n'
-            + empty_operations,
-            encoding="utf-8",
-        )
-        review = self.project / ".cap" / "profiles" / "review.toml"
-        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
-        review.write_text(
-            review.read_text(encoding="utf-8").replace(
-                "version = 2\n", 'version = 2\nextends = "work"\n', 1
-            ),
-            encoding="utf-8",
-        )
-        profile.create_lock(self.project)
-        base_manifest = self.root / "state" / "real-home.lock.json"
-        base_pin = self.root / "workspace" / "real-home.pin.json"
-        binding_dir = self.root / "workspace" / "bindings"
-        profile.create_base_manifest(self.home, base_manifest)
-        profile.approve_base_manifest(base_manifest, base_pin)
-        profile.bind_profile(
-            self.project, "review", base_manifest, base_pin, binding_dir
-        )
-        return base_manifest, base_pin, binding_dir
 
-    def test_resolves_single_base_layers_and_rejects_implicit_conflicts(self) -> None:
-        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
+
+class MachineContextTests(ProfileTestCase):
+    def test_profiles_are_v3_leaf_profiles(self) -> None:
         project = profile.load_project(self.project)
-        self.assertEqual(project.profiles["review"].chain, ("real-home", "work", "review"))
         self.assertEqual(
-            project.profiles["review"].skills,
-            ("implementation-skill", "review-skill"),
+            project.profiles["review"].chain, ("project-defaults", "review")
         )
-        prepared = profile._prepare_execution(
-            self.project,
-            "omp",
-            "review",
-            (),
-            base_manifest=base_manifest,
-            base_pin=base_pin,
-            binding_dir=binding_dir,
-        )
-        self.assertEqual(prepared[1].name, "review")
-
-        review = self.project / ".cap" / "profiles" / "review.toml"
-        review.write_text(
-            review.read_text(encoding="utf-8").replace(
-                'add = ["review-skill"]', 'add = ["review-skill", "review-skill"]', 1
-            ),
-            encoding="utf-8",
-        )
-        with self.assertRaisesRegex(profile.ProfileError, "contains duplicates"):
-            profile.load_project(self.project)
-
-    def test_mask_and_replace_resolve_only_inherited_capabilities(self) -> None:
-        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
-        review = self.project / ".cap" / "profiles" / "review.toml"
-        original = review.read_text(encoding="utf-8")
-
-        review.write_text(
-            original.replace("mask = []", 'mask = ["implementation-skill"]', 1),
-            encoding="utf-8",
-        )
-        profile.create_lock(self.project)
-        profile.bind_profile(
-            self.project, "review", base_manifest, base_pin, binding_dir
-        )
-        masked = profile.load_project(self.project).profiles["review"]
-        self.assertEqual(masked.skills, ("review-skill",))
-
-        review.write_text(
-            original.replace("replace = []", 'replace = ["implementation-skill"]', 1),
-            encoding="utf-8",
-        )
-        profile.create_lock(self.project)
-        profile.bind_profile(
-            self.project, "review", base_manifest, base_pin, binding_dir
-        )
-        replaced = profile.load_project(self.project).profiles["review"]
         self.assertEqual(
-            replaced.skills, ("implementation-skill", "review-skill")
+            project.profiles["implementation"].chain,
+            ("project-defaults", "implementation"),
         )
 
-    def test_base_lock_redacts_secrets_and_separates_passive_drift(self) -> None:
-        (self.home / ".mcp.json").write_text(
-            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"first"}}}}',
+    def test_machine_context_lock_redacts_secrets_and_separates_passive_drift(
+        self,
+    ) -> None:
+        mcp = self.home / ".mcp.json"
+        mcp.write_text(
+            '{"mcpServers":{"demo":{"command":"python3",'
+            '"env":{"API_TOKEN":"first"}}}}',
             encoding="utf-8",
         )
-        codex = self.home / ".codex"
-        codex.mkdir()
-        (codex / "config.toml").write_text('model = "one"\n', encoding="utf-8")
-        manifest_path = self.root / "state" / "real-home.lock.json"
+        manifest_path = self.root / "machine-context-refresh.json"
         locked = profile.create_base_manifest(self.home, manifest_path)
         serialized = manifest_path.read_text(encoding="utf-8")
         self.assertNotIn("first", serialized)
 
-        (self.home / ".mcp.json").write_text(
-            '{"mcpServers":{"demo":{"command":"python3","env":{"API_TOKEN":"second"}}}}',
+        mcp.write_text(
+            '{"mcpServers":{"demo":{"command":"python3",'
+            '"env":{"API_TOKEN":"second"}}}}',
             encoding="utf-8",
         )
         secret_only = profile.discover_real_home(self.home)
         self.assertEqual(locked["effective_digest"], secret_only["effective_digest"])
 
+        codex = self.home / ".codex"
+        codex.mkdir(exist_ok=True)
         (codex / "config.toml").write_text('model = "two"\n', encoding="utf-8")
         passive_only = profile.discover_real_home(self.home)
         active, passive = profile._base_diff(locked, passive_only)
         self.assertEqual(active, [])
         self.assertEqual(passive, [".codex/config.toml"])
 
-        (self.home / ".mcp.json").write_text(
-            '{"mcpServers":{"demo":{"command":"node","env":{"API_TOKEN":"second"}}}}',
+        mcp.write_text(
+            '{"mcpServers":{"demo":{"command":"node",'
+            '"env":{"API_TOKEN":"second"}}}}',
             encoding="utf-8",
         )
         active_change = profile.discover_real_home(self.home)
         active, _ = profile._base_diff(locked, active_change)
         self.assertEqual(active, [".mcp.json"])
-    def test_warns_when_base_mcp_is_outside_project_declared_closure(self) -> None:
-        codex = self.home / ".codex"
-        codex.mkdir()
-        (codex / "config.toml").write_text(
-            '[mcp_servers.idea]\ncommand = "python3"\n',
+
+    def test_unknown_machine_context_asset_blocks_noninteractive_run(self) -> None:
+        (self.home / ".mcp.json").write_text(
+            '{"mcpServers":{"demo":{"command":"node"}}}',
             encoding="utf-8",
         )
-        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
-        output = self.output_directory("unexpected-mcp")
-        stderr = StringIO()
-        with redirect_stderr(stderr):
-            profile.materialize_profile(
+        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+        with self.assertRaisesRegex(
+            profile.ProfileError, "active Agent-facing assets lack client evidence"
+        ):
+            self.run_client(
                 self.project,
                 "omp",
                 "review",
-                output,
-                base_manifest=base_manifest,
-                base_pin=base_pin,
-                binding_dir=binding_dir,
+                auth_root=self.auth_root,
+                runner=runner,
             )
-        warning = stderr.getvalue()
-        self.assertIn("profile: warning:", warning)
-        self.assertIn("out-of-scope base MCP(s): idea", warning)
-        self.assertIn(".codex/config.toml", warning)
-
-
-    def test_omp_uses_real_home_while_runtime_state_remains_isolated(self) -> None:
-        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
-        captured: dict[str, object] = {}
-
-        def runner(command: list[str], **options: object) -> SimpleNamespace:
-            captured["command"] = command
-            captured["environment"] = options["env"]
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-        result = profile.run_client(
-            self.project,
-            "omp",
-            "review",
-            (),
-            auth_root=self.auth_root,
-            runner=runner,
-            base_manifest=base_manifest,
-            base_pin=base_pin,
-            binding_dir=binding_dir,
-        )
-        self.assertEqual(result, 0)
-        environment = captured["environment"]
-        assert isinstance(environment, dict)
-        self.assertEqual(environment["HOME"], str(self.home))
-        self.assertNotEqual(environment["PI_CODING_AGENT_DIR"], str(self.home))
-        self.assertEqual(environment["PI_CONFIG_DIR"], environment["PI_CODING_AGENT_DIR"])
-
-    def test_add_rejects_collision_with_approved_base_capability(self) -> None:
-        skill = self.home / ".codex" / "skills" / "review-skill"
-        skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text("# ambient\n", encoding="utf-8")
-        with self.assertRaisesRegex(profile.ProfileError, "conflicts with base"):
-            self.configure_layered_profile()
-
-    def test_active_drift_blocks_batch_and_requires_interactive_continue(self) -> None:
-        (self.home / ".mcp.json").write_text(
-            '{"mcpServers":{"demo":{"command":"python3"}}}', encoding="utf-8"
-        )
-        base_manifest, base_pin, binding_dir = self.configure_layered_profile()
-        (self.home / ".mcp.json").write_text(
-            '{"mcpServers":{"demo":{"command":"node"}}}', encoding="utf-8"
-        )
-        runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
-        with mock.patch.object(sys.stdin, "isatty", return_value=False):
-            with self.assertRaisesRegex(profile.ProfileError, "non-interactive"):
-                profile.run_client(
-                    self.project,
-                    "omp",
-                    "review",
-                    (),
-                    auth_root=self.auth_root,
-                    runner=runner,
-                    base_manifest=base_manifest,
-                    base_pin=base_pin,
-                    binding_dir=binding_dir,
-                )
         runner.assert_not_called()
-
-        with (
-            mock.patch.object(sys.stdin, "isatty", return_value=True),
-            mock.patch("builtins.input", return_value="continue"),
-        ):
-            self.assertEqual(
-                profile.run_client(
-                    self.project,
-                    "omp",
-                    "review",
-                    (),
-                    auth_root=self.auth_root,
-                    runner=runner,
-                    base_manifest=base_manifest,
-                    base_pin=base_pin,
-                    binding_dir=binding_dir,
-                ),
-                0,
-            )
-        runner.assert_called_once()
-
-
-
 class LaunchTests(ProfileTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -1074,7 +915,7 @@ class LaunchTests(ProfileTestCase):
                         self.assertEqual(environment[name], expected)
                     cwd_index = command.index("--cwd") + 1
                     self.assertEqual(Path(command[cwd_index]), self.project)
-                    self.assertEqual(environment["HOME"], str(runtime_root))
+                    self.assertEqual(environment["HOME"], str(self.home))
                     self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
                 else:
                     for ambient_name in profile.AMBIENT_CONFIG_ENV:
@@ -1114,15 +955,13 @@ class LaunchTests(ProfileTestCase):
                     self.assertTrue((runtime_root / "config.yml").is_file())
                 return SimpleNamespace(returncode=0)
 
-            result = profile.run_client(
-                self.project,
-                client,
-                "review",
-                ("--token", "super-secret"),
-                receipt_path=receipt,
-                runner=fake_runner,
-                auth_root=self.auth_root,
-            )
+            result = self.run_client(self.project,
+            client,
+            "review",
+            ("--token", "super-secret"),
+            receipt_path=receipt,
+            runner=fake_runner,
+            auth_root=self.auth_root,)
             self.assertEqual(result, 0)
             payload = receipt.read_text(encoding="utf-8")
             self.assertNotIn("super-secret", payload)
@@ -1144,60 +983,50 @@ class LaunchTests(ProfileTestCase):
     def test_auth_vault_is_required_private_and_outside_the_project(self) -> None:
         runner = mock.Mock()
         with self.assertRaisesRegex(profile.ProfileError, "existing non-symlink"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                auth_root=self.root / "missing-auth",
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            auth_root=self.root / "missing-auth",
+            runner=runner,)
         runner.assert_not_called()
 
         project_auth = self.project / "auth-vault"
         shutil.copytree(self.auth_root, project_auth)
         with self.assertRaisesRegex(profile.ProfileError, "outside the project root"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                auth_root=project_auth,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            auth_root=project_auth,
+            runner=runner,)
         runner.assert_not_called()
 
         codex_auth = self.auth_root / "codex" / "auth.json"
         codex_auth.chmod(0o644)
         with self.assertRaisesRegex(profile.ProfileError, "group or other access"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                auth_root=self.auth_root,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            auth_root=self.auth_root,
+            runner=runner,)
         runner.assert_not_called()
 
         codex_auth.chmod(0o400)
         with self.assertRaisesRegex(profile.ProfileError, "owner read and write"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                auth_root=self.auth_root,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            auth_root=self.auth_root,
+            runner=runner,)
         runner.assert_not_called()
 
         omp_token = self.auth_root / "omp" / "token"
         omp_token.write_bytes(b"invalid\x00token")
         with self.assertRaisesRegex(profile.ProfileError, "printable non-space ASCII"):
-            profile.run_client(
-                self.project,
-                "omp",
-                "review",
-                auth_root=self.auth_root,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "omp",
+            "review",
+            auth_root=self.auth_root,
+            runner=runner,)
         runner.assert_not_called()
 
     def test_qoder_auth_tree_has_bounded_entries_and_depth(self) -> None:
@@ -1206,13 +1035,11 @@ class LaunchTests(ProfileTestCase):
         for index in range(257):
             (qoder_auth / f"entry-{index}").mkdir(mode=0o700)
         with self.assertRaisesRegex(profile.ProfileError, "256 directory entries"):
-            profile.run_client(
-                self.project,
-                "qoder",
-                "review",
-                auth_root=self.auth_root,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "qoder",
+            "review",
+            auth_root=self.auth_root,
+            runner=runner,)
         runner.assert_not_called()
 
     def test_auth_vault_updates_persist_without_native_global_roots(self) -> None:
@@ -1238,14 +1065,12 @@ class LaunchTests(ProfileTestCase):
                         )
                     return SimpleNamespace(returncode=0)
 
-                profile.run_client(
-                    self.project,
-                    client,
-                    "review",
-                    auth_root=isolated_auth,
-                    receipt_path=self.root / f"{client}-persistent-receipt.json",
-                    runner=updating_runner,
-                )
+                self.run_client(self.project,
+                client,
+                "review",
+                auth_root=isolated_auth,
+                receipt_path=self.root / f"{client}-persistent-receipt.json",
+                runner=updating_runner,)
                 if client == "codex":
                     self.assertIn(
                         "persisted",
@@ -1277,14 +1102,12 @@ class LaunchTests(ProfileTestCase):
 
         runner = mock.Mock(return_value=SimpleNamespace(returncode=0))
         with mock.patch.object(profile.os, "read", side_effect=racing_read):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                auth_root=self.auth_root,
-                receipt_path=self.root / "stable-auth-receipt.json",
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            auth_root=self.auth_root,
+            receipt_path=self.root / "stable-auth-receipt.json",
+            runner=runner,)
         self.assertTrue(refreshed)
         runner.assert_called_once()
         self.assertIn("concurrent", codex_auth.read_text(encoding="utf-8"))
@@ -1311,14 +1134,12 @@ class LaunchTests(ProfileTestCase):
                 with mock.patch.object(
                     profile, "_read_private_file", side_effect=transient_read
                 ):
-                    profile.run_client(
-                        self.project,
-                        client,
-                        "review",
-                        auth_root=self.auth_root,
-                        receipt_path=self.root / f"{client}-snapshot-retry.json",
-                        runner=runner,
-                    )
+                    self.run_client(self.project,
+                    client,
+                    "review",
+                    auth_root=self.auth_root,
+                    receipt_path=self.root / f"{client}-snapshot-retry.json",
+                    runner=runner,)
                 self.assertEqual(transient_reads, 1)
 
     def test_omp_broker_url_rejects_control_characters_before_spawn(self) -> None:
@@ -1329,13 +1150,11 @@ class LaunchTests(ProfileTestCase):
         )
         runner = mock.Mock()
         with self.assertRaisesRegex(profile.ProfileError, "printable non-space"):
-            profile.run_client(
-                self.project,
-                "omp",
-                "review",
-                auth_root=self.auth_root,
-                runner=runner,
-            )
+            self.run_client(self.project,
+            "omp",
+            "review",
+            auth_root=self.auth_root,
+            runner=runner,)
         runner.assert_not_called()
 
     def test_ambient_auth_is_removed_before_explicit_auth_is_bound(self) -> None:
@@ -1367,9 +1186,7 @@ class LaunchTests(ProfileTestCase):
                         self.assertEqual(environment["AWS_SHARED_CREDENTIALS_FILE"], "")
                         self.assertEqual(environment["CLOUDSDK_CONFIG"], "")
                         self.assertEqual(environment["OLLAMA_HOST"], "")
-                        self.assertNotEqual(
-                            environment["HOME"], os.path.expanduser("~")
-                        )
+                        self.assertEqual(environment["HOME"], str(self.home))
                         self.assertEqual(environment["PI_AUTH_NO_BORROW"], "1")
                         self.assertEqual(environment["ANTHROPIC_API_KEY"], "")
                         self.assertEqual(environment["OPENAI_API_KEY"], "")
@@ -1390,14 +1207,12 @@ class LaunchTests(ProfileTestCase):
                         self.assertNotIn("OMP_AUTH_BROKER_TOKEN", environment)
                     return SimpleNamespace(returncode=0)
 
-                profile.run_client(
-                    self.project,
-                    client,
-                    "review",
-                    auth_root=self.auth_root,
-                    receipt_path=self.root / f"{client}-ambient-auth-receipt.json",
-                    runner=checking_runner,
-                )
+                self.run_client(self.project,
+                client,
+                "review",
+                auth_root=self.auth_root,
+                receipt_path=self.root / f"{client}-ambient-auth-receipt.json",
+                runner=checking_runner,)
 
     @unittest.skipUnless(shutil.which("bun"), "bun is required for the dotenv boundary probe")
     def test_omp_empty_auth_mask_blocks_project_dotenv_reload(self) -> None:
@@ -1426,14 +1241,12 @@ class LaunchTests(ProfileTestCase):
             self.assertEqual(result.stdout.strip(), '["",null]')
             return SimpleNamespace(returncode=0)
 
-        profile.run_client(
-            self.project,
-            "omp",
-            "review",
-            auth_root=self.auth_root,
-            receipt_path=self.root / "dotenv-auth-mask-receipt.json",
-            runner=bun_boundary_runner,
-        )
+        self.run_client(self.project,
+        "omp",
+        "review",
+        auth_root=self.auth_root,
+        receipt_path=self.root / "dotenv-auth-mask-receipt.json",
+        runner=bun_boundary_runner,)
 
     def test_launch_metadata_cannot_be_swapped_through_runtime_path(self) -> None:
         original_build_launch = profile.build_launch
@@ -1472,14 +1285,12 @@ class LaunchTests(ProfileTestCase):
             for client in ("qoder", "omp"):
                 with self.subTest(client=client):
                     self.assertEqual(
-                        profile.run_client(
-                            self.project,
-                            client,
-                            "review",
-                            receipt_path=self.root / f"{client}-swap-read-receipt.json",
-                            runner=fake_runner,
-                            auth_root=self.auth_root,
-                        ),
+                        self.run_client(self.project,
+                        client,
+                        "review",
+                        receipt_path=self.root / f"{client}-swap-read-receipt.json",
+                        runner=fake_runner,
+                        auth_root=self.auth_root,),
                         0,
                     )
 
@@ -1490,6 +1301,13 @@ class LaunchTests(ProfileTestCase):
             "malicious unlocked prompt", encoding="utf-8"
         )
         profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project,
+            "review",
+            self.machine_context_manifest,
+            self.machine_context_pin,
+            self.binding_dir,
+        )
 
         def fake_runner(command: list[str], **kwargs: object) -> SimpleNamespace:
             prompt_index = command.index("--append-system-prompt") + 1
@@ -1498,14 +1316,12 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         self.assertEqual(
-            profile.run_client(
-                self.project,
-                "omp",
-                "review",
-                receipt_path=self.root / "omp-literal-prompt-receipt.json",
-                runner=fake_runner,
-                auth_root=self.auth_root,
-            ),
+            self.run_client(self.project,
+            "omp",
+            "review",
+            receipt_path=self.root / "omp-literal-prompt-receipt.json",
+            runner=fake_runner,
+            auth_root=self.auth_root,),
             0,
         )
 
@@ -1523,13 +1339,11 @@ class LaunchTests(ProfileTestCase):
             )
         self.assertEqual(raised.exception.code, 2)
         with self.assertRaisesRegex(profile.ProfileError, "unknown profile"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "missing",
-                runner=runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "missing",
+            runner=runner,
+            auth_root=self.auth_root,)
         runner.assert_not_called()
 
     def test_gate_and_lock_failures_never_invoke_client(self) -> None:
@@ -1539,20 +1353,16 @@ class LaunchTests(ProfileTestCase):
         (polluted / "pollution" / "SKILL.md").parent.mkdir()
         (polluted / "pollution" / "SKILL.md").write_text("pollution", encoding="utf-8")
         with self.assertRaisesRegex(
-            profile.ProfileError, "global capability pollution"
+            profile.ProfileError, "active Agent-facing assets lack client evidence"
         ):
-            profile.run_client(
-                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
-            )
+            self.run_client(self.project, "codex", "review", runner=runner, auth_root=self.auth_root)
         runner.assert_not_called()
 
         shutil.rmtree(self.home / ".agents")
         with (self.project / "AGENTS.md").open("a", encoding="utf-8") as stream:
             stream.write("drift")
         with self.assertRaisesRegex(profile.ProfileError, "lock drift"):
-            profile.run_client(
-                self.project, "codex", "review", runner=runner, auth_root=self.auth_root
-            )
+            self.run_client(self.project, "codex", "review", runner=runner, auth_root=self.auth_root)
         runner.assert_not_called()
 
     def test_client_global_pollution_is_rejected_after_process_exit(self) -> None:
@@ -1563,9 +1373,9 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         with self.assertRaisesRegex(
-            profile.ProfileError, "global capability pollution"
+            profile.ProfileError, "active Agent-facing assets lack client evidence"
         ):
-            profile.run_client(
+            self.run_client(
                 self.project,
                 "codex",
                 "review",
@@ -1599,14 +1409,12 @@ class LaunchTests(ProfileTestCase):
         for client, arguments in overrides:
             with self.subTest(client=client, arguments=arguments):
                 with self.assertRaisesRegex(profile.ProfileError, "may override"):
-                    profile.run_client(
-                        self.project,
-                        client,
-                        "review",
-                        arguments,
-                        runner=runner,
-                        auth_root=self.auth_root,
-                    )
+                    self.run_client(self.project,
+                    client,
+                    "review",
+                    arguments,
+                    runner=runner,
+                    auth_root=self.auth_root,)
         runner.assert_not_called()
 
     def test_nested_project_root_never_invokes_client(self) -> None:
@@ -1618,9 +1426,7 @@ class LaunchTests(ProfileTestCase):
         with self.assertRaisesRegex(
             profile.ProfileError, "must equal the Git worktree root"
         ):
-            profile.run_client(
-                nested, "codex", "review", runner=runner, auth_root=self.auth_root
-            )
+            self.run_client(nested, "codex", "review", runner=runner, auth_root=self.auth_root)
         runner.assert_not_called()
 
     def test_post_verification_render_drift_never_invokes_client(self) -> None:
@@ -1645,13 +1451,11 @@ class LaunchTests(ProfileTestCase):
             with self.assertRaisesRegex(
                 profile.ProfileError, "drifted after lock verification"
             ):
-                profile.run_client(
-                    self.project,
-                    "codex",
-                    "review",
-                    runner=runner,
-                    auth_root=self.auth_root,
-                )
+                self.run_client(self.project,
+                "codex",
+                "review",
+                runner=runner,
+                auth_root=self.auth_root,)
         runner.assert_not_called()
 
     def test_final_input_and_project_bypass_gates_never_invoke_client(self) -> None:
@@ -1696,14 +1500,12 @@ class LaunchTests(ProfileTestCase):
                     side_effect=build_then_mutate,
                 ):
                     with self.assertRaisesRegex(profile.ProfileError, message):
-                        profile.run_client(
-                            project,
-                            "codex",
-                            "review",
-                            receipt_path=receipt,
-                            runner=runner,
-                            auth_root=self.auth_root,
-                        )
+                        self.run_client(project,
+                        "codex",
+                        "review",
+                        receipt_path=receipt,
+                        runner=runner,
+                        auth_root=self.auth_root,)
                 runner.assert_not_called()
                 self.assertFalse(receipt.exists())
 
@@ -1718,14 +1520,12 @@ class LaunchTests(ProfileTestCase):
             {"QODER_WORKING_DIR": "/tmp/unsafe"},
         ):
             self.assertEqual(
-                profile.run_client(
-                    self.project,
-                    "qoder",
-                    "review",
-                    receipt_path=self.root / "qoder-cwd-receipt.json",
-                    runner=fake_runner,
-                    auth_root=self.auth_root,
-                ),
+                self.run_client(self.project,
+                "qoder",
+                "review",
+                receipt_path=self.root / "qoder-cwd-receipt.json",
+                runner=fake_runner,
+                auth_root=self.auth_root,),
                 0,
             )
 
@@ -1750,14 +1550,12 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         self.assertEqual(
-            profile.run_client(
-                self.project,
-                "omp",
-                "review",
-                receipt_path=self.root / "dotenv-receipt.json",
-                runner=fake_runner,
-                auth_root=self.auth_root,
-            ),
+            self.run_client(self.project,
+            "omp",
+            "review",
+            receipt_path=self.root / "dotenv-receipt.json",
+            runner=fake_runner,
+            auth_root=self.auth_root,),
             0,
         )
 
@@ -1769,14 +1567,12 @@ class LaunchTests(ProfileTestCase):
         linked_parent.symlink_to(target, target_is_directory=True)
         runner = mock.Mock()
         with self.assertRaisesRegex(profile.ProfileError, "non-symlink directory"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=linked_parent / "nested" / "receipt.json",
-                runner=runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=linked_parent / "nested" / "receipt.json",
+            runner=runner,
+            auth_root=self.auth_root,)
         runner.assert_not_called()
         self.assertEqual(list(nested_target.iterdir()), [])
 
@@ -1787,14 +1583,12 @@ class LaunchTests(ProfileTestCase):
         receipt.symlink_to(sink)
         runner = mock.Mock()
         with self.assertRaisesRegex(profile.ProfileError, "already exists"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=receipt,
-                runner=runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=receipt,
+            runner=runner,
+            auth_root=self.auth_root,)
         runner.assert_not_called()
         self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
 
@@ -1813,7 +1607,7 @@ class LaunchTests(ProfileTestCase):
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             winner = executor.submit(
-                profile.run_client,
+                self.run_client,
                 self.project,
                 "codex",
                 "review",
@@ -1826,14 +1620,12 @@ class LaunchTests(ProfileTestCase):
             losing_runner = mock.Mock()
             try:
                 with self.assertRaisesRegex(profile.ProfileError, "already exists"):
-                    profile.run_client(
-                        self.project,
-                        "codex",
-                        "review",
-                        receipt_path=receipt,
-                        runner=losing_runner,
-                        auth_root=self.auth_root,
-                    )
+                    self.run_client(self.project,
+                    "codex",
+                    "review",
+                    receipt_path=receipt,
+                    runner=losing_runner,
+                    auth_root=self.auth_root,)
             finally:
                 release.set()
             self.assertEqual(winner.result(), 0)
@@ -1854,14 +1646,12 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         with self.assertRaisesRegex(profile.ProfileError, "target changed"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=receipt,
-                runner=replacing_runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=receipt,
+            runner=replacing_runner,
+            auth_root=self.auth_root,)
         self.assertEqual(sink.read_text(encoding="utf-8"), "unchanged")
         self.assertTrue(receipt.is_symlink())
 
@@ -1879,14 +1669,12 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         with self.assertRaisesRegex(profile.ProfileError, "parent changed"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=receipt,
-                runner=replacing_runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=receipt,
+            runner=replacing_runner,
+            auth_root=self.auth_root,)
         self.assertFalse((redirect / "receipt.json").exists())
         self.assertFalse((moved_parent / "receipt.json").exists())
 
@@ -1899,14 +1687,12 @@ class LaunchTests(ProfileTestCase):
             return SimpleNamespace(returncode=0)
 
         with self.assertRaisesRegex(profile.ProfileError, "hard-link alias"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=receipt,
-                runner=linking_runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=receipt,
+            runner=linking_runner,
+            auth_root=self.auth_root,)
         self.assertFalse(receipt.exists())
         self.assertEqual(alias.read_bytes(), b"")
 
@@ -1914,14 +1700,12 @@ class LaunchTests(ProfileTestCase):
         receipt = self.root / "failed-receipt.json"
         runner = mock.Mock(side_effect=RuntimeError("runner failed"))
         with self.assertRaisesRegex(RuntimeError, "runner failed"):
-            profile.run_client(
-                self.project,
-                "codex",
-                "review",
-                receipt_path=receipt,
-                runner=runner,
-                auth_root=self.auth_root,
-            )
+            self.run_client(self.project,
+            "codex",
+            "review",
+            receipt_path=receipt,
+            runner=runner,
+            auth_root=self.auth_root,)
         self.assertFalse(os.path.lexists(receipt))
 
 
@@ -1956,14 +1740,12 @@ class ObserverContractTests(ProfileTestCase):
                 stderr="",
             )
 
-        profile.run_observed(
-            self.project,
-            "omp",
-            "review",
-            state,
-            auth_root=auth_alias,
-            runner=leaking_runner,
-        )
+        self.run_observed(self.project,
+        "omp",
+        "review",
+        state,
+        auth_root=auth_alias,
+        runner=leaking_runner,)
         evidence = "\n".join(
             path.read_text(encoding="utf-8")
             for path in state.iterdir()
@@ -1975,7 +1757,7 @@ class ObserverContractTests(ProfileTestCase):
 
     def test_probe_uses_locked_render_tree_and_keeps_unknown_distinct(self) -> None:
         state = self.state_directory("probe-state")
-        result = profile.probe_profile(self.project, "omp", "review", state)
+        result = self.probe_profile(self.project, "omp", "review", state)
         self.assertEqual(result["observed"]["skills"], ["review-skill"])
         self.assertEqual(result["observed"]["mcps"], ["review-mcp"])
         self.assertIsNone(result["observed"]["context"])
@@ -1990,14 +1772,21 @@ class ObserverContractTests(ProfileTestCase):
     def test_codex_probe_accepts_a_profile_with_no_mcp_servers(self) -> None:
         profile_path = self.project / ".cap" / "profiles" / "review.toml"
         original = profile_path.read_text(encoding="utf-8")
-        updated = original.replace('add = ["review-mcp"]', "add = []", 1)
+        updated = original.replace('allow = ["review-mcp"]', "allow = []", 1)
         self.assertNotEqual(updated, original)
         profile_path.write_text(updated, encoding="utf-8")
         (self.project / ".cap" / "capabilities" / "mcp" / "review-mcp.json").unlink()
         profile.create_lock(self.project)
+        profile.bind_profile(
+            self.project,
+            "review",
+            self.machine_context_manifest,
+            self.machine_context_pin,
+            self.binding_dir,
+        )
 
         state = self.state_directory("empty-codex-mcp-state")
-        result = profile.probe_profile(self.project, "codex", "review", state)
+        result = self.probe_profile(self.project, "codex", "review", state)
         self.assertEqual(result["observed"]["mcps"], [])
 
     def test_report_parser_does_not_turn_unknown_into_observed_none(self) -> None:
@@ -2029,7 +1818,7 @@ class ObserverContractTests(ProfileTestCase):
         state = self.state_directory("fifo-state")
         os.mkfifo(state / "declared.json")
         with self.assertRaisesRegex(profile.ProfileError, "private regular file"):
-            profile.diff_profile(self.project, "codex", "review", state)
+            self.diff_profile(self.project, "codex", "review", state)
 
     def test_run_and_diff_report_unknown_instead_of_silent_success(self) -> None:
         state = self.state_directory("unknown-state")
@@ -2048,15 +1837,13 @@ class ObserverContractTests(ProfileTestCase):
             )
 
         self.assertEqual(
-            profile.run_observed(
-                self.project,
-                "codex",
-                "review",
-                state,
-                ("exec", "observe"),
-                runner=fake_runner,
-                auth_root=self.auth_root,
-            ),
+            self.run_observed(self.project,
+            "codex",
+            "review",
+            state,
+            ("exec", "observe"),
+            runner=fake_runner,
+            auth_root=self.auth_root,),
             0,
         )
         effective = json.loads((state / "effective.json").read_text(encoding="utf-8"))
@@ -2064,7 +1851,7 @@ class ObserverContractTests(ProfileTestCase):
         self.assertIsNone(effective["observed"]["mcps"])
         self.assertEqual(effective["reported_client_limited"]["mcps"], ["review-mcp"])
         self.assertEqual(
-            profile.diff_profile(self.project, "codex", "review", state), 2
+            self.diff_profile(self.project, "codex", "review", state), 2
         )
 
     def test_observed_none_is_drift_when_declaration_is_nonempty(self) -> None:
@@ -2083,21 +1870,19 @@ class ObserverContractTests(ProfileTestCase):
                 stderr="",
             )
 
-        profile.run_observed(
-            self.project,
-            "qoder",
-            "review",
-            state,
-            ("-p", "observe"),
-            runner=fake_runner,
-            auth_root=self.auth_root,
-        )
+        self.run_observed(self.project,
+        "qoder",
+        "review",
+        state,
+        ("-p", "observe"),
+        runner=fake_runner,
+        auth_root=self.auth_root,)
         effective = json.loads((state / "effective.json").read_text(encoding="utf-8"))
         self.assertEqual(effective["observed"]["skills"], [])
         self.assertIsNone(effective["observed"]["hooks"])
         self.assertEqual(effective["reported_opaque_staging"]["hooks"], [])
         self.assertEqual(
-            profile.diff_profile(self.project, "qoder", "review", state), 1
+            self.diff_profile(self.project, "qoder", "review", state), 1
         )
 
     def test_concurrent_observed_profiles_have_independent_roots_outputs_and_receipts(
@@ -2129,15 +1914,13 @@ class ObserverContractTests(ProfileTestCase):
                     stderr="",
                 )
 
-            return profile.run_observed(
-                self.project,
-                "qoder",
-                profile_name,
-                state,
-                ("-p", "observe"),
-                runner=fake_runner,
-                auth_root=self.auth_root,
-            )
+            return self.run_observed(self.project,
+            "qoder",
+            profile_name,
+            state,
+            ("-p", "observe"),
+            runner=fake_runner,
+            auth_root=self.auth_root,)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             review_future = executor.submit(observed, "review", review_state)
@@ -2178,15 +1961,13 @@ class ObserverContractTests(ProfileTestCase):
             )
 
         with self.assertRaisesRegex(profile.ProfileError, "stable directory changed"):
-            profile.run_observed(
-                self.project,
-                "qoder",
-                "review",
-                state,
-                ("-p", "observe"),
-                runner=replacing_runner,
-                auth_root=self.auth_root,
-            )
+            self.run_observed(self.project,
+            "qoder",
+            "review",
+            state,
+            ("-p", "observe"),
+            runner=replacing_runner,
+            auth_root=self.auth_root,)
         self.assertEqual(list(redirect.iterdir()), [])
         self.assertFalse((moved / "receipt.json").exists())
 

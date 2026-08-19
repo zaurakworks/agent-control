@@ -1,4 +1,8 @@
-version = 2
+version = 3
+defaults = ".cap/project-defaults.toml"
+
+[runtime]
+omp = ".cap/runtime/omp.toml"
 
 [profiles]
 implementation = ".cap/profiles/implementation.toml"

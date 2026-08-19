@@ -33,11 +33,14 @@ def _default_profile_tool() -> Path:
 
 DEFAULT_PROFILE_TOOL = _default_profile_tool()
 DEFAULT_REAL_HOME = Path.home()
-DEFAULT_AGENT_HOME_ROOT = DEFAULT_PROJECT.with_name(f"{DEFAULT_PROJECT.name}.agent-homes")
-DEFAULT_BASE_MANIFEST = DEFAULT_REAL_HOME / ".cap-user-state" / "locks" / "real-home.manifest.json"
-DEFAULT_WORKSPACE_CONTROL = DEFAULT_REAL_HOME / "work" / "_org" / "locks" / "agent-system"
-DEFAULT_BASE_PIN = DEFAULT_WORKSPACE_CONTROL / "real-home.pin.json"
-DEFAULT_BINDING_DIR = DEFAULT_WORKSPACE_CONTROL / "bindings"
+DEFAULT_AGENT_STATE_ROOT = DEFAULT_REAL_HOME / ".agent-system-state"
+DEFAULT_MACHINE_CONTEXT_MANIFEST = (
+    DEFAULT_AGENT_STATE_ROOT / "machine-context" / "manifest.json"
+)
+DEFAULT_MACHINE_CONTEXT_PIN = (
+    DEFAULT_AGENT_STATE_ROOT / "machine-context" / "pin.json"
+)
+DEFAULT_ASSEMBLY_BINDING_DIR = DEFAULT_AGENT_STATE_ROOT / "bindings"
 DEFAULT_AUTH_ROOT = DEFAULT_PROJECT.with_name(f"{DEFAULT_PROJECT.name}.auth")
 DEFAULT_PROFILE = "general"
 RUNNABLE_PROFILES = ("general", "assembly-helper")

@@ -1,6 +1,7 @@
-version = 2
+version = 3
+defaults = ".cap/project-defaults.toml"
+runtime = { omp = ".cap/runtime/omp.toml" }
 
 [profiles]
-assembly-helper = ".cap/profiles/assembly-helper.toml"
 general = ".cap/profiles/general.toml"
-work = ".cap/profiles/work.toml"
+assembly-helper = ".cap/profiles/assembly-helper.toml"

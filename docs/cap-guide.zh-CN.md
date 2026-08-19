@@ -4,30 +4,28 @@ CAP（Capability Assembly and Profiles）是本仓库的 Agent 装配入口。�
 
 如果第一次接触 CAP，先记住这一条：
 
-> **先看 profile，再看能力闭包；修改声明后刷新 lock，绑定 real-home，最后 verify。**
+> **先看 role 和 capability closure；修改声明后刷新 lock，绑定 machine-context，最后 verify。**
 
 本指南面向日常使用。完整 schema 和安全边界见 [`profile.md`](./profile.md)，仓库维护流程见 [`maintenance.zh-CN.md`](./maintenance.zh-CN.md)。
 
 ## 1. CAP 管什么
 
-CAP 管理四类运行时能力：
+CAP 管理四类 Agent-facing 能力：
 
 | 类型 | 作用 | 当前仓库状态 |
 | --- | --- | --- |
 | Skill | 条件性工作流和操作方法 | 已声明多个项目内 Skill |
-| MCP | 模型可调用的外部工具服务 | 当前没有项目内 MCP；`assembly-helper` 屏蔽 real-home 的 `idea` |
+| MCP | 模型可调用的外部工具服务 | 当前没有项目内 MCP；用户级 `idea` 只作为 inventory 观察 |
 | Hook | 客户端生命周期钩子 | 当前没有项目内 Hook |
 | Plugin | 客户端扩展或插件 | 当前没有项目内 Plugin |
 
-同时管理这些装配资产：
+同时管理这些 v3 输入和证据：
 
-- **Profile**：角色和能力闭包的选择，例如 `general`、`assembly-helper`；
-- **Prompt**：profile 的常驻行为约束；
-- **系统入口**：`entrypoints/agent-system.md` 和根 `AGENTS.md`；
-- **项目声明**：`.cap/manifest.toml`、`.cap/profiles/*.toml`；
-- **锁定与绑定**：`.cap/lock.json`、私有 `real-home` manifest、workspace pin、derived binding；
-- **客户端渲染**：Codex、Qoder、OMP 各自的隔离配置和 prompt；
-- **运行观察**：声明态、配置态和实际生效态的 probe、run、receipt 证据。
+- **Role**：叶子角色，例如 `general`、`assembly-helper`；
+- **Prompt**：role 的常驻行为约束；
+- **项目声明**：`.cap/manifest.toml`、`project-defaults.toml`、`.cap/profiles/*.toml`；
+- **宿主与观察**：machine-context manifest/pin、asset inventory；
+- **锁定与运行**：`.cap/lock.json`、assembly binding、runtime policy、generation、receipt。
 
 CAP **不**接管认证、token、provider 账号、Git/SSH、语言工具链或任意用户目录。认证通过显式 `--auth-root` 提供，业务能力不能从用户目录或 provider ambient 配置隐式补齐。
 
@@ -38,17 +36,29 @@ CAP **不**接管认证、token、provider 账号、Git/SSH、语言工具链或
 Profile 是一次运行的装配选择。每个 profile 有：
 
 - 一个 prompt；
-- 一条继承链；
-- 四类能力的 `add`、`mask`、`replace` 操作。
+- 一个 role profile；
+- 显式 `allow`／`deny`／`override` 能力操作；
+- 独立的 `project-defaults`、`machine-context`、asset inventory 与 runtime policy 输入。
 
-当前链路是：
+当前 v3 运行模型是：
 
 ```text
-real-home -> work -> general
-                       assembly-helper
+machine-context + project-defaults + general
+                                  assembly-helper
 ```
 
-`work` 是共享工作层；`general` 和 `assembly-helper` 是可运行的叶子 profile。
+
+`machine-context` 只描述经 pin 批准的宿主底座；asset inventory 只观察候选，不授予能力；`project-defaults` 描述项目公共能力；`general` 与 `assembly-helper` 是可运行的叶子 role。用户目录不会被隐式继承为 Agent-facing 能力。
+
+例如，用户 HOME 中即使存在 `idea` MCP，inventory 也只记录观察证据；assembly-helper 的有效 MCP 仍为空。`cap show`、lock、binding 和 verify 的通过属于声明态或配置态，不等于客户端原生生效态。
+
+如果只想知道“我现在实际能选什么”，先看：
+
+```bash
+uv run cap agents
+uv run cap show general
+uv run cap show assembly-helper
+```
 
 ### 能力闭包
 
@@ -56,25 +66,25 @@ real-home -> work -> general
 
 ```toml
 [skills]
-add = ["some-skill"]       # 增加项目内能力
-mask = ["ambient-skill"]   # 移除继承能力
-replace = ["shared-skill"] # 用项目内同名能力替换继承能力
+allow = ["some-skill"]
+deny = ["ambient-skill"]
+override = ["shared-skill"]
 ```
 
-- `add`：只能引用当前项目内存在的能力；
-- `mask`：屏蔽已继承能力；
-- `replace`：用当前项目内同名实现替换已继承能力；
-- 不要直接改渲染目录或客户端原生配置来“临时修复”，下一次启动会被 CAP 覆盖或拒绝。
+- `allow`：只能引用当前项目内存在或有 provenance 的 external import；
+- `deny`：屏蔽已观察或已继承候选；
+- `override`：在不解除系统安全门禁的前提下替换已声明实现；
+- 不要直接改 render 目录或客户端 native 配置来“临时修复”。
 
 ### 三层证据
 
 | 层级 | 回答什么 | 主要证据 |
 | --- | --- | --- |
-| 声明态 | 仓库说自己要装什么 | manifest、profile、prompt、capabilities |
-| 配置态 | lock、binding、render 是否一致 | `.cap/lock.json`、real-home manifest、pin、binding、render |
-| 生效态 | 客户端实际加载了什么 | 真实 `run` 输出、marker、probe/diff |
+| 声明态 | 仓库说自己要装什么 | manifest、defaults、role、prompt、capabilities、policy |
+| 配置态 | lock、binding、render 是否一致 | `.cap/lock.json`、machine-context pin、binding、generation |
+| 生效态 | 客户端实际加载了什么 | 真实 `run` 输出、receipt、marker、probe/diff |
 
-文件存在或 lock 通过，不等于客户端已经原生加载。Hook、Plugin，以及部分客户端的 MCP/context 观察结果可能是 `unknown`。
+文件存在或 lock 通过，不等于客户端已经原生加载。Hook、Plugin、MCP/context 观察不足时保持 `unknown`。
 
 ## 3. 日常使用流程
 
@@ -117,50 +127,30 @@ uv run cap run assembly-helper -- -p "检查当前 Agent 装配边界"
 ```bash
 uv run cap skills-validate
 uv run cap lock
-uv run cap bind work
-uv run cap bind general
-uv run cap bind assembly-helper
+uv run cap assembly-bind general
+uv run cap assembly-bind assembly-helper
 uv run cap verify
 ```
 
 说明：
 
 1. `skills-validate`：检查 Skill frontmatter、目录名和描述；
-2. `lock`：把当前项目声明和渲染结果锁定；
-3. `bind`：把 profile 绑定到已批准的 real-home digest；
-4. `verify`：检查 lock、base pin、binding 和能力闭包。
+2. `lock`：锁定项目 defaults、role、policy 和渲染结果；
+3. `assembly-bind`：绑定已批准的 machine-context digest；
+4. `verify`：检查 lock、pin、binding、asset closure 和 runtime policy。
 
-`lock` 不会批准新的机器基座；`bind` 也不会自动刷新 base pin。
+`lock` 不会批准新的 machine-context；`assembly-bind` 也不会自动刷新 pin。渲染结果用于检查 prompt、Skill 和客户端配置，不代表客户端一定已经生效。
 
 ### 3.4 只渲染、不启动客户端
 
 输出目录必须是项目外的既有空目录：
 
 ```bash
-mkdir -p /var/tmp/cap-render
-uv run cap render assembly-helper --cli omp --output /var/tmp/cap-render
+mkdir -p /private/tmp/cap-render
+uv run cap render assembly-helper --cli omp --output /private/tmp/cap-render
 ```
 
-渲染结果用于检查 prompt、Skill 和客户端 MCP 配置，不代表客户端一定已经生效。
-
-## 4. real-home 是什么
-
-`real-home` 是当前机器的只读基座。它可能包含：
-
-- 用户级 context 和规则文件；
-- 用户级 Skill、MCP、Hook、Plugin 候选；
-- 客户端 settings 和配置入口。
-
-CAP 不把这些内容复制进仓库，而是用以下链路绑定：
-
-```text
-真实 HOME
-   -> 私有 real-home manifest
-   -> workspace pin 审批 digest
-   -> profile binding
-   -> 项目 profile 的 mask/add/replace
-   -> 客户端隔离 render/runtime
-```
+OMP 的 `config.yml`、`mcp.json` 等文件名只属于 adapter 输出；它们不能成为项目能力或跨客户端配置源。
 
 因此看到某个用户级能力存在，不等于它已被当前 profile 允许。它必须同时通过 profile 闭包和客户端启动门禁。
 
@@ -169,30 +159,28 @@ CAP 不把这些内容复制进仓库，而是用以下链路绑定：
 如果看到类似告警：
 
 ```text
-profile: warning: ... out-of-scope base MCP(s): idea (...); they are not part of the project-declared capability closure
+profile: warning: out-of-scope MCP is observed but not in project closure
 ```
 
 不要只重新运行。按下面顺序处理：
 
 1. 记录 profile、能力名称和来源路径；
-2. 执行 `uv run cap show <profile>`，确认当前声明闭包；
-3. 如果能力不应使用，在 profile 中加入对应 `mask`；
-4. 如果确实需要，先把能力作为项目内受审查资产声明，并使用 `add` 或 `replace`；
-5. 重新执行 `lock`、`bind`、`verify`；
+2. 执行 `uv run cap show <profile>`，确认声明态、inventory 和最终 closure；
+3. 如果能力不应使用，保持默认拒绝或在 profile 中加入 `deny`；
+4. 如果确实需要，先把能力作为项目内资产或已批准 external import 声明，并使用 `allow` 或 `override`；
+5. 重新执行 `lock`、`assembly-bind`、`verify`；
 6. 只有 verify 通过后再启动客户端。
 
-所有 profile 都应对实际工具面中未列入当前 inventory 的 MCP 立即告警。相同原则也适用于后续扩展到 Skill、Hook、Plugin 等纳管能力；“被用户目录发现”不能自动变成“被 profile 允许”。
+“被用户目录发现”不能自动变成“被 profile 允许”；Hook、Plugin、MCP 和客户端生效结果不足时必须保持 `unknown`。
 
 ## 6. 常见失败的含义
 
 | 现象 | 含义 | 处理 |
 | --- | --- | --- |
 | `capability lock drift detected` | 声明改了但 lock 没刷新 | 审阅差异后运行 `uv run cap lock` |
-| `binding is stale` | lock 或 base digest 变化，旧 binding 不再匹配 | 审阅后重新 `bind` |
-| `active real-home drift detected` | 已批准基座的 active 能力发生变化 | 重新检查 manifest 和 pin，不要盲目继续 |
-| `passive real-home drift` | 观察到非 active 配置变化 | 可继续，但要记录告警原因 |
-| `project capability bypass detected` | 项目里出现未纳管的原生能力旁路 | 移除旁路或纳入当前声明；不要加例外 |
-| `unknown` | 没有足够的真实客户端证据 | 不要当作“没有能力”，改为报告观察缺口 |
+| `binding is stale` | lock 或 machine-context digest 变化，旧 binding 不再匹配 | 审阅后重新 `assembly-bind` |
+| `active machine-context drift detected` | 已批准宿主上下文的 active 输入发生变化 | 重新检查 manifest 和 pin，不要盲目继续 |
+| `passive machine-context drift` | 观察到非 active 配置变化 | 可继续，但要记录告警原因 |
 
 ## 7. 需要记住的最短版本
 

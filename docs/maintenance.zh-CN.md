@@ -24,9 +24,9 @@
 ## 修改时
 
 - 保持 id 为小写连字符。
-- 项目新增或替换的运行时能力必须落在当前仓库 `.cap/capabilities/` 下，并由 profile 的 `add`／`replace` 显式引用。
-- 用户环境只允许通过已审批 `real-home` manifest、workspace pin 和 derived binding 进入；不得从未绑定的用户目录、模板目录、其他仓库或 ambient provider 配置补齐业务能力。
-- 不把认证材料、token、个人运行态、临时 receipt、base manifest、pin 或 binding 写入本仓。
+- 项目新增或替换的运行时能力必须落在当前仓库 `.cap/capabilities/` 下，并由 profile 的 `allow`／`deny`／`override` 显式引用。
+- 用户环境只允许通过已批准的 `machine-context`、pin、asset inventory 和 assembly binding 进入；inventory 只是观察面，不自动授权 Agent-facing 能力。
+- 不把认证材料、token、个人运行态、临时 receipt、machine-context manifest、pin 或 binding 写入本仓。
 - 常驻 prompt 只放短约束；长流程放 Skill。
 - 快速迭代阶段，Skill 的 `description` 和正文使用中文；`name`、目录 id、路径、命令和配置键保持规范形式。
 - `.cap/capabilities/skills/<name>/SKILL.md` 是唯一全文合同；不在 `docs/skills/` 维护需要逐项同步的另一语言镜像。
@@ -55,16 +55,16 @@ uv run cap skills-validate
 # 2. 更新项目层 lock：只有声明内容确实改变时执行
 uv run cap lock
 
-# 3. 项目层变化后重建 work 与两个 derived binding；不得自动刷新 base pin
-for profile in work general assembly-helper; do
+# 3. 项目层变化后重建 assembly binding；不得自动刷新 machine-context pin
+for profile in general assembly-helper; do
   uv run cap \
-    --base-manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
-    --base-pin "$HOME/work/_org/locks/agent-system/real-home.pin.json" \
-    --binding-dir "$HOME/work/_org/locks/agent-system/bindings" \
-    bind "$profile"
+    --machine-context-manifest "$HOME/.agent-system-state/machine-context/manifest.json" \
+    --machine-context-pin "$HOME/.agent-system-state/machine-context/pin.json" \
+    --assembly-binding-dir "$HOME/.agent-system-state/bindings" \
+    assembly-bind "$profile"
 done
 
-# 4. 检查元数据、项目 lock、base pin 和全部 binding
+# 4. 检查元数据、项目 lock、machine-context pin 和全部 binding
 uv run cap verify
 
 # 5. 查看最终公共 inventory，并展开一个 CLI 的真实目标文件树
@@ -82,41 +82,43 @@ Profile engine 已打包在当前 `agent-system` uv 项目中，仅由 `uv run c
 
 ## OMP 用户级 runtime 与全局 CAS 维护
 
-持久 OMP 默认使用 `$HOME/.cap-user-state/runtimes/omp/default` 共享认证、settings、Session、history、cache 和 `agent.db`；`memory.backend` 固定为 `off`。Profile 可以跨 workdir 使用，但 profile/prompt/capability 的唯一权威仍是当前 Git 项目 `.cap`，用户级目录不得保存可编辑 catalog 或作为能力 discovery 来源。
+持久 OMP 默认使用 `$HOME/.agent-system-state/runtimes/omp/default` 保存认证、settings、Session、history、cache 和 `agent.db`；`memory.backend` 固定为 `off`。profile、prompt、capability 和 project-defaults 的唯一权威仍是当前 Git 项目 `.cap`，用户级目录不得保存可编辑 catalog 或作为能力 discovery 来源。
 
-全局 render CAS 位于 `$HOME/.cap-user-state/renders/omp/<effective-hash>`。每次命中前必须先完成当前项目 manifest/profile/lock/base pin/binding 验证，再用 portable tree、profile/layer digest、adapter version、effective config与fixed gates计算期望hash并核对manifest/content。CAS删除后必须能由当前项目重建；cache存在不是声明态证据。
+全局 render CAS 位于 `$HOME/.agent-system-state/renders/omp/<effective-hash>`。每次命中前必须先完成当前项目 manifest/profile/lock、machine-context pin、assembly binding 和 capability closure 验证，再用 portable tree、profile/layer digest、adapter version、effective policy 与 fixed gates 计算期望 hash 并核对 generation/content。
 
 路径参数：
 
 ```bash
 --omp-runtime-id default
---omp-runtime-root $HOME/.cap-user-state/runtimes/omp/default
+--omp-runtime-root $HOME/.agent-system-state/runtimes/omp/default
 ```
 
-显式 root 必须等于批准真实 HOME 与 runtime id 推导出的精确路径，拒绝真实 `~/.omp`、symlink ancestor、路径别名和越界目录。`--agent-home-root` 只表示当前项目旧状态/迁移来源。
+显式 root 必须等于批准真实 HOME 与 runtime id 推导出的精确路径，拒绝真实 `~/.omp`、symlink ancestor、路径别名和越界目录。旧项目状态根只作为显式 migration 来源。
 
 项目级 shared runtime 到用户级迁移：
 
 ```bash
-# 1. dry-run：验证当前项目closure、项目源、global目标和无secret状态摘要
+# 1. dry-run：验证当前项目 closure、项目源、global 目标和无 secret 状态摘要
 uv run cap migrate-omp-runtime
 
-# 2. 无冲突后安装/合并用户级runtime
+# 2. 无冲突后安装/合并用户级 runtime
 uv run cap migrate-omp-runtime --apply
+
+# 3. 如果需要撤回：从 quarantine backup 恢复旧 runtime
+uv run cap migrate-omp-runtime --rollback
 ```
 
 目标不存在时私有stage后原子安装；目标存在时比较schema、settings与credential identity，等价时合并内容不冲突的Session，实质差异在写入前停止。项目级renders不迁移，当前项目重新materialize到global CAS。WAL/SHM、terminal breadcrumb和临时文件不作为迁移真源。
 
 运行门禁保持：
 
-- 真实 HOME 与real-home drift gate；
-- 当前项目manifest/lock/binding先验证；
-- Skill custom directory与双allowlist；
-- ambient Skill来源和project MCP discovery关闭；
+- machine-context active drift、当前项目 manifest/lock/pin/binding 先验证；
+- Agent-facing asset inventory 默认拒绝，只有显式 project-defaults、role 或 external import 才能进入 closure；
+- ambient Skill、MCP、Hook、Plugin discovery 关闭；
 - `--no-extensions`、`--no-rules`；
-- 全局runtime MCP denylist；
-- provider/API/OAuth/cloud credential环境清理；
-- `PI_AUTH_NO_BORROW`与metadata防护。
+- 全局 runtime MCP denylist；
+- provider/API/OAuth/cloud credential 环境清理；
+- `PI_AUTH_NO_BORROW` 与 metadata 防护。
 
 Session默认按encoded cwd组织只是查找/展示约定，不是授权边界。显式id/path可跨profile/worktree/workdir恢复；必须观察同一Session identity和transcript连续，同时当前项目/profile prompt与Skill marker切换。
 
@@ -137,9 +139,9 @@ Session默认按encoded cwd组织只是查找/展示约定，不是授权边界�
 uv run cap migrate-omp-runtime --cleanup
 ```
 
-cleanup只删除当前项目级shared runtime、project render cache和migration backup；不得删除global runtime/CAS、当前 `.cap`、真实 `~/.omp`、其他客户端配置或其他runtime id。全局CAS GC不在本change范围。
+`--rollback` 只读取并验证显式 migration backup，恢复旧 project/global runtime 后移除新 runtime；没有 marker、backup、runtime id 匹配或路径安全校验失败时停止。`--cleanup` 不是 rollback：它只在行为验证完成后删除当前项目级 shared runtime、render cache 和 migration backup。
 
-本变化不修改当前项目profile、prompt、中文Skill、inventory或lock。Codex、Qoder和`--fresh`继续使用原有`--auth-root`。
+本变化只实现并验证 OMP adapter；Codex 与 Claude 只消费 v3 合同，未实施或未观察到的字段和客户端生效态保持 `unknown`，不得复用 OMP native config。
 
 ## 证据分层
 
@@ -163,14 +165,15 @@ cleanup只删除当前项目级shared runtime、project render cache和migration
 由以下证据证明：
 
 - `.cap/lock.json`
-- `$HOME/.cap-user-state/locks/real-home.manifest.json`
-- `$HOME/work/_org/locks/agent-system/real-home.pin.json`
-- `$HOME/work/_org/locks/agent-system/bindings/*.binding.json`
+- `$HOME/.agent-system-state/machine-context/manifest.json`
+- `$HOME/.agent-system-state/machine-context/pin.json`
+- `$HOME/.agent-system-state/bindings/*.binding.json`
+- `.cap/runtime/omp.toml`
 - `uv run cap show`
 - `uv run cap render <profile> --cli <client> --output <existing-empty-dir>`
 - 真实客户端 runtime environment
 
-检查：项目 lock 没有 stale，base active digest 被 workspace pin 明确批准，derived binding 同时匹配 base digest 与 layer digest，portable render hash 与 lock 一致；持久 OMP 另外显示共享 runtime root、当前 profile generation、effective hash 和固定门禁。真实 `HOME` 保留，但共享 runtime 不得因此继承未审批能力。
+检查：项目 lock、machine-context pin、assembly binding、asset closure、runtime policy、portable render hash 和 generation 一致；receipt 关联 runtime id、effective policy、generation 和 render hash。配置态不升级为生效态。
 
 ### 生效态
 

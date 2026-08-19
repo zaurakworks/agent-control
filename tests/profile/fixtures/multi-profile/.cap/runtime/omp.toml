@@ -1,0 +1,6 @@
+version = 1
+client = "omp"
+
+[policy]
+memory_backend = "off"
+enable_project_mcp = false

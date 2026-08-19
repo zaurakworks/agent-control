@@ -21,11 +21,11 @@ def _base_args(args: argparse.Namespace) -> list[str]:
     return base
 def _binding_args(args: argparse.Namespace) -> list[str]:
     return [
-        "--base-manifest",
+        "--machine-context-manifest",
         str(Path(args.base_manifest).expanduser()),
-        "--base-pin",
+        "--machine-context-pin",
         str(Path(args.base_pin).expanduser()),
-        "--binding-dir",
+        "--assembly-binding-dir",
         str(Path(args.binding_dir).expanduser()),
     ]
 

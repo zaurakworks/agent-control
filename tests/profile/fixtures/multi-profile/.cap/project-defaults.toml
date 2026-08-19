@@ -1,6 +1,5 @@
 version = 3
-prompt = ".cap/prompts/general.md"
-runtime = { omp = "default" }
+external_imports = []
 
 [skills]
 allow = []
