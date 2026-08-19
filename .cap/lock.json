@@ -64,7 +64,7 @@
     },
     ".cap/capabilities/skills/assembly-helper/SKILL.md": {
       "mode": "0644",
-      "sha256": "38ace404fe09aa116b78071868635a5d772599aab0f218ddb7ae3b1d4386a07e",
+      "sha256": "15df2e52070339fe6980f56e5c5a0fc6d2de1c1729766ec90814d33f692f3bd3",
       "type": "file"
     },
     ".cap/capabilities/skills/capability-lifecycle": {
@@ -161,7 +161,7 @@
     },
     ".cap/prompts/assembly-helper.md": {
       "mode": "0644",
-      "sha256": "d1c260cc0a8005b93bc8450ff03d3ffb3257d789df66677fc4a1af692dea1116",
+      "sha256": "84783e959e3cec177f9e037b75b58a3b6ce5ce92b83f3dfefc2a2bd1d2c9d5d8",
       "type": "file"
     },
     ".cap/prompts/general.md": {
@@ -189,13 +189,13 @@
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:105c6fc6ab88be061cda7418ba821a348354a6fc54dc53eff0a0a530c4008f4c"
+          "tree_hash": "sha256:3de424a465736013f216bf7c1b679cd8042854216b7e7ad55c2b2f1b833d7239"
         },
         "omp": {
-          "tree_hash": "sha256:10b832f666d5b97f2c6a30accd1f8cfb2099c851e95550ec843c0a9f02d7d208"
+          "tree_hash": "sha256:068fdc459db2541ec605b0ac13f5356ea077d2cf6488125a15da683403d5593a"
         },
         "qoder": {
-          "tree_hash": "sha256:91b0f9204b21911c7a04cb1d62525b2443d17f35ce92eef1549fddbeb71b3e14"
+          "tree_hash": "sha256:331e677b71f374d9a480f2874f01fa0428bed0ec8373499767ab46f2ccbcc8e8"
         }
       },
       "extends": "work",
@@ -219,7 +219,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:08c84b0370e16f4c910138036832b404f9821dece8d43f0658f7b75fec938b51",
+      "layer_digest": "sha256:40bc99efe7d6ea6111773cedc07a18033e0d07834c6a24b915e73a0ed2e6e5e1",
       "operations": {
         "hooks": {
           "add": [],

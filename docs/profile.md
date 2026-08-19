@@ -1,6 +1,6 @@
 # profile —— 真实 HOME 基座、显式能力层与生效态核验
 
-`uv run agent-profile` 是唯一入口。`real-home` 是机器本地、只读且需审批的基座 profile；仓库 profile 只能声明单继承链和显式 `add`／`mask`／`replace` 操作。工具锁定项目层，用 workspace 外的私有 manifest、审批 pin 和 binding 把项目层绑定到特定机器基座，再用同一棵渲染树物化并启动 Codex、Qoder 或 OMP。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须显式给出 `--client` 和 `--profile`。
+`uv run cap` 是唯一用户入口；profile engine 只作为 CAP 的内部执行层。`real-home` 是机器本地、只读且需审批的基座 profile；仓库 profile 只能声明单继承链和显式 `add`／`mask`／`replace` 操作。CAP 用 workspace 外的私有 manifest、审批 pin 和 binding 把项目层绑定到特定机器基座，再用同一棵渲染树物化并启动 Codex、Qoder 或 OMP。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须显式给出 profile 和 `--cli`。
 
 ## 唯一 schema
 
@@ -57,39 +57,33 @@ replace = []
 以下命令都从仓库根运行；`<project>` 是包含 `AGENTS.md` 和 `.cap/` 的 Git worktree 根。
 
 ```text
-uv run agent-profile --project <project> list
-uv run agent-profile --project <project> explain --profile review
-uv run agent-profile --project <project> lock
+uv run cap --project <project> profiles
+uv run cap --project <project> show review
+uv run cap --project <project> lock
 
-uv run agent-profile --project <project> base-lock \
-  --home "$HOME" --manifest <private-user-state>/real-home.manifest.json
-uv run agent-profile --project <project> base-approve \
-  --manifest <private-user-state>/real-home.manifest.json \
-  --pin <workspace-control>/real-home.pin.json
-uv run agent-profile --project <project> bind \
-  --profile review \
-  --base-manifest <private-user-state>/real-home.manifest.json \
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
+  base-lock
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
+  --base-pin <workspace-control>/real-home.pin.json base-approve
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
   --base-pin <workspace-control>/real-home.pin.json \
-  --binding-dir <workspace-control>/bindings
+  --binding-dir <workspace-control>/bindings bind review
 
-uv run agent-profile --project <project> verify \
-  --profile review \
-  --base-manifest <private-user-state>/real-home.manifest.json \
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
   --base-pin <workspace-control>/real-home.pin.json \
-  --binding-dir <workspace-control>/bindings
+  --binding-dir <workspace-control>/bindings verify
 
-uv run agent-profile --project <project> materialize \
-  --client codex --profile review --output <existing-empty-dir> \
-  --base-manifest <private-user-state>/real-home.manifest.json \
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
   --base-pin <workspace-control>/real-home.pin.json \
-  --binding-dir <workspace-control>/bindings
+  --binding-dir <workspace-control>/bindings \
+  render review --cli codex --output <existing-empty-dir>
 
-uv run agent-profile --project <project> launch \
-  --client omp --profile review --auth-root <private-auth-root> \
-  --receipt <new-receipt.json> --workdir <git-worktree-root> \
-  --base-manifest <private-user-state>/real-home.manifest.json \
+uv run cap --project <project> --base-manifest <private-user-state>/real-home.manifest.json \
   --base-pin <workspace-control>/real-home.pin.json \
-  --binding-dir <workspace-control>/bindings -- <client-args>
+  --binding-dir <workspace-control>/bindings \
+  --auth-root <private-auth-root> \
+  use review --cli omp --receipt <new-receipt.json> --workdir <git-worktree-root> \
+  -- <client-args>
 ```
 
 `lock` 是项目层的显式更新操作；它记录 manifest、profile、根 `AGENTS.md`、prompt、每个项目能力文件的 SHA-256 与 mode，并锁定 renderer、adapter 和三端输出树。`base-lock` 只刷新机器基座观察，不产生批准；`base-approve` 把观察到的 active digest 写入 workspace pin；`bind` 把一个已锁项目层绑定到该批准 digest。基座更新不会自动刷新 pin 或所有 derived binding。

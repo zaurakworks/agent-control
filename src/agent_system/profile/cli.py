@@ -29,6 +29,8 @@ PROFILE_VERSION = 2
 BASE_MANIFEST_VERSION = 1
 BASE_PIN_VERSION = 1
 BINDING_VERSION = 1
+OVERLAY_VERSION = 1
+EVIDENCE_VERSION = 1
 REAL_HOME_PROFILE = "real-home"
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
@@ -445,14 +447,17 @@ class LayerOperations:
 
 @dataclass(frozen=True)
 class Profile:
-    """Hold one resolved single-base capability layer."""
+    """Hold one resolved capability layer, including its source root."""
 
     name: str
     source: Path
+    source_root: Path
     extends: str | None
     chain: tuple[str, ...]
     prompt: Path
+    prompt_chain: tuple[Path, ...]
     operations: Mapping[str, LayerOperations]
+    origins: Mapping[str, Mapping[str, Path]]
     skills: tuple[str, ...]
     mcps: tuple[str, ...]
     hooks: tuple[str, ...]
@@ -460,14 +465,23 @@ class Profile:
 
 
 @dataclass(frozen=True)
+class OverlaySpec:
+    """Describe one explicit private capability overlay."""
+
+    root: Path
+    namespace: str
+    descriptor: Path | None
+
+
+@dataclass(frozen=True)
 class Project:
-    """Hold a fully validated profile project manifest and its closures."""
+    """Hold a fully validated public project and optional private overlay."""
 
     root: Path
     manifest: Path
     profiles: Mapping[str, Profile]
     mcps: Mapping[str, McpDefinition]
-
+    overlay: OverlaySpec | None = None
 
 @dataclass(frozen=True)
 class RenderedFile:
@@ -544,8 +558,27 @@ def _load_layer_operations(value: Any, context: str) -> LayerOperations:
     return operations
 
 
-def load_project(project_root: Path | str) -> Project:
-    """Load and resolve a strict single-base profile project."""
+def _load_overlay_spec(root: Path, private_overlay: Path | str | None) -> OverlaySpec | None:
+    if private_overlay is None:
+        return None
+    overlay_root = Path(private_overlay).expanduser().resolve(strict=True)
+    if not overlay_root.is_dir() or overlay_root == root:
+        raise ProfileError("private overlay must be a distinct directory")
+    descriptor = overlay_root / ".cap" / "overlay.toml"
+    namespace = "private"
+    if descriptor.exists():
+        data = _read_toml(descriptor)
+        _expect_keys(data, {"version", "namespace"}, "private overlay")
+        if type(data["version"]) is not int or data["version"] != OVERLAY_VERSION:
+            raise ProfileError(f"private overlay.version must be {OVERLAY_VERSION}")
+        namespace = _validate_identifier(data["namespace"], "private overlay.namespace")
+    return OverlaySpec(root=overlay_root, namespace=namespace, descriptor=descriptor if descriptor.exists() else None)
+
+
+def load_project(
+    project_root: Path | str, private_overlay: Path | str | None = None
+) -> Project:
+    """Load a public profile project and one explicitly selected private overlay."""
 
     root = Path(project_root).expanduser().resolve(strict=True)
     if not root.is_dir():
@@ -561,61 +594,97 @@ def load_project(project_root: Path | str) -> Project:
     if not isinstance(raw_profiles, dict) or not raw_profiles:
         raise ProfileError("manifest.profiles must be a non-empty table")
 
-    definitions: dict[str, dict[str, Any]] = {}
+    overlay = _load_overlay_spec(root, private_overlay)
     capability_fields = {
         "skills": "skills",
         "mcps": "mcp",
         "hooks": "hooks",
         "plugins": "plugins",
     }
-    expected = {kind: set() for kind in CAPABILITY_KINDS}
-    for name, raw_path in sorted(raw_profiles.items()):
-        _validate_identifier(name, "profile name")
-        if name == REAL_HOME_PROFILE:
-            raise ProfileError(f"{REAL_HOME_PROFILE} is a reserved external base profile")
-        if not isinstance(raw_path, str):
-            raise ProfileError(f"manifest.profiles.{name} must be a path string")
-        source = _resolve_file(root, raw_path, f"profile {name}")
-        _require_under_cap(root, source, f"profile {name}")
-        profile_data = _read_toml(source)
-        required = {"version", "prompt", *capability_fields}
-        actual = set(profile_data)
-        missing = sorted(required - actual)
-        extra = sorted(actual - required - {"extends"})
-        if missing or extra:
-            raise ProfileError(
-                f"profile {name} keys mismatch: missing={missing}, extra={extra}"
-            )
+    definitions: dict[str, dict[str, Any]] = {}
+    expected_by_root: dict[Path, dict[str, set[str]]] = {
+        root: {kind: set() for kind in CAPABILITY_KINDS}
+    }
+
+    def load_definitions(
+        source_root: Path,
+        source_manifest: Mapping[str, Any],
+        label: str,
+        *,
+        private: bool,
+    ) -> None:
+        raw = source_manifest["profiles"]
+        if not isinstance(raw, dict) or not raw:
+            raise ProfileError(f"{label}.profiles must be a non-empty table")
+        expected = expected_by_root.setdefault(
+            source_root, {kind: set() for kind in CAPABILITY_KINDS}
+        )
+        for name, raw_path in sorted(raw.items()):
+            _validate_identifier(name, f"{label} profile name")
+            if name == REAL_HOME_PROFILE:
+                raise ProfileError(f"{REAL_HOME_PROFILE} is a reserved external base profile")
+            if name in definitions:
+                raise ProfileError(f"profile name is duplicated across layers: {name}")
+            if not isinstance(raw_path, str):
+                raise ProfileError(f"{label}.profiles.{name} must be a path string")
+            source = _resolve_file(source_root, raw_path, f"{label} profile {name}")
+            _require_under_cap(source_root, source, f"{label} profile {name}")
+            profile_data = _read_toml(source)
+            required = {"version", "prompt", *capability_fields}
+            actual = set(profile_data)
+            missing = sorted(required - actual)
+            extra = sorted(actual - required - {"extends"})
+            if missing or extra:
+                raise ProfileError(
+                    f"profile {name} keys mismatch: missing={missing}, extra={extra}"
+                )
+            if (
+                type(profile_data["version"]) is not int
+                or profile_data["version"] != PROFILE_VERSION
+            ):
+                raise ProfileError(f"profile {name}.version must be {PROFILE_VERSION}")
+            raw_extends = profile_data.get("extends")
+            if raw_extends is not None:
+                _validate_identifier(raw_extends, f"profile {name}.extends")
+                if raw_extends == name:
+                    raise ProfileError(f"profile {name} cannot extend itself")
+            elif private:
+                raise ProfileError(f"private profile {name} must explicitly extend a public profile")
+            raw_prompt = profile_data["prompt"]
+            if not isinstance(raw_prompt, str):
+                raise ProfileError(f"profile {name}.prompt must be a path string")
+            prompt = _resolve_file(source_root, raw_prompt, f"profile {name} prompt")
+            _require_under_cap(source_root, prompt, f"profile {name} prompt")
+            operations = {
+                field: _load_layer_operations(
+                    profile_data[field], f"profile {name}.{field}"
+                )
+                for field in capability_fields
+            }
+            for field, store_kind in capability_fields.items():
+                expected[store_kind].update(operations[field].add)
+                expected[store_kind].update(operations[field].replace)
+            definitions[name] = {
+                "source": source,
+                "source_root": source_root,
+                "extends": raw_extends,
+                "prompt": prompt,
+                "operations": operations,
+            }
+
+    load_definitions(root, manifest, "public", private=False)
+    if overlay is not None:
+        overlay_manifest_path = _resolve_file(
+            overlay.root, ".cap/manifest.toml", "private overlay manifest"
+        )
+        overlay_manifest = _read_toml(overlay_manifest_path)
+        _expect_keys(overlay_manifest, {"version", "profiles"}, "private overlay manifest")
         if (
-            type(profile_data["version"]) is not int
-            or profile_data["version"] != PROFILE_VERSION
+            type(overlay_manifest["version"]) is not int
+            or overlay_manifest["version"] != MANIFEST_VERSION
         ):
-            raise ProfileError(f"profile {name}.version must be {PROFILE_VERSION}")
-        raw_extends = profile_data.get("extends")
-        if raw_extends is not None:
-            _validate_identifier(raw_extends, f"profile {name}.extends")
-            if raw_extends == name:
-                raise ProfileError(f"profile {name} cannot extend itself")
-        raw_prompt = profile_data["prompt"]
-        if not isinstance(raw_prompt, str):
-            raise ProfileError(f"profile {name}.prompt must be a path string")
-        prompt = _resolve_file(root, raw_prompt, f"profile {name} prompt")
-        _require_under_cap(root, prompt, f"profile {name} prompt")
-        operations = {
-            field: _load_layer_operations(
-                profile_data[field], f"profile {name}.{field}"
-            )
-            for field in capability_fields
-        }
-        for field, store_kind in capability_fields.items():
-            expected[store_kind].update(operations[field].add)
-            expected[store_kind].update(operations[field].replace)
-        definitions[name] = {
-            "source": source,
-            "extends": raw_extends,
-            "prompt": prompt,
-            "operations": operations,
-        }
+            raise ProfileError(f"private overlay manifest.version must be {MANIFEST_VERSION}")
+        load_definitions(overlay.root, overlay_manifest, "private", private=True)
 
     profiles: dict[str, Profile] = {}
 
@@ -641,6 +710,10 @@ def load_project(project_root: Path | str) -> Project:
             else ((REAL_HOME_PROFILE,) if parent_name == REAL_HOME_PROFILE else ())
         )
         resolved: dict[str, tuple[str, ...]] = {}
+        origins: dict[str, dict[str, Path]] = {
+            field: dict(parent.origins[field]) if parent is not None else {}
+            for field in capability_fields
+        }
         for field in capability_fields:
             inherited = set(getattr(parent, field) if parent is not None else ())
             operations = definition["operations"][field]
@@ -665,16 +738,29 @@ def load_project(project_root: Path | str) -> Project:
                 )
             inherited.difference_update(operations.mask)
             inherited.difference_update(operations.replace)
+            for capability in operations.mask:
+                origins[field].pop(capability, None)
+            for capability in (*operations.replace, *operations.add):
+                origins[field][capability] = definition["source_root"]
             inherited.update(operations.replace)
             inherited.update(operations.add)
             resolved[field] = tuple(sorted(inherited))
+        prompt_chain = (
+            (*parent.prompt_chain, definition["prompt"])
+            if parent is not None
+            and parent.source_root != definition["source_root"]
+            else (definition["prompt"],)
+        )
         profile = Profile(
             name=name,
             source=definition["source"],
+            source_root=definition["source_root"],
             extends=parent_name,
             chain=(*parent_chain, name),
             prompt=definition["prompt"],
+            prompt_chain=prompt_chain,
             operations=definition["operations"],
+            origins=origins,
             skills=resolved["skills"],
             mcps=resolved["mcps"],
             hooks=resolved["hooks"],
@@ -685,41 +771,61 @@ def load_project(project_root: Path | str) -> Project:
 
     for name in sorted(definitions):
         resolve(name)
-    mcps = _validate_capability_store(root, expected)
+    mcps: dict[str, McpDefinition] = {}
+    for source_root, expected in expected_by_root.items():
+        mcps.update(_validate_capability_store(source_root, expected))
     return Project(
         root=root,
         manifest=manifest_path,
         profiles=dict(sorted(profiles.items())),
-        mcps=mcps,
+        mcps=dict(sorted(mcps.items())),
+        overlay=overlay,
     )
 
 
-def create_lock(project_root: Path | str) -> dict[str, Any]:
-    """Create the deterministic content and renderer lock for every profile/client pair."""
+def _lock_path(project: Project) -> Path:
+    """Return the public or explicit private lock path."""
 
-    project = load_project(project_root)
+    root = project.overlay.root if project.overlay is not None else project.root
+    return root / ".cap" / "lock.json"
+
+
+def create_lock(
+    project_root: Path | str, private_overlay: Path | str | None = None
+) -> dict[str, Any]:
+    """Create the deterministic lock for a public project or private overlay."""
+
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     payload = _desired_lock(project)
-    lock_path = project.root / ".cap" / "lock.json"
+    lock_path = _lock_path(project)
     if lock_path.is_symlink():
         raise ProfileError("lock file must not be a symlink")
     _atomic_write(lock_path, _canonical_json(payload), mode=0o644)
+    _materialize_evidence(project, payload)
     return payload
 
 
 def verify_project(
     project_root: Path | str,
     *,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Verify the portable project lock and every selected base binding."""
+    """Verify the portable lock, evidence and every selected base binding."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     for profile in project.profiles.values():
         _check_profile_environment(
             project,
@@ -730,24 +836,27 @@ def verify_project(
             binding_dir=binding_dir,
         )
     return desired
-
-
 def materialize_profile(
     project_root: Path | str,
     client: str,
     profile_name: str,
     output_root: Path | str,
     *,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
 ) -> str:
     """Verify and render one profile into an explicit, existing empty directory."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     _check_profile_environment(
         project,
@@ -1180,6 +1289,7 @@ def _prepare_execution(
     profile_name: str,
     forwarded_args: Sequence[str],
     *,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
@@ -1187,11 +1297,15 @@ def _prepare_execution(
 ) -> tuple[Project, Profile, dict[str, Any], tuple[str, ...]]:
     """Validate every launch precondition before a client process can be created."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _require_git_root(project.root)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     _check_profile_environment(
         project,
@@ -1380,6 +1494,7 @@ def run_client(
     receipt_path: Path | str | None = None,
     workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
@@ -1391,6 +1506,7 @@ def run_client(
         client,
         profile_name,
         forwarded_args,
+        private_overlay=private_overlay,
         base_manifest=base_manifest,
         base_pin=base_pin,
         binding_dir=binding_dir,
@@ -1457,37 +1573,58 @@ def run_client(
         if reservation is not None:
             _release_receipt(reservation, remove=not committed)
 
+def list_profiles(
+    project_root: Path | str, private_overlay: Path | str | None = None
+) -> tuple[str, ...]:
+    """Return locked explicit profile names in deterministic order."""
 
-def list_profiles(project_root: Path | str) -> tuple[str, ...]:
-    """Return locked explicit profile names in deterministic order without choosing a default."""
-
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
     _verify_lock(project, _desired_lock(project))
+    if project.overlay is not None:
+        _verify_evidence(project, _desired_lock(project))
     return tuple(sorted(project.profiles))
 
 
-def explain_profile(project_root: Path | str, profile_name: str) -> dict[str, Any]:
-    """Return one locked profile layer, resolved closure, and client tree hashes."""
+def explain_profile(
+    project_root: Path | str,
+    profile_name: str,
+    private_overlay: Path | str | None = None,
+) -> dict[str, Any]:
+    """Return one locked profile layer, closure, render hashes and evidence."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     if not _profile_uses_real_home(profile):
         _check_global_pollution()
     locked = desired["profiles"][profile.name]
-    return {
+    prompt = (
+        profile.prompt.relative_to(profile.source_root).as_posix()
+        if profile.prompt.is_relative_to(profile.source_root)
+        else str(profile.prompt)
+    )
+    result = {
         "profile": profile.name,
         "extends": profile.extends,
         "chain": list(profile.chain),
-        "prompt": profile.prompt.relative_to(project.root).as_posix(),
+        "prompt": prompt,
         "operations": locked["operations"],
         "inventory": _profile_inventory(profile),
         "layer_digest": locked["layer_digest"],
         "clients": locked["clients"],
     }
+    if project.overlay is not None:
+        result["overlay"] = {
+            "namespace": project.overlay.namespace,
+            "source": "explicit-overlay",
+            "evidence_root": str(_evidence_root()),
+        }
+    return result
 
 
 OBSERVATION_DIMENSIONS = ("skills", "mcps", "context", "hooks", "plugins")
@@ -1755,16 +1892,21 @@ def probe_profile(
     profile_name: str,
     state_root: Path | str,
     *,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Observe the rendered configuration plane without invoking an agent or model."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     _check_profile_environment(
         project,
@@ -1841,6 +1983,7 @@ def run_observed(
     receipt_path: Path | str | None = None,
     workdir: Path | str | None = None,
     runner: Callable[..., Any] | None = None,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
@@ -1852,6 +1995,7 @@ def run_observed(
         client,
         profile_name,
         forwarded_args,
+        private_overlay=private_overlay,
         base_manifest=base_manifest,
         base_pin=base_pin,
         binding_dir=binding_dir,
@@ -1961,16 +2105,21 @@ def diff_profile(
     profile_name: str,
     state_root: Path | str,
     *,
+    private_overlay: Path | str | None = None,
     base_manifest: Path | str | None = None,
     base_pin: Path | str | None = None,
     binding_dir: Path | str | None = None,
 ) -> int:
     """Compare one immutable declaration with the separately captured effective state."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     _check_profile_environment(
         project,
@@ -2109,11 +2258,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.base_manifest,
                 args.base_pin,
                 args.binding_dir,
+                private_overlay=args.private_overlay,
             )
             _print_json({"status": "bound", **payload})
             return 0
         if args.command == "lock":
-            payload = create_lock(project)
+            payload = create_lock(project, args.private_overlay)
             _print_json(
                 {
                     "status": "locked",
@@ -2124,6 +2274,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "verify":
             payload = verify_project(
                 project,
+                private_overlay=args.private_overlay,
                 base_manifest=args.base_manifest,
                 base_pin=args.base_pin,
                 binding_dir=args.binding_dir,
@@ -2136,10 +2287,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "list":
-            _print_json({"profiles": list(list_profiles(project))})
+            _print_json({"profiles": list(list_profiles(project, args.private_overlay))})
             return 0
         if args.command == "explain":
-            _print_json(explain_profile(project, args.profile))
+            _print_json(explain_profile(project, args.profile, args.private_overlay))
             return 0
         if args.command == "materialize":
             tree_hash = materialize_profile(
@@ -2147,6 +2298,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.client,
                 args.profile,
                 args.output,
+                private_overlay=args.private_overlay,
                 base_manifest=args.base_manifest,
                 base_pin=args.base_pin,
                 binding_dir=args.binding_dir,
@@ -2167,6 +2319,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.client,
                     args.profile,
                     args.state,
+                    private_overlay=args.private_overlay,
                     base_manifest=args.base_manifest,
                     base_pin=args.base_pin,
                     binding_dir=args.binding_dir,
@@ -2179,6 +2332,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.client,
                 args.profile,
                 args.state,
+                private_overlay=args.private_overlay,
                 base_manifest=args.base_manifest,
                 base_pin=args.base_pin,
                 binding_dir=args.binding_dir,
@@ -2194,7 +2348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 forwarded,
                 auth_root=args.auth_root,
                 receipt_path=args.receipt,
-                workdir=args.workdir,
+                private_overlay=args.private_overlay,
                 base_manifest=args.base_manifest,
                 base_pin=args.base_pin,
                 binding_dir=args.binding_dir,
@@ -2207,7 +2361,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             forwarded,
             auth_root=args.auth_root,
             receipt_path=args.receipt,
-            workdir=args.workdir,
+            private_overlay=args.private_overlay,
             base_manifest=args.base_manifest,
             base_pin=args.base_pin,
             binding_dir=args.binding_dir,
@@ -2241,8 +2395,12 @@ def _add_base_binding(parser: argparse.ArgumentParser, *, required: bool = False
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="profile")
+    parser.add_argument("--project", required=True, metavar="目录")
     parser.add_argument(
-        "--project", default=".", help="project root containing .cap/manifest.toml"
+        "--private-overlay",
+        default=None,
+        metavar="目录",
+        help="显式私有 capability overlay 根目录；未提供时只使用公共 source",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("lock")
@@ -3564,13 +3722,19 @@ def bind_profile(
     manifest_path: Path | str,
     pin_path: Path | str,
     binding_dir: Path | str,
+    *,
+    private_overlay: Path | str | None = None,
 ) -> dict[str, Any]:
     """Bind one portable profile layer to an approved machine-specific base."""
 
-    project = load_project(project_root)
+    project = load_project(project_root, private_overlay)
     _check_project_pollution(project.root)
+    if project.overlay is not None:
+        _check_project_pollution(project.overlay.root)
     desired = _desired_lock(project)
     _verify_lock(project, desired)
+    if project.overlay is not None:
+        _verify_evidence(project, desired)
     profile = _select_profile(project, profile_name)
     if not _profile_uses_real_home(profile):
         raise ProfileError(f"profile {profile.name} does not extend {REAL_HOME_PROFILE}")
@@ -3584,6 +3748,8 @@ def bind_profile(
         'layer_digest': layer_digest,
         'profile': profile.name,
     }))}"
+    target = Path(binding_dir).expanduser().absolute() / f"{profile.name}.binding.json"
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     payload = {
         "version": BINDING_VERSION,
         "profile": profile.name,
@@ -3592,10 +3758,8 @@ def bind_profile(
         "layer_digest": layer_digest,
         "effective_digest": effective_digest,
     }
-    directory = Path(binding_dir).expanduser().absolute()
-    target = _controlled_output_path(
-        directory / f"{profile.name}.binding.json", "profile binding"
-    )
+    if project.overlay is not None:
+        payload["overlay_namespace"] = project.overlay.namespace
     _atomic_write(target, _canonical_json(payload), mode=0o644)
     return payload
 
@@ -3629,11 +3793,15 @@ def _verify_profile_binding(
         "layer_digest": layer_digest,
         "effective_digest": expected_effective,
     }
+    if project.overlay is not None:
+        expected["overlay_namespace"] = project.overlay.namespace
     if binding != expected:
         raise ProfileError(
             f"profile {profile.name} binding is stale; run profile bind after review"
         )
     return active, passive
+
+
 
 def _check_profile_environment(
     project: Project,
@@ -3691,7 +3859,7 @@ def _desired_lock(project: Project) -> dict[str, Any]:
         }
         layer["layer_digest"] = f"sha256:{_sha256(_canonical_json(layer))}"
         profiles[name] = layer
-    return {
+    payload: dict[str, Any] = {
         "version": LOCK_VERSION,
         "renderer_version": RENDERER_VERSION,
         "clients": {
@@ -3710,6 +3878,21 @@ def _desired_lock(project: Project) -> dict[str, Any]:
         "inputs": _input_records(project),
         "profiles": profiles,
     }
+    if project.overlay is not None:
+        payload["source_layers"] = [
+            {"kind": "public", "root": "project"},
+            {
+                "kind": "private",
+                "namespace": project.overlay.namespace,
+                "root": "explicit-overlay",
+            },
+        ]
+        payload["evidence"] = {
+            "version": EVIDENCE_VERSION,
+            "root": "user-state/evidence",
+            "source_digest": f"sha256:{_sha256(_canonical_json(payload['inputs']))}",
+        }
+    return payload
 
 
 def _profile_inventory(profile: Profile) -> dict[str, list[str]]:
@@ -3722,17 +3905,74 @@ def _profile_inventory(profile: Profile) -> dict[str, list[str]]:
 
 
 def _input_records(project: Project) -> dict[str, Any]:
-    paths: set[Path] = {project.manifest, project.root / "AGENTS.md"}
+    if project.overlay is None:
+        paths: set[Path] = {project.manifest, project.root / "AGENTS.md"}
+        for profile in project.profiles.values():
+            paths.update({profile.source, profile.prompt})
+        capability_root = project.root / ".cap" / "capabilities"
+        paths.add(capability_root)
+        paths.update(capability_root.rglob("*"))
+        records: dict[str, Any] = {}
+        for path in sorted(
+            paths, key=lambda item: item.relative_to(project.root).as_posix()
+        ):
+            relative = path.relative_to(project.root).as_posix()
+            if path.is_symlink():
+                raise ProfileError(f"lock input must not be a symlink: {relative}")
+            if path.is_dir():
+                records[relative] = {"type": "directory"}
+            elif path.is_file():
+                records[relative] = {
+                    "type": "file",
+                    "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                    "sha256": _sha256(path.read_bytes()),
+                }
+            else:
+                raise ProfileError(
+                    f"lock input is not a regular file or directory: {relative}"
+                )
+        return records
+
+    entries: list[tuple[str, Path]] = [
+        ("public/AGENTS.md", project.root / "AGENTS.md"),
+        ("public/.cap/manifest.toml", project.manifest),
+    ]
+    roots: dict[Path, str] = {project.root: "public"}
+    if project.overlay is not None:
+        roots[project.overlay.root] = "private"
+        entries.append(
+            (
+                "private/.cap/manifest.toml",
+                project.overlay.root / ".cap" / "manifest.toml",
+            )
+        )
+        if project.overlay.descriptor is not None:
+            entries.append(
+                ("private/.cap/overlay.toml", project.overlay.descriptor)
+            )
     for profile in project.profiles.values():
-        paths.update({profile.source, profile.prompt})
-    capability_root = project.root / ".cap" / "capabilities"
-    paths.add(capability_root)
-    paths.update(capability_root.rglob("*"))
+        prefix = roots[profile.source_root]
+        entries.extend(
+            (
+                f"{prefix}/{path.relative_to(profile.source_root).as_posix()}",
+                path,
+            )
+            for path in (profile.source, profile.prompt)
+        )
+    for source_root, prefix in roots.items():
+        capability_root = source_root / ".cap" / "capabilities"
+        entries.append(
+            (f"{prefix}/.cap/capabilities", capability_root)
+        )
+        entries.extend(
+            (
+                f"{prefix}/{path.relative_to(source_root).as_posix()}",
+                path,
+            )
+            for path in capability_root.rglob("*")
+        )
     records: dict[str, Any] = {}
-    for path in sorted(
-        paths, key=lambda item: item.relative_to(project.root).as_posix()
-    ):
-        relative = path.relative_to(project.root).as_posix()
+    for relative, path in sorted(entries):
         if path.is_symlink():
             raise ProfileError(f"lock input must not be a symlink: {relative}")
         if path.is_dir():
@@ -3741,7 +3981,7 @@ def _input_records(project: Project) -> dict[str, Any]:
             records[relative] = {
                 "type": "file",
                 "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
-                "sha256": _sha256(path.read_bytes()),
+                "sha256": _sha256(_redacted_file_bytes(path)),
             }
         else:
             raise ProfileError(
@@ -3751,7 +3991,7 @@ def _input_records(project: Project) -> dict[str, Any]:
 
 
 def _verify_lock(project: Project, desired: Mapping[str, Any]) -> None:
-    lock_path = project.root / ".cap" / "lock.json"
+    lock_path = _lock_path(project)
     if lock_path.is_symlink() or not lock_path.is_file():
         raise ProfileError("missing regular .cap/lock.json; run profile lock")
     actual = _strict_json(lock_path)
@@ -3797,9 +4037,11 @@ def _render_tree(
         put("mcp.json", RenderedFile(_omp_mcp(mcp_definitions)), "omp renderer")
         put("system-prompt.md", RenderedFile(prompt), "omp renderer")
 
-    skills_root = project.root / ".cap" / "capabilities" / "skills"
     for skill in profile.skills:
-        source_root = skills_root / skill
+        source_root = profile.origins["skills"].get(skill)
+        if source_root is None:
+            raise ProfileError(f"skill {skill} has no verified source")
+        source_root = source_root / ".cap" / "capabilities" / "skills" / skill
         for source in sorted(
             source_root.rglob("*"),
             key=lambda path: path.relative_to(source_root).as_posix(),
@@ -3809,15 +4051,19 @@ def _render_tree(
                 put(
                     f"skills/{skill}/{relative}",
                     RenderedFile(
-                        source.read_bytes(), stat.S_IMODE(source.stat().st_mode)
+                        _redacted_file_bytes(source), stat.S_IMODE(source.stat().st_mode)
                     ),
                     f"skill {skill}",
                 )
 
-    capability_root = project.root / ".cap" / "capabilities"
     for kind, names in (("hooks", profile.hooks), ("plugins", profile.plugins)):
         for name in names:
-            target = capability_root / kind / name / "targets" / client
+            source_root = profile.origins[kind].get(name)
+            if source_root is None:
+                raise ProfileError(f"{kind[:-1]} {name} has no verified source")
+            target = (
+                source_root / ".cap" / "capabilities" / kind / name / "targets" / client
+            )
             if not target.is_dir() or target.is_symlink():
                 raise ProfileError(f"{kind[:-1]} {name} lacks required {client} target")
             for source in sorted(
@@ -3828,7 +4074,8 @@ def _render_tree(
                     put(
                         relative,
                         RenderedFile(
-                            source.read_bytes(), stat.S_IMODE(source.stat().st_mode)
+                            _redacted_file_bytes(source),
+                            stat.S_IMODE(source.stat().st_mode),
                         ),
                         f"{kind[:-1]} {name}",
                     )
@@ -3848,8 +4095,11 @@ def _read_nonempty_text(path: Path, context: str) -> str:
 
 
 def _profile_prompt(profile: Profile) -> bytes:
-    text = _read_nonempty_text(profile.prompt, f"profile {profile.name} prompt")
-    return f"{text}\n".encode("utf-8")
+    texts = [
+        _read_nonempty_text(path, f"profile {profile.name} prompt")
+        for path in profile.prompt_chain
+    ]
+    return ("\n\n".join(texts) + "\n").encode("utf-8")
 
 
 def _codex_config(definitions: Sequence[McpDefinition]) -> bytes:
@@ -3919,6 +4169,154 @@ def _tree_hash(tree: Mapping[str, RenderedFile]) -> str:
         for path, rendered in sorted(tree.items())
     }
     return f"sha256:{_sha256(_canonical_json(records))}"
+
+
+def _evidence_root() -> Path:
+    configured = os.environ.get("CAP_EVIDENCE_ROOT")
+    return Path(configured).expanduser().absolute() if configured else (
+        Path.home() / ".cap-user-state" / "evidence"
+    )
+
+
+def _evidence_source_path(project: Project, relative: str) -> Path:
+    if relative.startswith("public/"):
+        return project.root / relative.removeprefix("public/")
+    if project.overlay is None or not relative.startswith("private/"):
+        raise ProfileError(f"unknown evidence source: {relative}")
+    return project.overlay.root / relative.removeprefix("private/")
+
+
+def _evidence_entries(tree: Mapping[str, RenderedFile]) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": path,
+            "mode": f"{rendered.mode:04o}",
+            "size": len(rendered.content),
+            "sha256": _sha256(rendered.content),
+        }
+        for path, rendered in sorted(tree.items())
+    ]
+
+
+def _write_evidence_json(root: Path, payload: Mapping[str, Any]) -> None:
+    _atomic_write(root / "evidence.json", _canonical_json(dict(payload)), mode=0o600)
+
+
+def _write_evidence_entries(root: Path, entries: Sequence[Mapping[str, Any]]) -> None:
+    content = b"".join(
+        _canonical_json(dict(entry)) for entry in entries
+    )
+    _atomic_write(root / "entries.jsonl", content, mode=0o600)
+
+
+def _materialize_evidence(project: Project, desired: Mapping[str, Any]) -> None:
+    """Materialize non-secret source and render evidence for an overlay lock."""
+
+    if project.overlay is None:
+        return
+    root = _evidence_root()
+    if root.is_symlink():
+        raise ProfileError("evidence root must not be a symlink")
+    root.mkdir(parents=True, exist_ok=True)
+    source_digest = f"sha256:{_sha256(_canonical_json(_input_records(project)))}"
+    source_root = root / "sources" / source_digest
+    source_entries: list[dict[str, Any]] = []
+    for relative, record in _input_records(project).items():
+        if record["type"] != "file":
+            continue
+        source = _evidence_source_path(project, relative)
+        content = _redacted_file_bytes(source)
+        target = source_root / "tree" / relative
+        _atomic_write(target, content, mode=stat.S_IMODE(source.stat().st_mode))
+        source_entries.append(
+            {
+                "path": relative,
+                "mode": record["mode"],
+                "size": len(content),
+                "sha256": _sha256(content),
+            }
+        )
+    _write_evidence_entries(source_root, source_entries)
+    _write_evidence_json(
+        source_root,
+        {
+            "version": EVIDENCE_VERSION,
+            "kind": "source",
+            "digest": source_digest,
+            "entries": source_entries,
+            "excluded": ["secret", "auth", "session", "history", "cache"],
+        },
+    )
+    for profile_name, profile_data in desired["profiles"].items():
+        closure_digest = profile_data["layer_digest"]
+        closure_root = root / "closures" / closure_digest
+        _write_evidence_json(
+            closure_root,
+            {
+                "version": EVIDENCE_VERSION,
+                "kind": "closure",
+                "digest": closure_digest,
+                "profile": profile_name,
+                "source_digest": source_digest,
+                "inventory": profile_data["inventory"],
+            },
+        )
+        for client in CLIENTS:
+            tree = _render_tree(project, client, project.profiles[profile_name])
+            tree_hash = profile_data["clients"][client]["tree_hash"]
+            render_root = root / "renders" / tree_hash / profile_name / client
+            entries = _evidence_entries(tree)
+            for relative, rendered in tree.items():
+                _atomic_write(
+                    render_root / "tree" / relative,
+                    rendered.content,
+                    mode=rendered.mode,
+                )
+            _write_evidence_entries(render_root, entries)
+            _write_evidence_json(
+                render_root,
+                {
+                    "version": EVIDENCE_VERSION,
+                    "kind": "render",
+                    "digest": tree_hash,
+                    "profile": profile_name,
+                    "client": client,
+                    "source_digest": source_digest,
+                    "closure_digest": closure_digest,
+                    "entries": entries,
+                },
+            )
+
+
+def _verify_evidence(project: Project, desired: Mapping[str, Any]) -> None:
+    if project.overlay is None:
+        return
+    root = _evidence_root()
+    source_digest = f"sha256:{_sha256(_canonical_json(_input_records(project)))}"
+    source_root = root / "sources" / source_digest
+    source_payload = _strict_json(source_root / "evidence.json")
+    if source_payload.get("digest") != source_digest:
+        raise ProfileError("source evidence digest mismatch")
+    for profile_name, profile_data in desired["profiles"].items():
+        closure_root = root / "closures" / profile_data["layer_digest"]
+        closure = _strict_json(closure_root / "evidence.json")
+        if closure.get("source_digest") != source_digest:
+            raise ProfileError(f"profile {profile_name} closure evidence is stale")
+        for client in CLIENTS:
+            tree_hash = profile_data["clients"][client]["tree_hash"]
+            render_root = root / "renders" / tree_hash / profile_name / client
+            payload = _strict_json(render_root / "evidence.json")
+            tree = _render_tree(project, client, project.profiles[profile_name])
+            if payload.get("digest") != tree_hash or _tree_hash(tree) != tree_hash:
+                raise ProfileError(
+                    f"profile {profile_name}/{client} render evidence is stale"
+                )
+            for relative, rendered in tree.items():
+                path = render_root / "tree" / relative
+                if not path.is_file() or path.read_bytes() != rendered.content:
+                    raise ProfileError(
+                        f"profile {profile_name}/{client} render evidence is missing or modified"
+                    )
 
 
 def _write_all(descriptor: int, content: bytes) -> None:

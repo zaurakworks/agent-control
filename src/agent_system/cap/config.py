@@ -8,7 +8,24 @@ from pathlib import Path
 
 from agent_system.profile import cli as profile_cli
 
-DEFAULT_PROJECT = Path(__file__).resolve().parents[3]
+def _is_project_root(path: Path) -> bool:
+    return (path / ".cap" / "manifest.toml").is_file() and (path / "AGENTS.md").is_file()
+
+
+def _default_project() -> Path:
+    configured = os.environ.get("AGENT_SYSTEM_PROJECT")
+    if configured:
+        return Path(configured).expanduser().resolve()
+
+    canonical = Path.home() / "work" / "agent-system"
+    source_project = Path(__file__).resolve().parents[3]
+    for candidate in (canonical, source_project):
+        if _is_project_root(candidate):
+            return candidate
+    return canonical
+
+
+DEFAULT_PROJECT = _default_project()
 
 def _default_profile_tool() -> Path:
     configured = os.environ.get("AGENT_SYSTEM_PROFILE_TOOL")
@@ -22,8 +39,8 @@ DEFAULT_WORKSPACE_CONTROL = DEFAULT_REAL_HOME / "work" / "_org" / "locks" / "age
 DEFAULT_BASE_PIN = DEFAULT_WORKSPACE_CONTROL / "real-home.pin.json"
 DEFAULT_BINDING_DIR = DEFAULT_WORKSPACE_CONTROL / "bindings"
 DEFAULT_AUTH_ROOT = DEFAULT_PROJECT.with_name(f"{DEFAULT_PROJECT.name}.auth")
-DEFAULT_PROFILE = "assembly-helper"
-RUNNABLE_PROFILES = ("assembly-helper", "general")
+DEFAULT_PROFILE = "general"
+RUNNABLE_PROFILES = ("general", "assembly-helper")
 CLIENTS = ("codex", "qoder", "omp")
 DEFAULT_CLI = "omp"
 DEFAULT_OMP_RUNTIME_ID = "default"

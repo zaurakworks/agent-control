@@ -20,23 +20,64 @@ class NonTTY(io.StringIO):
 
 
 class CapEntryTest(unittest.TestCase):
-    def test_bare_entry_selects_profile_cli_args_and_launches(self) -> None:
-        args = cap._build_parser().parse_args([])
-        with (
-            patch.object(cap, "_available_profiles", return_value=["assembly-helper", "general"]),
-            patch.object(cap, "_choose", side_effect=["general", "omp"]) as choose,
-            patch("builtins.input", return_value="--version"),
-            patch.object(cap, "_run_selected", return_value=17) as run_selected,
-        ):
-            result = cap._interactive_use(args, {})
+    def test_tui_selects_default_profile(self) -> None:
+        class FakeCurses:
+            KEY_UP = 259
+            KEY_DOWN = 258
+            KEY_LEFT = 260
+            KEY_ENTER = 343
+            error = RuntimeError
 
-        self.assertEqual(result, 17)
-        self.assertEqual([call.args[0] for call in choose.call_args_list], ["profile", "CLI"])
-        self.assertEqual(args.profile, "general")
-        self.assertEqual(args.cli, "omp")
-        self.assertEqual(args.client_args, ["--version"])
-        self.assertEqual(args.profile_tool_command, "launch")
-        run_selected.assert_called_once_with(args, {})
+        class FakeScreen:
+            def __init__(self) -> None:
+                self.keys = [10]
+                self.output: list[str] = []
+
+            def erase(self) -> None:
+                pass
+
+            def getmaxyx(self) -> tuple[int, int]:
+                return (40, 120)
+
+            def addstr(self, _row: int, _column: int, text: str) -> None:
+                self.output.append(text)
+
+            def refresh(self) -> None:
+                pass
+
+            def getch(self) -> int:
+                return self.keys.pop(0)
+
+        screen = FakeScreen()
+        profile = cap._tui_profile(
+            screen,
+            FakeCurses,
+            ["assembly-helper", "general"],
+        )
+
+        self.assertEqual(profile, "general")
+        self.assertTrue(
+            any("general [默认]  通用工程" in line for line in screen.output)
+        )
+
+    def test_profile_defaults_to_general_and_accepts_chinese_name(self) -> None:
+        parser = cap._build_parser()
+        self.assertEqual(parser.parse_args(["run"]).profile, "general")
+
+        stdout = io.StringIO()
+        with (
+            patch("builtins.input", return_value="通用工程"),
+            contextlib.redirect_stdout(stdout),
+        ):
+            selected = cap._choose(
+                "profile",
+                ["general", "assembly-helper"],
+                "general",
+                cap.PROFILE_LABELS,
+            )
+
+        self.assertEqual(selected, "general")
+        self.assertIn("general（通用工程） [默认]", stdout.getvalue())
 
     def test_help_remains_explicit_and_old_aliases_fail(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -59,14 +100,14 @@ class CapEntryTest(unittest.TestCase):
                 self.subTest(argv=argv),
                 patch.object(cap.sys, "stdin", NonTTY()),
                 patch.object(cap.sys, "stdout", NonTTY()),
-                patch.object(cap, "_interactive_use") as interactive_use,
+                patch.object(cap, "_tui_use") as tui_use,
                 patch.object(cap, "_show") as show,
                 contextlib.redirect_stderr(stderr),
             ):
                 result = cap.main(argv)
             self.assertEqual(result, 2)
             self.assertIn(expected, stderr.getvalue())
-            interactive_use.assert_not_called()
+            tui_use.assert_not_called()
             show.assert_not_called()
 
     def test_explicit_run_and_render_remain_non_interactive(self) -> None:

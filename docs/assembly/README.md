@@ -13,14 +13,21 @@
 - 声明态、配置态和实际生效态分别有什么证据；
 - 外部仓库的能力如何经过评估后，最小、可逆地进入项目闭包。
 
-当前有两个可运行 profile：通用工程 `general` 与装配专用 `assembly-helper`；两者经内部 `work` 层继承 `real-home`。未受 CAP 管理的客户端不属于任何 profile。
+当前有两个可运行 profile，交互菜单显示中文名称：
 
-## 快速开始
+| ID | 中文名称 | 用途 |
+| --- | --- | --- |
+| `general` | 通用工程（默认） | 通用工程任务 |
+| `assembly-helper` | 装配助手 | Agent 装配与能力设计 |
 
-从仓库根目录执行：
+两者经内部 `work` 层继承 `real-home`。未受 CAP 管理的客户端不属于任何 profile。
+
+从任意工作目录执行。CAP 的 profile、lock、binding 和共享 OMP runtime 固定来自 canonical `agent-system`；客户端仍在当前工作目录中运行：
+
+例如：
 
 ```bash
-# 高频使用：选择 profile、CLI 和可选客户端参数后直接启动
+# 高频使用：进入 TUI，只选择 profile；确认后启动默认 OMP
 uv run cap
 
 # 独立查看：TTY 中选择 profile，先看公共闭包，再决定是否展开一个 CLI
@@ -42,7 +49,7 @@ uv run cap verify
 
 两个可运行 profile 都显式遵循 `real-home -> work -> derived` 链：`real-home` 提供真实 HOME 与原生 context，`work` 显式提供共享 OpenSpec Skills，derived 层提供角色 prompt 和专属能力。Profile 可以从不同 workdir 使用，但其权威定义、选择和闭包始终来自当前 Git 项目的 `.cap/manifest.toml`、profile files、capabilities、lock 和 binding。用户级目录只保存共享 OMP runtime 与经当前项目验证的内容寻址 render cache，不能枚举或补齐 profile。
 
-裸 `cap` 只承担高频启动，不显示动作菜单。`cap show` 是独立查看入口；CLI 展开使用自动清理的临时 render，不启动客户端，也不要求输出目录。脚本应使用带完整参数的显式子命令。旧 `interactive` / `i` 已直接移除，不提供兼容别名或弃用期。
+裸 `cap` 进入 TUI，只选择 profile；默认是 `general`，选择后直接启动默认 `omp`。TUI 不再选择客户端或 AI 配置方式。需要修改 Agent 系统配置时，直接进入 `assembly-helper`，由该 profile 根据当前项目文件恢复源头、修改所需文件并重新完成 lock、binding、render 和 verify。`cap show` 是独立查看入口；脚本和非交互场景仍应使用带完整参数的 `cap use`、`cap run`、`cap render` 等显式子命令。
 
 当前客户端注册表只有 Codex、Qoder 和 OMP。Claude 尚无本仓可运行、可渲染并经过验证的 adapter，因此当前不属于支持范围；后续在有真实 Claude CLI 的机器完成 adapter 与运行验证后再接入。
 
@@ -101,26 +108,26 @@ npx openspec validate --all --strict
 
 初始化时使用 `--tools none`，不生成 `.agents`、`.omp`、`.qoder` 等 profile 外能力路径。
 
-CAP 与 profile engine 已打包在当前 `agent-system` uv 项目中。正常使用分别执行 `uv run cap` 和 `uv run agent-profile`，不依赖 sibling checkout；`--profile-tool` 仅保留为明确测试或诊断输入。
+CAP 与 profile engine 已打包在当前 `agent-system` uv 项目中。用户统一执行 `uv run cap`；profile engine 仅由 CAP 内部调用，不依赖 sibling checkout；`--profile-tool` 仅保留为明确测试或诊断输入。
 
 首次使用或审查真实 HOME 后，显式刷新、审批并绑定；manifest、pin 和 binding 都不得提交到本仓：
 
 ```bash
+uv run cap \
+  --base-manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
+  base-lock
 
-uv run agent-profile --project . base-lock \
-  --home "$HOME" \
-  --manifest "$HOME/.cap-user-state/locks/real-home.manifest.json"
-
-uv run agent-profile --project . base-approve \
-  --manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
-  --pin "$HOME/work/_org/locks/agent-system/real-home.pin.json"
+uv run cap \
+  --base-manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
+  --base-pin "$HOME/work/_org/locks/agent-system/real-home.pin.json" \
+  base-approve
 
 for profile in work general assembly-helper; do
-  uv run agent-profile --project . bind \
-    --profile "$profile" \
+  uv run cap \
     --base-manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
     --base-pin "$HOME/work/_org/locks/agent-system/real-home.pin.json" \
-    --binding-dir "$HOME/work/_org/locks/agent-system/bindings"
+    --binding-dir "$HOME/work/_org/locks/agent-system/bindings" \
+    bind "$profile"
 done
 ```
 
