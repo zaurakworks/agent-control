@@ -1,6 +1,6 @@
 # profile —— 真实 HOME 基座、显式能力层与生效态核验
 
-`uv run cap` 是唯一用户入口；profile engine 只作为 CAP 的内部执行层。`real-home` 是机器本地、只读且需审批的基座 profile；仓库 profile 只能声明单继承链和显式 `add`／`mask`／`replace` 操作。CAP 用 workspace 外的私有 manifest、审批 pin 和 binding 把项目层绑定到特定机器基座，再用同一棵渲染树物化并启动 Codex、Qoder 或 OMP。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须显式给出 profile 和 `--cli`。
+`uv run cap` 是唯一用户入口；profile engine 只作为 CAP 的内部执行层。`real-home` 是机器本地、只读且需审批的基座 profile；仓库 profile 只能声明单继承链和显式 `add`／`mask`／`replace` 操作。CAP 用 workspace 外的私有 manifest、审批 pin 和 binding 把项目层绑定到特定机器基座，再用同一棵渲染树物化并启动 Codex、Qoder 或 OMP。没有默认 profile、自动推断或“上次选择”；每个需要 profile 的命令都必须显式给出 profile 和 `--cli`。第一次使用请先看 [`cap-guide.zh-CN.md`](./cap-guide.zh-CN.md)；本文件是 schema、边界和证据层的详细参考。
 
 ## 唯一 schema
 
