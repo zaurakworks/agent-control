@@ -1,0 +1,10 @@
+{
+  "name": "github-collaboration",
+  "version": "0.3.18",
+  "description": "Drive a GitHub issue subtree from any Session, including bounded continuation, safe natural owner decisions, contract compaction, delivery, integration, and reclamation.",
+  "author": {
+    "name": "zaurakworks"
+  },
+  "repository": "https://github.com/zaurakworks/agent-plugins",
+  "skills": "./skills/"
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Issue Delivery"
+  short_description: "Deliver one ready GitHub Issue through a dedicated branch and Draft PR"
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Operating Ledger Maintenance"
+  short_description: "Keep Agent-system needs and work visible in GitHub"
+
+policy:
+  allow_implicit_invocation: true

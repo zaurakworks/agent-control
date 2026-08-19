@@ -1,0 +1,6 @@
+interface:
+  display_name: "Objective to Issues"
+  short_description: "Build verified GitHub task graphs from aligned objectives"
+
+policy:
+  allow_implicit_invocation: true
