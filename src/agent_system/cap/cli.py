@@ -82,6 +82,26 @@ def _decode_frontmatter_scalar(raw: str, path: Path, line: int) -> str:
         raise ValueError(f"{path}:{line}: 本项目只允许简单字符串 frontmatter")
     return value
 
+def _decode_frontmatter_block(
+    marker: str,
+    block_lines: list[str],
+    path: Path,
+    line: int,
+) -> str:
+    payload = f"value: {marker}\n" + "\n".join(block_lines)
+    try:
+        decoded = yaml.safe_load(payload)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{path}:{line}: 无效块标量") from exc
+    value = decoded.get("value") if isinstance(decoded, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{path}:{line}: 元数据值不能为空")
+    return value
+
+
+BLOCK_SCALAR_PATTERN = re.compile(r"[>|][-+]?")
+
+
 def _read_skill_metadata(path: Path) -> dict[str, str]:
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0].strip() != "---":
@@ -92,19 +112,44 @@ def _read_skill_metadata(path: Path) -> dict[str, str]:
         raise ValueError(f"{path}: 缺少 YAML frontmatter 结束分隔符") from exc
 
     metadata: dict[str, str] = {}
-    for index, line in enumerate(lines[1:closing], 2):
+    index = 1
+    while index < closing:
+        line = lines[index]
+        line_number = index + 1
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
+            index += 1
             continue
         if line[0].isspace():
-            raise ValueError(f"{path}:{index}: 本项目不允许嵌套 frontmatter")
+            raise ValueError(f"{path}:{line_number}: 本项目不允许嵌套 frontmatter")
         key, separator, raw = line.partition(":")
         if not separator or not re.fullmatch(r"[A-Za-z0-9_-]+", key):
-            raise ValueError(f"{path}:{index}: 无效 frontmatter 字段")
+            raise ValueError(f"{path}:{line_number}: 无效 frontmatter 字段")
         if key in metadata:
-            raise ValueError(f"{path}:{index}: 重复 frontmatter 字段 {key}")
-        metadata[key] = _decode_frontmatter_scalar(raw, path, index)
+            raise ValueError(f"{path}:{line_number}: 重复 frontmatter 字段 {key}")
+
+        marker = raw.strip()
+        if BLOCK_SCALAR_PATTERN.fullmatch(marker):
+            index += 1
+            block_lines: list[str] = []
+            while index < closing:
+                continuation = lines[index]
+                if continuation and not continuation[0].isspace():
+                    break
+                block_lines.append(continuation)
+                index += 1
+            metadata[key] = _decode_frontmatter_block(
+                marker,
+                block_lines,
+                path,
+                line_number,
+            )
+            continue
+
+        metadata[key] = _decode_frontmatter_scalar(raw, path, line_number)
+        index += 1
     return metadata
+
 
 def _skill_metadata_report(project: Path) -> dict[str, object]:
     skill_root = project / ".cap" / "capabilities" / "skills"

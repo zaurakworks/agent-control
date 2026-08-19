@@ -190,7 +190,7 @@
     },
     "plugins/grilling/skills/grilling/SKILL.md": {
       "mode": "0644",
-      "sha256": "d03bb2fd2709a80acf9492ed4e54fab8995337d7e1cc9ad9b879507f70e54d00",
+      "sha256": "3083aab61a62801470025da2800b902bc14503be33dec6a1a5e5ba4da1466d07",
       "type": "file"
     },
     "plugins/grilling/skills/grilling/agents": {
@@ -210,13 +210,13 @@
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:964c64b6b60c19b77d4b1278bd413e4617ff7e2b964bce0b4454212ae066fa59"
+          "tree_hash": "sha256:8a37dc3fcd7253b6a8419dcc813b0856bd099340cfb1130554b969188bf6f37f"
         },
         "omp": {
-          "tree_hash": "sha256:25d785ecb127deb9e95cb4354a994d84925954ca404922d6023afdec6c11cd6f"
+          "tree_hash": "sha256:00533f2e2550229ca525576afeb091d2ebbf5274b69660bc8ee31fb9b7173974"
         },
         "qoder": {
-          "tree_hash": "sha256:926a4402545781ac7207653caf62fccba61e8a99f52338cf1dd14f2e30b08d5a"
+          "tree_hash": "sha256:f154cab46f25dae5864ae47ab34bd7c4619ab7e0ba25c55a19e5737debac69f8"
         }
       },
       "defaults": "project-defaults",
@@ -241,7 +241,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:1a314d853d0dc14e16d43e9cf9ea7af54fbee11cee498ad86c0df0daeae2aa6f",
+      "layer_digest": "sha256:d1bfe9499a0f82b9b7ff9fa676c3ae7831dd69e9ac210cee5c2ff0fbb5a70cda",
       "operations": {
         "hooks": {
           "allow": [],
