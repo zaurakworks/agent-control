@@ -22,16 +22,18 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 from urllib.parse import urlsplit
 
 
-RENDERER_VERSION = "profile-renderer-v2"
-LOCK_VERSION = 2
-MANIFEST_VERSION = 2
-PROFILE_VERSION = 2
-BASE_MANIFEST_VERSION = 1
-BASE_PIN_VERSION = 1
-BINDING_VERSION = 1
-OVERLAY_VERSION = 1
-EVIDENCE_VERSION = 1
-REAL_HOME_PROFILE = "real-home"
+RENDERER_VERSION = "profile-renderer-v3"
+LOCK_VERSION = 3
+MANIFEST_VERSION = 3
+PROFILE_VERSION = 3
+BASE_MANIFEST_VERSION = 3
+BASE_PIN_VERSION = 3
+BINDING_VERSION = 3
+OVERLAY_VERSION = 2
+EVIDENCE_VERSION = 2
+MACHINE_CONTEXT_NAME = "machine-context"
+REAL_HOME_PROFILE = "real-home"  # legacy migration format only
+PROJECT_DEFAULTS_NAME = "project-defaults"
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
 CLIENT_ADAPTER_VERSION = 8
@@ -437,12 +439,12 @@ class McpDefinition:
 
 
 @dataclass(frozen=True)
-class LayerOperations:
-    """Describe one explicit capability-layer mutation."""
+class CapabilityOperations:
+    """Describe one explicit v3 capability mutation."""
 
-    add: tuple[str, ...]
-    mask: tuple[str, ...]
-    replace: tuple[str, ...]
+    allow: tuple[str, ...]
+    deny: tuple[str, ...]
+    override: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -456,13 +458,13 @@ class Profile:
     chain: tuple[str, ...]
     prompt: Path
     prompt_chain: tuple[Path, ...]
-    operations: Mapping[str, LayerOperations]
+    operations: Mapping[str, CapabilityOperations]
     origins: Mapping[str, Mapping[str, Path]]
     skills: tuple[str, ...]
     mcps: tuple[str, ...]
     hooks: tuple[str, ...]
     plugins: tuple[str, ...]
-
+    runtime: Mapping[str, str]
 
 @dataclass(frozen=True)
 class OverlaySpec:
@@ -481,8 +483,8 @@ class Project:
     manifest: Path
     profiles: Mapping[str, Profile]
     mcps: Mapping[str, McpDefinition]
+    external_imports: tuple[Mapping[str, Any], ...]
     overlay: OverlaySpec | None = None
-
 @dataclass(frozen=True)
 class RenderedFile:
     """Hold normalized output bytes and permission bits for one rendered file."""
@@ -535,27 +537,60 @@ class StableDirectory:
         return self.descriptors[-1]
 
 
-def _load_layer_operations(value: Any, context: str) -> LayerOperations:
-    """Load one strict add/mask/replace table."""
+def _load_layer_operations(value: Any, context: str) -> CapabilityOperations:
+    """Load one strict v3 allow/deny/override table."""
 
     if not isinstance(value, Mapping):
         raise ProfileError(f"{context} must be a table")
-    _expect_keys(value, {"add", "mask", "replace"}, context)
-    operations = LayerOperations(
-        add=_identifier_list(value["add"], f"{context}.add"),
-        mask=_identifier_list(value["mask"], f"{context}.mask"),
-        replace=_identifier_list(value["replace"], f"{context}.replace"),
+    _expect_keys(value, {"allow", "deny", "override"}, context)
+    operations = CapabilityOperations(
+        allow=_identifier_list(value["allow"], f"{context}.allow"),
+        deny=_identifier_list(value["deny"], f"{context}.deny"),
+        override=_identifier_list(value["override"], f"{context}.override"),
     )
     overlap = (
-        set(operations.add) & set(operations.mask)
-        | set(operations.add) & set(operations.replace)
-        | set(operations.mask) & set(operations.replace)
+        set(operations.allow) & set(operations.deny)
+        | set(operations.allow) & set(operations.override)
+        | set(operations.deny) & set(operations.override)
     )
     if overlap:
         raise ProfileError(
             f"{context} names must appear in exactly one operation: {sorted(overlap)}"
         )
     return operations
+def _load_external_imports(
+    value: Any, context: str
+) -> tuple[Mapping[str, Any], ...]:
+    """Validate explicit external asset provenance without reading secrets."""
+
+    if not isinstance(value, list):
+        raise ProfileError(f"{context} must be an array")
+    result: list[Mapping[str, Any]] = []
+    for index, item in enumerate(value):
+        item_context = f"{context}[{index}]"
+        if not isinstance(item, Mapping):
+            raise ProfileError(f"{item_context} must be a table")
+        _expect_keys(item, {"name", "source", "digest", "approved", "profiles"}, item_context)
+        name = _validate_identifier(item["name"], f"{item_context}.name")
+        source = item["source"]
+        digest = item["digest"]
+        if not isinstance(source, str) or not source.strip():
+            raise ProfileError(f"{item_context}.source must be non-empty")
+        if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ProfileError(f"{item_context}.digest must be a sha256 digest")
+        if type(item["approved"]) is not bool:
+            raise ProfileError(f"{item_context}.approved must be boolean")
+        profiles = _identifier_list(item["profiles"], f"{item_context}.profiles")
+        result.append(
+            {
+                "name": name,
+                "source": source,
+                "digest": digest,
+                "approved": item["approved"],
+                "profiles": profiles,
+            }
+        )
+    return tuple(result)
 
 
 def _load_overlay_spec(root: Path, private_overlay: Path | str | None) -> OverlaySpec | None:
@@ -578,7 +613,7 @@ def _load_overlay_spec(root: Path, private_overlay: Path | str | None) -> Overla
 def load_project(
     project_root: Path | str, private_overlay: Path | str | None = None
 ) -> Project:
-    """Load a public profile project and one explicitly selected private overlay."""
+    """Load one v3 project and its optional explicit role overlay."""
 
     root = Path(project_root).expanduser().resolve(strict=True)
     if not root.is_dir():
@@ -587,24 +622,61 @@ def load_project(
     _read_nonempty_text(root_instructions, "root instructions")
     manifest_path = _resolve_file(root, ".cap/manifest.toml", "manifest")
     manifest = _read_toml(manifest_path)
-    _expect_keys(manifest, {"version", "profiles"}, "manifest")
+    _expect_keys(manifest, {"version", "defaults", "runtime", "profiles"}, "manifest")
     if type(manifest["version"]) is not int or manifest["version"] != MANIFEST_VERSION:
         raise ProfileError(f"manifest.version must be {MANIFEST_VERSION}")
     raw_profiles = manifest["profiles"]
     if not isinstance(raw_profiles, dict) or not raw_profiles:
         raise ProfileError("manifest.profiles must be a non-empty table")
+    raw_runtime = manifest["runtime"]
+    if not isinstance(raw_runtime, Mapping):
+        raise ProfileError("manifest.runtime must be a table")
+    if set(raw_runtime) != {"omp"}:
+        raise ProfileError("manifest.runtime must contain only omp")
+    runtime_source = raw_runtime["omp"]
+    if not isinstance(runtime_source, str):
+        raise ProfileError("manifest.runtime.omp must be a path string")
+    runtime_path = _resolve_file(root, runtime_source, "OMP runtime policy")
+    _require_under_cap(root, runtime_path, "OMP runtime policy")
+    runtime_data = _read_toml(runtime_path)
+    _expect_keys(runtime_data, {"version", "client", "policy"}, "OMP runtime policy")
+    if type(runtime_data["version"]) is not int or runtime_data["version"] != 1:
+        raise ProfileError("OMP runtime policy.version must be 1")
+    if runtime_data["client"] != "omp" or not isinstance(runtime_data["policy"], Mapping):
+        raise ProfileError("OMP runtime policy must target omp and contain a table")
 
-    overlay = _load_overlay_spec(root, private_overlay)
     capability_fields = {
         "skills": "skills",
         "mcps": "mcp",
         "hooks": "hooks",
         "plugins": "plugins",
     }
-    definitions: dict[str, dict[str, Any]] = {}
+    defaults_path = _resolve_file(root, manifest["defaults"], "project defaults")
+    _require_under_cap(root, defaults_path, "project defaults")
+    defaults_data = _read_toml(defaults_path)
+    _expect_keys(
+        defaults_data,
+        {"version", "external_imports", *capability_fields},
+        "project defaults",
+    )
+    if type(defaults_data["version"]) is not int or defaults_data["version"] != 3:
+        raise ProfileError("project defaults.version must be 3")
+    external_imports = _load_external_imports(
+        defaults_data["external_imports"], "project-defaults.external_imports"
+    )
+    default_operations = {
+        field: _load_layer_operations(defaults_data[field], f"project-defaults.{field}")
+        for field in capability_fields
+    }
     expected_by_root: dict[Path, dict[str, set[str]]] = {
         root: {kind: set() for kind in CAPABILITY_KINDS}
     }
+    for field, store_kind in capability_fields.items():
+        expected_by_root[root][store_kind].update(default_operations[field].allow)
+        expected_by_root[root][store_kind].update(default_operations[field].override)
+
+    overlay = _load_overlay_spec(root, private_overlay)
+    definitions: dict[str, dict[str, Any]] = {}
 
     def load_definitions(
         source_root: Path,
@@ -614,47 +686,40 @@ def load_project(
         private: bool,
     ) -> None:
         raw = source_manifest["profiles"]
-        if not isinstance(raw, dict) or not raw:
+        if not isinstance(raw, Mapping) or not raw:
             raise ProfileError(f"{label}.profiles must be a non-empty table")
         expected = expected_by_root.setdefault(
             source_root, {kind: set() for kind in CAPABILITY_KINDS}
         )
         for name, raw_path in sorted(raw.items()):
             _validate_identifier(name, f"{label} profile name")
-            if name == REAL_HOME_PROFILE:
-                raise ProfileError(f"{REAL_HOME_PROFILE} is a reserved external base profile")
-            if name in definitions:
+            if name in definitions and not private:
                 raise ProfileError(f"profile name is duplicated across layers: {name}")
             if not isinstance(raw_path, str):
                 raise ProfileError(f"{label}.profiles.{name} must be a path string")
             source = _resolve_file(source_root, raw_path, f"{label} profile {name}")
             _require_under_cap(source_root, source, f"{label} profile {name}")
             profile_data = _read_toml(source)
-            required = {"version", "prompt", *capability_fields}
+            required = {"version", "prompt", "runtime", *capability_fields}
             actual = set(profile_data)
             missing = sorted(required - actual)
-            extra = sorted(actual - required - {"extends"})
+            extra = sorted(actual - required)
             if missing or extra:
                 raise ProfileError(
                     f"profile {name} keys mismatch: missing={missing}, extra={extra}"
                 )
-            if (
-                type(profile_data["version"]) is not int
-                or profile_data["version"] != PROFILE_VERSION
-            ):
-                raise ProfileError(f"profile {name}.version must be {PROFILE_VERSION}")
-            raw_extends = profile_data.get("extends")
-            if raw_extends is not None:
-                _validate_identifier(raw_extends, f"profile {name}.extends")
-                if raw_extends == name:
-                    raise ProfileError(f"profile {name} cannot extend itself")
-            elif private:
-                raise ProfileError(f"private profile {name} must explicitly extend a public profile")
+            if type(profile_data["version"]) is not int or profile_data["version"] != 3:
+                raise ProfileError(f"profile {name}.version must be 3")
             raw_prompt = profile_data["prompt"]
             if not isinstance(raw_prompt, str):
                 raise ProfileError(f"profile {name}.prompt must be a path string")
             prompt = _resolve_file(source_root, raw_prompt, f"profile {name} prompt")
             _require_under_cap(source_root, prompt, f"profile {name} prompt")
+            raw_profile_runtime = profile_data["runtime"]
+            if not isinstance(raw_profile_runtime, Mapping) or set(raw_profile_runtime) != {"omp"}:
+                raise ProfileError(f"profile {name}.runtime must contain only omp")
+            if not isinstance(raw_profile_runtime["omp"], str):
+                raise ProfileError(f"profile {name}.runtime.omp must be a string")
             operations = {
                 field: _load_layer_operations(
                     profile_data[field], f"profile {name}.{field}"
@@ -662,13 +727,13 @@ def load_project(
                 for field in capability_fields
             }
             for field, store_kind in capability_fields.items():
-                expected[store_kind].update(operations[field].add)
-                expected[store_kind].update(operations[field].replace)
+                expected[store_kind].update(operations[field].allow)
+                expected[store_kind].update(operations[field].override)
             definitions[name] = {
                 "source": source,
                 "source_root": source_root,
-                "extends": raw_extends,
                 "prompt": prompt,
+                "runtime": {"omp": raw_profile_runtime["omp"]},
                 "operations": operations,
             }
 
@@ -678,99 +743,65 @@ def load_project(
             overlay.root, ".cap/manifest.toml", "private overlay manifest"
         )
         overlay_manifest = _read_toml(overlay_manifest_path)
-        _expect_keys(overlay_manifest, {"version", "profiles"}, "private overlay manifest")
-        if (
-            type(overlay_manifest["version"]) is not int
-            or overlay_manifest["version"] != MANIFEST_VERSION
-        ):
-            raise ProfileError(f"private overlay manifest.version must be {MANIFEST_VERSION}")
+        _expect_keys(
+            overlay_manifest,
+            {"version", "defaults", "runtime", "profiles"},
+            "private overlay manifest",
+        )
+        if type(overlay_manifest["version"]) is not int or overlay_manifest["version"] != 3:
+            raise ProfileError("private overlay manifest.version must be 3")
         load_definitions(overlay.root, overlay_manifest, "private", private=True)
 
     profiles: dict[str, Profile] = {}
-
-    def resolve(name: str, stack: tuple[str, ...] = ()) -> Profile:
-        if name in profiles:
-            return profiles[name]
-        if name in stack:
-            raise ProfileError(
-                f"profile inheritance cycle detected: {' -> '.join((*stack, name))}"
-            )
-        definition = definitions[name]
-        parent_name = definition["extends"]
-        parent: Profile | None = None
-        if parent_name and parent_name != REAL_HOME_PROFILE:
-            if parent_name not in definitions:
-                raise ProfileError(
-                    f"profile {name}.extends references unknown profile: {parent_name}"
-                )
-            parent = resolve(parent_name, (*stack, name))
-        parent_chain = (
-            parent.chain
-            if parent is not None
-            else ((REAL_HOME_PROFILE,) if parent_name == REAL_HOME_PROFILE else ())
-        )
+    for name, definition in sorted(definitions.items()):
         resolved: dict[str, tuple[str, ...]] = {}
-        origins: dict[str, dict[str, Path]] = {
-            field: dict(parent.origins[field]) if parent is not None else {}
-            for field in capability_fields
-        }
+        origins: dict[str, dict[str, Path]] = {}
         for field in capability_fields:
-            inherited = set(getattr(parent, field) if parent is not None else ())
             operations = definition["operations"][field]
-            has_external_base = REAL_HOME_PROFILE in parent_chain
-            missing_masks = set(operations.mask) - inherited
-            missing_replacements = set(operations.replace) - inherited
-            if missing_masks and not has_external_base:
+            inherited = set(default_operations[field].allow)
+            origins[field] = {
+                capability: defaults_path.parent
+                for capability in inherited
+            }
+            denied = set(operations.deny)
+            overrides = set(operations.override)
+            missing_overrides = overrides - inherited
+            if missing_overrides:
                 raise ProfileError(
-                    f"profile {name}.{field}.mask is not inherited: "
-                    f"{sorted(missing_masks)}"
+                    f"profile {name}.{field}.override is not inherited: "
+                    f"{sorted(missing_overrides)}"
                 )
-            if missing_replacements and not has_external_base:
+            duplicate_allows = set(operations.allow) & inherited
+            if duplicate_allows:
                 raise ProfileError(
-                    f"profile {name}.{field}.replace is not inherited: "
-                    f"{sorted(missing_replacements)}"
+                    f"profile {name}.{field}.allow conflicts with project defaults: "
+                    f"{sorted(duplicate_allows)}"
                 )
-            duplicate_adds = set(operations.add) & inherited
-            if duplicate_adds:
-                raise ProfileError(
-                    f"profile {name}.{field}.add conflicts with inherited names: "
-                    f"{sorted(duplicate_adds)}"
-                )
-            inherited.difference_update(operations.mask)
-            inherited.difference_update(operations.replace)
-            for capability in operations.mask:
+            inherited.difference_update(denied)
+            inherited.difference_update(overrides)
+            for capability in denied:
                 origins[field].pop(capability, None)
-            for capability in (*operations.replace, *operations.add):
+            for capability in (*operations.override, *operations.allow):
                 origins[field][capability] = definition["source_root"]
-            inherited.update(operations.replace)
-            inherited.update(operations.add)
+            inherited.update(overrides)
+            inherited.update(operations.allow)
             resolved[field] = tuple(sorted(inherited))
-        prompt_chain = (
-            (*parent.prompt_chain, definition["prompt"])
-            if parent is not None
-            and parent.source_root != definition["source_root"]
-            else (definition["prompt"],)
-        )
-        profile = Profile(
+        profiles[name] = Profile(
             name=name,
             source=definition["source"],
             source_root=definition["source_root"],
-            extends=parent_name,
-            chain=(*parent_chain, name),
+            extends=None,
+            chain=("project-defaults", name),
             prompt=definition["prompt"],
-            prompt_chain=prompt_chain,
+            prompt_chain=(definition["prompt"],),
             operations=definition["operations"],
             origins=origins,
             skills=resolved["skills"],
             mcps=resolved["mcps"],
             hooks=resolved["hooks"],
             plugins=resolved["plugins"],
+            runtime=definition["runtime"],
         )
-        profiles[name] = profile
-        return profile
-
-    for name in sorted(definitions):
-        resolve(name)
     mcps: dict[str, McpDefinition] = {}
     for source_root, expected in expected_by_root.items():
         mcps.update(_validate_capability_store(source_root, expected))
@@ -779,6 +810,7 @@ def load_project(
         manifest=manifest_path,
         profiles=dict(sorted(profiles.items())),
         mcps=dict(sorted(mcps.items())),
+        external_imports=external_imports,
         overlay=overlay,
     )
 
@@ -1522,18 +1554,18 @@ def run_client(
         )
         if passive_drift:
             print(
-                "profile: warning: passive real-home drift: "
+                "profile: warning: passive machine-context drift: "
                 + ", ".join(passive_drift),
                 file=sys.stderr,
             )
         if active_drift:
             print(
-                "profile: active real-home drift: " + ", ".join(active_drift),
+                "profile: active machine-context drift: " + ", ".join(active_drift),
                 file=sys.stderr,
             )
             if not sys.stdin.isatty():
                 raise ProfileError(
-                    "active real-home drift blocks non-interactive launch"
+                    "active machine-context drift blocks non-interactive launch"
                 )
             answer = input(
                 "Type 'continue' to launch once without updating lock or approval: "
@@ -1618,6 +1650,12 @@ def explain_profile(
         "prompt": prompt,
         "operations": locked["operations"],
         "inventory": _profile_inventory(profile),
+        "external_imports": list(project.external_imports),
+        "evidence": {
+            "declared": "ok",
+            "configured": "lock-verified",
+            "effective": "unknown",
+        },
         "layer_digest": locked["layer_digest"],
         "clients": locked["clients"],
     }
@@ -1854,6 +1892,12 @@ def _declared_snapshot(
             "tree_hash"
         ],
         "inventory": _profile_inventory(profile),
+        "external_imports": list(project.external_imports),
+        "evidence": {
+            "declared": "ok",
+            "configured": "rendered",
+            "effective": "unknown",
+        },
         "context": context,
         "capability_semantics": desired["capability_semantics"],
     }
@@ -2235,28 +2279,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         project = Path(args.project)
-        if args.command == "base-lock":
+        if args.command == "machine-context-lock":
             payload = create_base_manifest(args.home, args.manifest)
             _print_json(
                 {
                     "status": "locked-not-approved",
-                    "profile": REAL_HOME_PROFILE,
+                    "context": MACHINE_CONTEXT_NAME,
                     "effective_digest": payload["effective_digest"],
                     "inventory_digest": payload["inventory_digest"],
                 }
             )
             return 0
-        if args.command == "base-approve":
+        if args.command == "machine-context-approve":
             payload = approve_base_manifest(args.manifest, args.pin)
             _print_json(
                 {
                     "status": "approved",
-                    "profile": REAL_HOME_PROFILE,
+                    "context": MACHINE_CONTEXT_NAME,
                     "approved_digest": payload["approved_digest"],
                 }
             )
             return 0
-        if args.command == "bind":
+        if args.command == "assembly-bind":
             payload = bind_profile(
                 project,
                 args.profile,
@@ -2390,12 +2434,20 @@ def _add_auth(parser: argparse.ArgumentParser) -> None:
         help="private directory containing codex/, qoder/, and omp/ credentials",
     )
 
-def _add_base_binding(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
-    """Add explicit machine/workspace binding paths without hidden defaults."""
+def _add_machine_context_binding(
+    parser: argparse.ArgumentParser, *, required: bool = False
+) -> None:
+    """Add explicit machine-context and assembly binding paths."""
 
-    parser.add_argument("--base-manifest", required=required)
-    parser.add_argument("--base-pin", required=required)
-    parser.add_argument("--binding-dir", required=required)
+    parser.add_argument(
+        "--machine-context-manifest", dest="base_manifest", required=required
+    )
+    parser.add_argument(
+        "--machine-context-pin", dest="base_pin", required=required
+    )
+    parser.add_argument(
+        "--assembly-binding-dir", dest="binding_dir", required=required
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -2410,37 +2462,43 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("lock")
     verify = subparsers.add_parser("verify")
-    _add_base_binding(verify)
+    _add_machine_context_binding(verify)
     subparsers.add_parser("list")
-    base_lock = subparsers.add_parser("base-lock")
-    base_lock.add_argument("--home", required=True)
-    base_lock.add_argument("--manifest", required=True)
-    base_approve = subparsers.add_parser("base-approve")
-    base_approve.add_argument("--manifest", required=True)
-    base_approve.add_argument("--pin", required=True)
-    bind = subparsers.add_parser("bind")
-    bind.add_argument("--profile", required=True)
-    _add_base_binding(bind, required=True)
+    machine_context_lock = subparsers.add_parser("machine-context-lock")
+    machine_context_lock.add_argument("--home", required=True)
+    machine_context_lock.add_argument(
+        "--machine-context-manifest", dest="manifest", required=True
+    )
+    machine_context_approve = subparsers.add_parser("machine-context-approve")
+    machine_context_approve.add_argument(
+        "--machine-context-manifest", dest="manifest", required=True
+    )
+    machine_context_approve.add_argument(
+        "--machine-context-pin", dest="pin", required=True
+    )
+    assembly_bind = subparsers.add_parser("assembly-bind")
+    assembly_bind.add_argument("--profile", required=True)
+    _add_machine_context_binding(assembly_bind, required=True)
     explain = subparsers.add_parser("explain")
     explain.add_argument("--profile", required=True)
     materialize = subparsers.add_parser("materialize")
     _add_selection(materialize)
-    _add_base_binding(materialize)
+    _add_machine_context_binding(materialize)
     materialize.add_argument("--output", required=True)
     probe = subparsers.add_parser("probe")
     _add_selection(probe)
-    _add_base_binding(probe)
+    _add_machine_context_binding(probe)
     probe.add_argument("--state", required=True)
     diff = subparsers.add_parser("diff")
     _add_selection(diff)
-    _add_base_binding(diff)
+    _add_machine_context_binding(diff)
     diff.add_argument("--state", required=True)
     launch = subparsers.add_parser("launch")
     _add_selection(launch)
     _add_auth(launch)
     launch.add_argument("--receipt")
     launch.add_argument("--workdir")
-    _add_base_binding(launch)
+    _add_machine_context_binding(launch)
     launch.add_argument("client_args", nargs=argparse.REMAINDER)
     run = subparsers.add_parser("run")
     _add_selection(run)
@@ -2448,7 +2506,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--state", required=True)
     run.add_argument("--receipt")
     run.add_argument("--workdir")
-    _add_base_binding(run)
+    _add_machine_context_binding(run)
     run.add_argument("client_args", nargs=argparse.REMAINDER)
     return parser
 
@@ -3341,7 +3399,7 @@ def _redacted_file_bytes(path: Path) -> bytes:
 
     content = path.read_bytes()
     if len(content) > 8 * 1024 * 1024:
-        raise ProfileError(f"real-home capability file exceeds 8 MiB: {path}")
+        raise ProfileError(f"machine-context capability file exceeds 8 MiB: {path}")
     suffix = path.suffix.casefold()
     try:
         if suffix == ".json":
@@ -3364,7 +3422,7 @@ def _home_path_digest(path: Path) -> str:
     if path.is_dir() and not path.is_symlink():
         entries.extend(sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()))
     if len(entries) > 4096:
-        raise ProfileError(f"real-home capability tree exceeds 4096 entries: {path}")
+        raise ProfileError(f"machine-context capability tree exceeds 4096 entries: {path}")
     for item in entries:
         relative = "." if item == path else item.relative_to(path).as_posix()
         info = item.lstat()
@@ -3384,7 +3442,7 @@ def _home_path_digest(path: Path) -> str:
                 "sha256": _sha256(_redacted_file_bytes(item)),
             }
         else:
-            raise ProfileError(f"unsupported real-home capability entry: {item}")
+            raise ProfileError(f"unsupported machine-context capability entry: {item}")
     return f"sha256:{_sha256(_canonical_json(records))}"
 
 
@@ -3509,13 +3567,153 @@ def discover_real_home(home_root: Path | str) -> dict[str, Any]:
     effective_records = [entry for entry in entries if entry["state"] == "active"]
     return {
         "version": BASE_MANIFEST_VERSION,
-        "profile": REAL_HOME_PROFILE,
+        "context": MACHINE_CONTEXT_NAME,
         "home": str(home),
         "effective_digest": f"sha256:{_sha256(_canonical_json(effective_records))}",
         "inventory_digest": f"sha256:{_sha256(_canonical_json(entries))}",
         "entries": entries,
     }
 
+def discover_asset_inventory(home_root: Path | str) -> dict[str, Any]:
+    """Build a separate redacted inventory for Agent-facing candidates."""
+
+    machine_context = discover_real_home(home_root)
+
+    def observed_entries(kind: str) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for entry in machine_context["entries"]:
+            if entry["kind"] != kind:
+                continue
+            result.append(
+                {
+                    **entry,
+                    "status": "unknown"
+                    if entry["state"] == "active"
+                    else "observed",
+                }
+            )
+        return result
+
+    capability_entries = [
+        {
+            **entry,
+            "status": "unknown" if entry["state"] == "active" else "observed",
+        }
+        for entry in machine_context["entries"]
+        if entry["kind"] in CAPABILITY_KINDS
+    ]
+    instruction_entries = observed_entries("context")
+    inventory_digest = f"sha256:{_sha256(_canonical_json({
+        "capability": capability_entries,
+        "instruction": instruction_entries,
+    }))}"
+    return {
+        "version": 1,
+        "kind": "asset-inventory",
+        "source_context_digest": machine_context["effective_digest"],
+        "inventory_digest": inventory_digest,
+        "capability_entries": capability_entries,
+        "instruction_entries": instruction_entries,
+    }
+
+def classify_asset_inventory(
+    inventory: Mapping[str, Any],
+    *,
+    allowed: Sequence[str] = (),
+    denied: Sequence[str] = (),
+    client_limited: bool = False,
+) -> dict[str, Any]:
+    """Project observed candidates into explicit closure evidence states."""
+
+    allowed_names = set(allowed)
+    denied_names = set(denied)
+
+    def classify(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for entry in entries:
+            names = {
+                name
+                for values in entry.get("capabilities", {}).values()
+                for name in values
+            }
+            names.add(str(entry["path"]))
+            if client_limited:
+                status = "reported_client_limited"
+            elif names & denied_names:
+                status = "blocked"
+            elif names & allowed_names:
+                status = "allowed"
+            elif entry.get("status") == "unknown":
+                status = "unknown"
+            else:
+                status = "stripped"
+            result.append({**entry, "status": status})
+        return result
+
+    return {
+        **inventory,
+        "capability_entries": classify(inventory["capability_entries"]),
+        "instruction_entries": classify(inventory["instruction_entries"]),
+    }
+
+def enforce_asset_closure(
+    inventory: Mapping[str, Any], *, require_client_evidence: bool = True
+) -> None:
+    """Fail closed for blocked assets and active unknown observations."""
+
+    entries = [
+        *inventory["capability_entries"],
+        *inventory["instruction_entries"],
+    ]
+    blocked = sorted(
+        str(entry["path"]) for entry in entries if entry.get("status") == "blocked"
+    )
+    if blocked:
+        raise ProfileError(f"blocked Agent-facing assets: {', '.join(blocked)}")
+    if require_client_evidence:
+        unknown = sorted(
+            str(entry["path"]) for entry in entries if entry.get("status") == "unknown"
+        )
+        if unknown:
+            raise ProfileError(
+                "active Agent-facing assets lack client evidence: "
+                + ", ".join(unknown)
+            )
+
+def _validate_external_imports(
+    project: Project, profile: Profile, inventory: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Require approved provenance and role binding for external assets."""
+
+    entries = [
+        *inventory["capability_entries"],
+        *inventory["instruction_entries"],
+    ]
+    imported: list[str] = []
+    for item in project.external_imports:
+        if profile.name not in item["profiles"]:
+            continue
+        if not item["approved"]:
+            raise ProfileError(
+                f"external import {item['name']} is not approved for {profile.name}"
+            )
+        matches = [
+            entry
+            for entry in entries
+            if entry["digest"] == item["digest"]
+            and item["name"]
+            in {
+                name
+                for values in entry.get("capabilities", {}).values()
+                for name in values
+            }
+        ]
+        if not matches:
+            raise ProfileError(
+                f"external import {item['name']} does not match machine asset digest"
+            )
+        imported.append(item["name"])
+    return tuple(imported)
 
 def _controlled_output_path(value: Path | str, context: str) -> Path:
     path = Path(value).expanduser().absolute()
@@ -3528,10 +3726,10 @@ def _controlled_output_path(value: Path | str, context: str) -> Path:
 def create_base_manifest(
     home_root: Path | str, manifest_path: Path | str
 ) -> dict[str, Any]:
-    """Refresh the private real-home manifest without approving it."""
+    """Refresh the private machine-context manifest without approving it."""
 
     payload = discover_real_home(home_root)
-    target = _controlled_output_path(manifest_path, "base manifest")
+    target = _controlled_output_path(manifest_path, "machine-context manifest")
     _atomic_write(target, _canonical_json(payload), mode=0o600)
     return payload
 
@@ -3540,25 +3738,29 @@ def _load_base_manifest(path: Path | str) -> dict[str, Any]:
     target = Path(path).expanduser().resolve(strict=True)
     payload = _strict_json(target)
     if not isinstance(payload, Mapping):
-        raise ProfileError("base manifest must be an object")
+        raise ProfileError("machine-context manifest must be an object")
     _expect_keys(
         payload,
         {
             "version",
-            "profile",
+            "context",
             "home",
             "effective_digest",
             "inventory_digest",
             "entries",
         },
-        "base manifest",
+        "machine-context manifest",
     )
     if payload["version"] != BASE_MANIFEST_VERSION:
-        raise ProfileError(f"base manifest.version must be {BASE_MANIFEST_VERSION}")
-    if payload["profile"] != REAL_HOME_PROFILE:
-        raise ProfileError(f"base manifest.profile must be {REAL_HOME_PROFILE}")
+        raise ProfileError(
+            f"machine-context manifest.version must be {BASE_MANIFEST_VERSION}"
+        )
+    if payload["context"] != MACHINE_CONTEXT_NAME:
+        raise ProfileError(
+            f"machine-context manifest.context must be {MACHINE_CONTEXT_NAME}"
+        )
     if not isinstance(payload["entries"], list):
-        raise ProfileError("base manifest.entries must be an array")
+        raise ProfileError("machine-context manifest.entries must be an array")
     effective = [
         entry
         for entry in payload["entries"]
@@ -3569,27 +3771,27 @@ def _load_base_manifest(path: Path | str) -> dict[str, Any]:
         f"sha256:{_sha256(_canonical_json(payload['entries']))}"
     )
     if payload["effective_digest"] != expected_effective:
-        raise ProfileError("base manifest effective_digest is invalid")
+        raise ProfileError("machine-context effective_digest is invalid")
     if payload["inventory_digest"] != expected_inventory:
-        raise ProfileError("base manifest inventory_digest is invalid")
+        raise ProfileError("machine-context inventory_digest is invalid")
     return dict(payload)
 
 
 def approve_base_manifest(
     manifest_path: Path | str, pin_path: Path | str
 ) -> dict[str, Any]:
-    """Approve one reviewed base digest without copying its private inventory."""
+    """Approve one reviewed machine-context digest without copying its inventory."""
 
     manifest = _load_base_manifest(manifest_path)
     payload = {
         "version": BASE_PIN_VERSION,
-        "profile": REAL_HOME_PROFILE,
+        "context": MACHINE_CONTEXT_NAME,
         "approved_digest": manifest["effective_digest"],
         "approved_at": datetime.now(timezone.utc).isoformat(),
         "tool_version": RENDERER_VERSION,
         "policy": "tiered-gate",
     }
-    target = _controlled_output_path(pin_path, "workspace pin")
+    target = _controlled_output_path(pin_path, "machine-context pin")
     _atomic_write(target, _canonical_json(payload), mode=0o644)
     return payload
 
@@ -3597,30 +3799,36 @@ def approve_base_manifest(
 def _load_base_pin(path: Path | str) -> dict[str, Any]:
     payload = _strict_json(Path(path).expanduser().resolve(strict=True))
     if not isinstance(payload, Mapping):
-        raise ProfileError("workspace pin must be an object")
+        raise ProfileError("machine-context pin must be an object")
     _expect_keys(
         payload,
         {
             "version",
-            "profile",
+            "context",
             "approved_digest",
             "approved_at",
             "tool_version",
             "policy",
         },
-        "workspace pin",
+        "machine-context pin",
     )
     if payload["version"] != BASE_PIN_VERSION:
-        raise ProfileError(f"workspace pin.version must be {BASE_PIN_VERSION}")
-    if payload["profile"] != REAL_HOME_PROFILE:
-        raise ProfileError(f"workspace pin.profile must be {REAL_HOME_PROFILE}")
+        raise ProfileError(
+            f"machine-context pin.version must be {BASE_PIN_VERSION}"
+        )
+    if payload["context"] != MACHINE_CONTEXT_NAME:
+        raise ProfileError(
+            f"machine-context pin.context must be {MACHINE_CONTEXT_NAME}"
+        )
     if payload["policy"] != "tiered-gate":
-        raise ProfileError("workspace pin.policy must be tiered-gate")
+        raise ProfileError("machine-context pin.policy must be tiered-gate")
     return dict(payload)
 
 
 def _profile_uses_real_home(profile: Profile) -> bool:
-    return REAL_HOME_PROFILE in profile.chain
+    """All v3 roles run inside the approved machine context."""
+
+    return True
 
 
 def _base_diff(
@@ -3655,16 +3863,9 @@ def _base_diff(
 def _project_declared_capabilities(
     project: Project, profile: Profile, field: str
 ) -> set[str]:
-    """Return capabilities explicitly selected by project layers, excluding real-home."""
+    """Return the effective project-declared capability set."""
 
-    declared: set[str] = set()
-    for layer_name in profile.chain:
-        if layer_name == REAL_HOME_PROFILE:
-            continue
-        operations = project.profiles[layer_name].operations[field]
-        declared.update(operations.add)
-        declared.update(operations.replace)
-    return declared
+    return set(getattr(profile, field))
 
 
 def _out_of_scope_base_mcps(
@@ -3732,31 +3933,28 @@ def _validate_base_layer_operations(
     for layer_name in profile.chain:
         if layer_name == REAL_HOME_PROFILE:
             continue
-        layer = project.profiles[layer_name]
+        layer = project.profiles.get(layer_name)
+        if layer is None:
+            continue
         for field in ("skills", "mcps", "hooks", "plugins"):
             operations = layer.operations[field]
-            duplicate_adds = set(operations.add) & effective[field]
-            if duplicate_adds:
+            duplicate_allows = set(operations.allow) & effective[field]
+            if duplicate_allows:
                 raise ProfileError(
-                    f"profile {layer.name}.{field}.add conflicts with base/layer names: "
-                    f"{sorted(duplicate_adds)}"
+                    f"profile {layer.name}.{field}.allow conflicts with base/layer names: "
+                    f"{sorted(duplicate_allows)}"
                 )
-            missing_masks = set(operations.mask) - effective[field]
-            if missing_masks:
+            missing_denies = set(operations.deny) - effective[field]
+            missing_overrides = set(operations.override) - effective[field]
+            if missing_denies or missing_overrides:
                 raise ProfileError(
-                    f"profile {layer.name}.{field}.mask is not inherited: "
-                    f"{sorted(missing_masks)}"
+                    f"profile {layer.name}.{field} references unknown inherited names: "
+                    f"{sorted(missing_denies | missing_overrides)}"
                 )
-            missing_replacements = set(operations.replace) - effective[field]
-            if missing_replacements:
-                raise ProfileError(
-                    f"profile {layer.name}.{field}.replace is not inherited: "
-                    f"{sorted(missing_replacements)}"
-                )
-            effective[field].difference_update(operations.mask)
-            effective[field].difference_update(operations.replace)
-            effective[field].update(operations.replace)
-            effective[field].update(operations.add)
+            effective[field].difference_update(operations.deny)
+            effective[field].difference_update(operations.override)
+            effective[field].update(operations.override)
+            effective[field].update(operations.allow)
 
 
 def _base_state(
@@ -3766,7 +3964,7 @@ def _base_state(
     pin = _load_base_pin(pin_path)
     if pin["approved_digest"] != manifest["effective_digest"]:
         raise ProfileError(
-            "workspace pin does not approve the current base manifest digest"
+            "machine-context pin does not approve the current machine-context digest"
         )
     live = discover_real_home(manifest["home"])
     active, passive = _base_diff(manifest, live)
@@ -3803,21 +4001,40 @@ def bind_profile(
     manifest, active, _passive = _base_state(manifest_path, pin_path)
     _validate_base_layer_operations(project, profile, manifest)
     _warn_out_of_scope_base_mcps(project, profile, manifest_path)
+    inventory = discover_asset_inventory(manifest["home"])
+    imported = _validate_external_imports(project, profile, inventory)
+    enforce_asset_closure(
+        classify_asset_inventory(
+            inventory,
+            allowed=(
+                *profile.skills,
+                *profile.mcps,
+                *profile.hooks,
+                *profile.plugins,
+                *imported,
+            ),
+            denied=tuple(
+                capability
+                for operations in profile.operations.values()
+                for capability in operations.deny
+            ),
+        )
+    )
     if active:
-        raise ProfileError(f"active real-home drift detected: {', '.join(active)}")
+        raise ProfileError(f"active machine-context drift detected: {', '.join(active)}")
     layer_digest = desired["profiles"][profile.name]["layer_digest"]
     effective_digest = f"sha256:{_sha256(_canonical_json({
-        'base_digest': manifest['effective_digest'],
-        'layer_digest': layer_digest,
-        'profile': profile.name,
+        "machine_context_digest": manifest["effective_digest"],
+        "layer_digest": layer_digest,
+        "profile": profile.name,
     }))}"
     target = Path(binding_dir).expanduser().absolute() / f"{profile.name}.binding.json"
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     payload = {
         "version": BINDING_VERSION,
         "profile": profile.name,
-        "base_profile": REAL_HOME_PROFILE,
-        "base_digest": manifest["effective_digest"],
+        "machine_context": MACHINE_CONTEXT_NAME,
+        "machine_context_digest": manifest["effective_digest"],
         "layer_digest": layer_digest,
         "effective_digest": effective_digest,
     }
@@ -3844,15 +4061,15 @@ def _verify_profile_binding(
     binding = _strict_json(binding_path)
     layer_digest = desired["profiles"][profile.name]["layer_digest"]
     expected_effective = f"sha256:{_sha256(_canonical_json({
-        'base_digest': manifest['effective_digest'],
-        'layer_digest': layer_digest,
-        'profile': profile.name,
+        "machine_context_digest": manifest["effective_digest"],
+        "layer_digest": layer_digest,
+        "profile": profile.name,
     }))}"
     expected = {
         "version": BINDING_VERSION,
         "profile": profile.name,
-        "base_profile": REAL_HOME_PROFILE,
-        "base_digest": manifest["effective_digest"],
+        "machine_context": MACHINE_CONTEXT_NAME,
+        "machine_context_digest": manifest["effective_digest"],
         "layer_digest": layer_digest,
         "effective_digest": expected_effective,
     }
@@ -3876,15 +4093,15 @@ def _check_profile_environment(
     binding_dir: Path | str | None,
     allow_active_drift: bool = False,
 ) -> list[str]:
-    """Verify either the approved real-home base or the legacy clean-home gate."""
+    """Verify the approved machine-context or the legacy clean-home gate."""
 
     if not _profile_uses_real_home(profile):
         _check_global_pollution()
         return []
     if base_manifest is None or base_pin is None or binding_dir is None:
         raise ProfileError(
-            f"profile {profile.name} requires --base-manifest, --base-pin, "
-            "and --binding-dir"
+            f"profile {profile.name} requires --machine-context-manifest, "
+            "--machine-context-pin, and --assembly-binding-dir"
         )
     active, passive = _verify_profile_binding(
         project,
@@ -3895,7 +4112,25 @@ def _check_profile_environment(
         binding_dir,
     )
     if active and not allow_active_drift:
-        raise ProfileError(f"active real-home drift detected: {', '.join(active)}")
+        raise ProfileError(f"active machine-context drift detected: {', '.join(active)}")
+    machine_context = _load_base_manifest(base_manifest)
+    inventory = discover_asset_inventory(machine_context["home"])
+    imported = _validate_external_imports(project, profile, inventory)
+    allowed = (
+        *profile.skills,
+        *profile.mcps,
+        *profile.hooks,
+        *profile.plugins,
+        *imported,
+    )
+    denied = tuple(
+        capability
+        for operations in profile.operations.values()
+        for capability in operations.deny
+    )
+    enforce_asset_closure(
+        classify_asset_inventory(inventory, allowed=allowed, denied=denied)
+    )
     return [*(f"active:{path}" for path in active), *passive]
 
 def _desired_lock(project: Project) -> dict[str, Any]:
@@ -3907,15 +4142,16 @@ def _desired_lock(project: Project) -> dict[str, Any]:
         }
         operations = {
             kind: {
-                "add": list(profile.operations[kind].add),
-                "mask": list(profile.operations[kind].mask),
-                "replace": list(profile.operations[kind].replace),
+                "allow": list(profile.operations[kind].allow),
+                "deny": list(profile.operations[kind].deny),
+                "override": list(profile.operations[kind].override),
             }
             for kind in ("skills", "mcps", "hooks", "plugins")
         }
         layer = {
-            "extends": profile.extends,
+            "defaults": PROJECT_DEFAULTS_NAME,
             "chain": list(profile.chain),
+            "runtime": dict(profile.runtime),
             "operations": operations,
             "inventory": _profile_inventory(profile),
             "clients": clients,
@@ -3939,6 +4175,7 @@ def _desired_lock(project: Project) -> dict[str, Any]:
             "plugins": "opaque-staging",
         },
         "inputs": _input_records(project),
+        "external_imports": list(project.external_imports),
         "profiles": profiles,
     }
     if project.overlay is not None:
@@ -4237,7 +4474,7 @@ def _tree_hash(tree: Mapping[str, RenderedFile]) -> str:
 def _evidence_root() -> Path:
     configured = os.environ.get("CAP_EVIDENCE_ROOT")
     return Path(configured).expanduser().absolute() if configured else (
-        Path.home() / ".cap-user-state" / "evidence"
+        Path.home() / ".agent-system-state" / "evidence"
     )
 
 

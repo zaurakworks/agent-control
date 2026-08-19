@@ -1,22 +1,23 @@
-version = 2
+version = 3
 prompt = ".cap/prompts/review.md"
+runtime = { omp = "default" }
 
 [skills]
-add = ["review-skill"]
-mask = []
-replace = []
+allow = ["review-skill"]
+deny = []
+override = []
 
 [mcps]
-add = ["review-mcp"]
-mask = []
-replace = []
+allow = ["review-mcp"]
+deny = []
+override = []
 
 [hooks]
-add = ["review-hook"]
-mask = []
-replace = []
+allow = ["review-hook"]
+deny = []
+override = []
 
 [plugins]
-add = ["review-plugin"]
-mask = []
-replace = []
+allow = ["review-plugin"]
+deny = []
+override = []

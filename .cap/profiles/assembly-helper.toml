@@ -1,23 +1,31 @@
-version = 2
-extends = "work"
+version = 3
 prompt = ".cap/prompts/assembly-helper.md"
+runtime = { omp = "default" }
 
 [skills]
-add = ["assembly-helper", "agent-prompt-design", "agent-skill-design", "capability-profile-closure", "capability-lifecycle", "agent-behavior-evaluation", "spec-change-pack"]
-mask = []
-replace = []
+allow = [
+  "assembly-helper",
+  "agent-prompt-design",
+  "agent-skill-design",
+  "capability-profile-closure",
+  "capability-lifecycle",
+  "agent-behavior-evaluation",
+  "spec-change-pack",
+]
+deny = []
+override = []
 
 [mcps]
-add = []
-mask = ["idea"]
-replace = []
+allow = []
+deny = []
+override = []
 
 [hooks]
-add = []
-mask = []
-replace = []
+allow = []
+deny = []
+override = []
 
 [plugins]
-add = []
-mask = []
-replace = []
+allow = []
+deny = []
+override = []

@@ -19,6 +19,7 @@
       "executable": "qoder"
     }
   },
+  "external_imports": [],
   "inputs": {
     ".cap/capabilities": {
       "type": "directory"
@@ -141,37 +142,27 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "8083539c6f4f8f81199f0ec15a16791526971a6c1a2c543cc476622c43bbfc97",
+      "sha256": "4a33b5dab16a53118df174adee8b812629d50f22d5cf81b16cce5b37acd6e783",
       "type": "file"
     },
     ".cap/profiles/assembly-helper.toml": {
       "mode": "0644",
-      "sha256": "28dc4291267780743c9ac8a44a0700544d7ddbf5142f75e94e959968d06b8bee",
+      "sha256": "8e200251386260829dad5e47c818fbc805ed5b35a11702ce0bd68edb5148b083",
       "type": "file"
     },
     ".cap/profiles/general.toml": {
       "mode": "0644",
-      "sha256": "9be9d99995b13ea0afe59ce76944059a8ab7022b9274c8c35ffef73693c98c96",
-      "type": "file"
-    },
-    ".cap/profiles/work.toml": {
-      "mode": "0644",
-      "sha256": "8b3757acdfe254325a4dabcd40c9b39a4ac66bbd7c3157c3183356606b76a66d",
+      "sha256": "0db2e1afcb854ef9ce40496453c02dd56175bf0ec3700c1c0c2b8779547a3c96",
       "type": "file"
     },
     ".cap/prompts/assembly-helper.md": {
       "mode": "0644",
-      "sha256": "71560d233597b6672113dce0713860e6e1a8be6c5ced2bc934c6c3c90b66e378",
+      "sha256": "ddb910ce96f66f60fa9019a6c1616712dea646375cf99b15882747932dc06881",
       "type": "file"
     },
     ".cap/prompts/general.md": {
       "mode": "0644",
-      "sha256": "ce7d1f7d13472d1e3c4edbe8dccf2783c2a458babddb42cd5eee32d31c33f328",
-      "type": "file"
-    },
-    ".cap/prompts/work.md": {
-      "mode": "0644",
-      "sha256": "fa7063785f31282d5b69a09a829363a5763a301a9cd48f60a459d2ba0774f0f9",
+      "sha256": "379eed5fe34a52a73b0eefb7d1d1dac5ce66cf67d59d57dd6f221c09864973e9",
       "type": "file"
     },
     "AGENTS.md": {
@@ -183,22 +174,21 @@
   "profiles": {
     "assembly-helper": {
       "chain": [
-        "real-home",
-        "work",
+        "project-defaults",
         "assembly-helper"
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:8945f9044aabecf930387e1210097c56ff13f254088a4358ff527bb9373c4d8a"
+          "tree_hash": "sha256:d9466fa40d780289573097c25e145d7bdbb9877c2dfc5ec971f85e780269757f"
         },
         "omp": {
-          "tree_hash": "sha256:2b053c38b353d43b3a80fa6f6c9911a4e26f1beda5afd864e4239f7fb755becf"
+          "tree_hash": "sha256:d81504279da2cebb5a603c92dfaee19502baee590d060e977106f058bc7238b9"
         },
         "qoder": {
-          "tree_hash": "sha256:98b1b81bb530682503c6a5e93d8fd70c0bda4b5295c71d4207eda240ed699e69"
+          "tree_hash": "sha256:934c39f2ded10f1a11398ab93d4f12c262fc61820952c7a54e96d29417805f5a"
         }
       },
-      "extends": "work",
+      "defaults": "project-defaults",
       "inventory": {
         "hooks": [],
         "mcps": [],
@@ -219,27 +209,25 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:6d540208ad2c99310d3054053ebd11cd9da9ff1e28f95f7f09a33b887f687f99",
+      "layer_digest": "sha256:0f1203443b06216950cfba497415ce375cbf556c4e384ac0457c1e25e4c8a623",
       "operations": {
         "hooks": {
-          "add": [],
-          "mask": [],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "mcps": {
-          "add": [],
-          "mask": [
-            "idea"
-          ],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "plugins": {
-          "add": [],
-          "mask": [],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "skills": {
-          "add": [
+          "allow": [
             "assembly-helper",
             "agent-prompt-design",
             "agent-skill-design",
@@ -248,29 +236,31 @@
             "agent-behavior-evaluation",
             "spec-change-pack"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         }
+      },
+      "runtime": {
+        "omp": "default"
       }
     },
     "general": {
       "chain": [
-        "real-home",
-        "work",
+        "project-defaults",
         "general"
       ],
       "clients": {
         "codex": {
-          "tree_hash": "sha256:a4718e9a657d0e7d361372262d8002e847855c63009f61a9bdaa6dfefa67ae2f"
+          "tree_hash": "sha256:683863f5e8cea680f2c6f1840f84b90b7b0d45d2dddd25f4319e8067d0b6977c"
         },
         "omp": {
-          "tree_hash": "sha256:540f8036b6f02958afc538f46040b2efc0095c1e46438a64328d3d3142770a6b"
+          "tree_hash": "sha256:e37765a6a4c35bbca443fdffad5fbe1abd544a0973717a767397d1a3b2e07256"
         },
         "qoder": {
-          "tree_hash": "sha256:e2ea0bba721252fc8d30608d7b4a76c037ded004c84ab333a113216ad6636f28"
+          "tree_hash": "sha256:219d5e215223ad44bf31d8e14638f97bf62e7a0b7692c2e9dd8b30dba5eef58e"
         }
       },
-      "extends": "work",
+      "defaults": "project-defaults",
       "inventory": {
         "hooks": [],
         "mcps": [],
@@ -284,92 +274,34 @@
           "openspec-update-change"
         ]
       },
-      "layer_digest": "sha256:c9beecab11a2fbe9f0fb3b4a57a42e5b152caa98e3c175c094ee3eda4b8d3cad",
+      "layer_digest": "sha256:7c369f098210b4d9a1bf64c9b631f28f7a0a170550ebbaf244d5a75a693a0fa7",
       "operations": {
         "hooks": {
-          "add": [],
-          "mask": [],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "mcps": {
-          "add": [],
-          "mask": [],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "plugins": {
-          "add": [],
-          "mask": [],
-          "replace": []
+          "allow": [],
+          "deny": [],
+          "override": []
         },
         "skills": {
-          "add": [],
-          "mask": [],
-          "replace": []
-        }
-      }
-    },
-    "work": {
-      "chain": [
-        "real-home",
-        "work"
-      ],
-      "clients": {
-        "codex": {
-          "tree_hash": "sha256:440bdd54f452fd0a35a4fc69e39e90d5dd723f5633062e56edb86bc341629984"
-        },
-        "omp": {
-          "tree_hash": "sha256:0f726f1c56fe21e7319f34e936457fc76872a30efa453e4b87aba2891064ef7b"
-        },
-        "qoder": {
-          "tree_hash": "sha256:a074af51d5b63ff6bf8ba2b09b8cd0973463ea998875716cd36c7c9c8d4b062c"
+          "allow": [],
+          "deny": [],
+          "override": []
         }
       },
-      "extends": "real-home",
-      "inventory": {
-        "hooks": [],
-        "mcps": [],
-        "plugins": [],
-        "skills": [
-          "openspec-apply-change",
-          "openspec-archive-change",
-          "openspec-explore",
-          "openspec-propose",
-          "openspec-sync-specs",
-          "openspec-update-change"
-        ]
-      },
-      "layer_digest": "sha256:f4430e859a508985c7bb484d1d1557e2251a33d598ac3cc510e363b1e3d8f2bd",
-      "operations": {
-        "hooks": {
-          "add": [],
-          "mask": [],
-          "replace": []
-        },
-        "mcps": {
-          "add": [],
-          "mask": [],
-          "replace": []
-        },
-        "plugins": {
-          "add": [],
-          "mask": [],
-          "replace": []
-        },
-        "skills": {
-          "add": [
-            "openspec-explore",
-            "openspec-propose",
-            "openspec-update-change",
-            "openspec-apply-change",
-            "openspec-sync-specs",
-            "openspec-archive-change"
-          ],
-          "mask": [],
-          "replace": []
-        }
+      "runtime": {
+        "omp": "default"
       }
     }
   },
-  "renderer_version": "profile-renderer-v2",
-  "version": 2
+  "renderer_version": "profile-renderer-v3",
+  "version": 3
 }

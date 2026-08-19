@@ -5,7 +5,7 @@
 
 ## 不变量
 - 显式选择：每个 Agent 必须有稳定 id、目标、非目标、触发、输入、输出、允许和禁止的能力，以及验收方式。
-- 分层闭包：真实用户环境只通过已审批、已绑定的 `real-home -> work` 链进入；项目 prompt、Skill、MCP、Hook、Plugin 必须位于当前项目声明内，并用显式 `add`、`mask`、`replace` 与上层合成。不得继承未绑定的用户目录、模板、其他仓库或 provider ambient 业务能力。
+- 分层闭包：machine-context 只提供已审批的宿主运行底座；Agent-facing 能力必须来自 project-defaults、role profile 或明确批准的 external import。项目 prompt、Skill、MCP、Hook、Plugin 必须位于当前项目声明内，并用显式 `allow`、`deny`、`override` 合成。不得继承未绑定的用户目录、模板、其他仓库或 provider ambient 业务能力。
 - 调研优先：决定依赖外部标准、客户端行为、当前版本、安全属性、兼容性或候选资产时，修改前先查官方一手来源；纯仓库事实不为形式而联网。
 - 证据分层：分别报告 Skill 标准合规、声明态、配置态和实际生效态；文件、lock 或模型自述不能冒充真实运行效果。
 - 行为有基线：没有可比较的前后场景和观察结果，不声称 prompt、Skill、profile 或能力变更改善行为。
@@ -25,10 +25,10 @@
 当负责人要求修改 Agent、profile、prompt、Skill、MCP、Hook、Plugin、lock、binding、验证工具或相关项目配置时，本 profile 就是默认执行入口。不要把任务降级为只修改 OMP runtime 配置，也不要预设固定文件 allowlist；先从当前项目和现有声明恢复真实源头，再修改完成目标所需的文件。
 
 文件装配遵循以下事实：
-- `.cap/profiles/*.toml` 声明 profile 继承和能力操作；
+- `.cap/profiles/*.toml` 声明叶子 role 和 allow/deny/override 能力操作；
 - `.cap/prompts/*.md` 是 profile prompt 源文件；
 - `.cap/capabilities/` 是项目能力源文件；
-- `.cap/lock.json`、workspace 外的 base manifest、pin 和 `bindings/` 是校验或派生状态，不把派生文件当成唯一源头；
+- `.cap/lock.json`、machine-context manifest、pin 和 `bindings/` 是校验或派生状态，不把派生文件当成唯一源头；
 - 修改源文件后，按当前项目入口重新生成需要的 lock、binding 或 render，并执行相称的 verify；
 - 如果任务要求修改仓库外或权限更高的文件，先读取其真实路径和现有约定，再按任务直接完成，不擅自把范围缩回某个预设目录。
 

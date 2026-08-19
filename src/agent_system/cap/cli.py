@@ -18,12 +18,12 @@ import yaml
 from agent_system.cap.config import (
     CAPABILITY_KINDS,
     CLIENTS,
-    DEFAULT_AGENT_HOME_ROOT,
+    DEFAULT_AGENT_STATE_ROOT,
+    DEFAULT_ASSEMBLY_BINDING_DIR,
     DEFAULT_AUTH_ROOT,
-    DEFAULT_BASE_MANIFEST,
-    DEFAULT_BASE_PIN,
-    DEFAULT_BINDING_DIR,
     DEFAULT_CLI,
+    DEFAULT_MACHINE_CONTEXT_MANIFEST,
+    DEFAULT_MACHINE_CONTEXT_PIN,
     DEFAULT_OMP_RUNTIME_ID,
     DEFAULT_PROFILE,
     DEFAULT_PROFILE_TOOL,
@@ -40,6 +40,7 @@ from agent_system.omp.runtime import (
     _agent_home_env,
     _apply_omp_runtime_migration,
     _cleanup_legacy_omp_runtime,
+    _rollback_omp_runtime,
     _materialize_profile_generation,
     _migrate_omp_runtime,
     _migration_backup_root,
@@ -188,17 +189,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="真实用户 HOME；默认使用当前用户 HOME",
     )
     parser.add_argument(
-        "--agent-home-root",
-        default=str(DEFAULT_AGENT_HOME_ROOT),
-        metavar="目录",
-        help="持久 agent home 根目录；默认是 <project>.agent-homes",
-    )
-    parser.add_argument(
-        "--employee-root",
+        "--agent-state-root",
         dest="agent_home_root",
-        default=argparse.SUPPRESS,
+        default=str(DEFAULT_AGENT_STATE_ROOT),
         metavar="目录",
-        help=argparse.SUPPRESS,
+        help="CAP 用户状态根；默认是 $HOME/.agent-system-state",
     )
     parser.add_argument(
         "--profile-tool",
@@ -207,22 +202,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="agent-system profile engine 模块路径；默认使用同一 package",
     )
     parser.add_argument(
-        "--base-manifest",
-        default=str(DEFAULT_BASE_MANIFEST),
+        "--machine-context-manifest",
+        dest="base_manifest",
+        default=str(DEFAULT_MACHINE_CONTEXT_MANIFEST),
         metavar="文件",
-        help="私有 real-home manifest 路径",
+        help="machine-context manifest 路径",
     )
     parser.add_argument(
-        "--base-pin",
-        default=str(DEFAULT_BASE_PIN),
+        "--machine-context-pin",
+        dest="base_pin",
+        default=str(DEFAULT_MACHINE_CONTEXT_PIN),
         metavar="文件",
-        help="workspace real-home 审批 pin 路径",
+        help="machine-context 审批 pin 路径",
     )
     parser.add_argument(
-        "--binding-dir",
-        default=str(DEFAULT_BINDING_DIR),
+        "--assembly-binding-dir",
+        dest="binding_dir",
+        default=str(DEFAULT_ASSEMBLY_BINDING_DIR),
         metavar="目录",
-        help="derived profile binding 目录",
+        help="assembly binding 目录",
     )
     parser.add_argument(
         "--auth-root",
@@ -240,7 +238,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--omp-runtime-root",
         default=None,
         metavar="目录",
-        help="显式用户级 OMP runtime 根；默认 $HOME/.cap-user-state/runtimes/omp/<id>",
+        help="显式用户级 OMP runtime 根；默认 $HOME/.agent-system-state/runtimes/omp/<id>",
     )
 
     subparsers = parser.add_subparsers(
@@ -258,14 +256,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     migrate = subparsers.add_parser(
         "migrate-omp-runtime",
-        help="检查或迁移持久 OMP 共享 runtime",
-        description="默认输出无 secret dry-run plan；--apply 安装共享 runtime，--cleanup 在行为验证后删除旧 CAP 状态。",
+        help="迁移、回滚或清理 OMP 共享 runtime",
+        description="默认输出无 secret dry-run plan；--apply 安装共享 runtime，--rollback 恢复迁移前 runtime，--cleanup 在行为验证后删除旧 CAP 状态。",
     )
     migrate_mode = migrate.add_mutually_exclusive_group()
     migrate_mode.add_argument(
         "--apply",
         action="store_true",
         help="备份旧状态并安装共享 runtime",
+    )
+    migrate_mode.add_argument(
+        "--rollback",
+        action="store_true",
+        help="从迁移备份恢复旧 runtime 并移除新共享 runtime",
     )
     migrate_mode.add_argument(
         "--cleanup",
@@ -377,27 +380,27 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     lock.set_defaults(profile_tool_command="lock")
 
-    base_lock = subparsers.add_parser(
-        "base-lock",
-        help="刷新 real-home manifest",
-        description="观察当前 HOME 并写入私有 real-home manifest；不会批准摘要。",
+    machine_context_lock = subparsers.add_parser(
+        "machine-context-lock",
+        help="刷新 machine-context manifest",
+        description="观察当前 HOME 并写入 machine-context manifest；不会批准摘要。",
     )
-    base_lock.set_defaults(profile_tool_command="base-lock")
+    machine_context_lock.set_defaults(profile_tool_command="machine-context-lock")
 
-    base_approve = subparsers.add_parser(
-        "base-approve",
-        help="批准 real-home manifest 摘要",
-        description="把当前 manifest 摘要写入 workspace pin。",
+    machine_context_approve = subparsers.add_parser(
+        "machine-context-approve",
+        help="批准 machine-context 摘要",
+        description="把当前 machine-context 摘要写入 pin。",
     )
-    base_approve.set_defaults(profile_tool_command="base-approve")
+    machine_context_approve.set_defaults(profile_tool_command="machine-context-approve")
 
-    bind = subparsers.add_parser(
-        "bind",
-        help="重建 profile binding",
-        description="把项目 profile 绑定到已批准的 real-home manifest。",
+    assembly_bind = subparsers.add_parser(
+        "assembly-bind",
+        help="重建 assembly binding",
+        description="把项目 role 绑定到已批准的 machine-context。",
     )
-    bind.add_argument("profile", help="profile 名或中文名")
-    bind.set_defaults(profile_tool_command="bind")
+    assembly_bind.add_argument("profile", help="role 名或中文名")
+    assembly_bind.set_defaults(profile_tool_command="bind")
 
     verify = subparsers.add_parser(
         "verify",
@@ -413,26 +416,32 @@ def _profile_args(args: argparse.Namespace) -> list[str]:
     command = args.profile_tool_command
     if command in {"list", "lock"}:
         return [*base, command]
-    if command == "base-lock":
+    if command == "machine-context-lock":
         return [
             *base,
-            "base-lock",
+            "machine-context-lock",
             "--home",
             str(Path(args.home).expanduser()),
-            "--manifest",
+            "--machine-context-manifest",
             str(Path(args.base_manifest).expanduser()),
         ]
-    if command == "base-approve":
+    if command == "machine-context-approve":
         return [
             *base,
-            "base-approve",
-            "--manifest",
+            "machine-context-approve",
+            "--machine-context-manifest",
             str(Path(args.base_manifest).expanduser()),
-            "--pin",
+            "--machine-context-pin",
             str(Path(args.base_pin).expanduser()),
         ]
     if command == "bind":
-        return [*base, "bind", "--profile", args.profile, *_binding_args(args)]
+        return [
+            *base,
+            "assembly-bind",
+            "--profile",
+            args.profile,
+            *_binding_args(args),
+        ]
     if command == "verify":
         return [*base, command, *_binding_args(args)]
     if command == "explain":

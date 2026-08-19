@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -50,7 +51,7 @@ def _omp_runtime_id(args: argparse.Namespace) -> str:
 def _agent_home_dir(args: argparse.Namespace) -> Path:
     parent = (
         _runtime_real_home(args)
-        / ".cap-user-state"
+        / ".agent-system-state"
         / "runtimes"
         / "omp"
     )
@@ -77,7 +78,7 @@ def _legacy_omp_homes(args: argparse.Namespace) -> dict[str, Path]:
 def _global_render_root(args: argparse.Namespace) -> Path:
     return (
         _runtime_real_home(args)
-        / ".cap-user-state"
+        / ".agent-system-state"
         / "renders"
         / "omp"
     )
@@ -91,7 +92,8 @@ def _project_render_root(args: argparse.Namespace) -> Path:
 def _migration_backup_root(args: argparse.Namespace) -> Path:
     return (
         _agent_home_root(args)
-        / "migration-backup"
+        / "migrations"
+        / "backup"
         / "global-omp-runtime"
     )
 
@@ -690,8 +692,7 @@ def _apply_omp_runtime_migration(
     target_parent = target.parent
     target_parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     for private in (
-        _runtime_real_home(args) / ".cap-user-state",
-        _runtime_real_home(args) / ".cap-user-state" / "runtimes",
+        _runtime_real_home(args) / ".agent-system-state",
         target_parent,
     ):
         private.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -769,6 +770,93 @@ def _safe_remove_tree(root: Path, candidate: Path, label: str) -> bool:
     shutil.rmtree(candidate)
     return True
 
+def _restore_runtime_from_backup(
+    root: Path,
+    destination: Path,
+    backup: Path,
+    label: str,
+) -> None:
+    if not backup.exists():
+        return
+    _reject_unsafe_tree(backup, f"{label} migration backup")
+    if destination.exists() or destination.is_symlink():
+        _safe_remove_tree(root, destination, label)
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    shutil.copytree(backup, destination)
+    destination.chmod(0o700)
+
+
+def _rollback_omp_runtime(args: argparse.Namespace) -> dict[str, object]:
+    marker = _shared_runtime_marker(args)
+    if not marker.is_file():
+        raise _MigrationError("global OMP runtime is not available for rollback")
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise _MigrationError("global OMP marker is invalid") from error
+    if (
+        payload.get("version") != 2
+        or payload.get("runtime_id") != _omp_runtime_id(args)
+    ):
+        raise _MigrationError("global OMP marker does not match runtime id")
+
+    root = _agent_home_root(args)
+    backup = _migration_backup_root(args)
+    if not backup.is_dir():
+        raise _MigrationError("OMP migration backup is missing")
+    _assert_managed_path(root, backup, "migration backup")
+    _reject_unsafe_tree(backup, "migration backup")
+
+    project_runtime = _project_shared_omp_home(args)
+    global_runtime = _agent_home_dir(args)
+    project_backup = backup / "project-shared"
+    global_backup = backup / "global"
+
+    if project_runtime.exists() or project_runtime.is_symlink():
+        _assert_managed_path(root, project_runtime, "project OMP runtime")
+        _reject_unsafe_tree(project_runtime, "project OMP runtime")
+    if global_runtime.exists() or global_runtime.is_symlink():
+        _assert_managed_path(
+            _runtime_real_home(args) / ".agent-system-state",
+            global_runtime,
+            "global OMP runtime",
+        )
+        _reject_unsafe_tree(global_runtime, "global OMP runtime")
+
+    if project_backup.is_dir():
+        _restore_runtime_from_backup(
+            root, project_runtime, project_backup, "project OMP runtime"
+        )
+    if global_backup.is_dir():
+        _restore_runtime_from_backup(
+            _runtime_real_home(args) / ".agent-system-state",
+            global_runtime,
+            global_backup,
+            "global OMP runtime",
+        )
+    elif global_runtime.exists() or global_runtime.is_symlink():
+        _safe_remove_tree(
+            _runtime_real_home(args) / ".agent-system-state",
+            global_runtime,
+            "global OMP runtime",
+        )
+
+    restored = [
+        label
+        for label, path in (
+            ("project-shared-runtime", project_backup),
+            ("global-runtime", global_backup),
+        )
+        if path.is_dir()
+    ]
+    _safe_remove_tree(root, backup, "migration backup")
+    return {
+        "status": "rolled-back",
+        "runtime_id": _omp_runtime_id(args),
+        "restored": restored,
+    }
+
+
 def _cleanup_legacy_omp_runtime(args: argparse.Namespace) -> dict[str, object]:
     marker = _shared_runtime_marker(args)
     if not marker.is_file():
@@ -801,7 +889,9 @@ def _cleanup_legacy_omp_runtime(args: argparse.Namespace) -> dict[str, object]:
 
 def _migrate_omp_runtime(args: argparse.Namespace) -> int:
     try:
-        if args.cleanup:
+        if getattr(args, "rollback", False):
+            payload = _rollback_omp_runtime(args)
+        elif args.cleanup:
             payload = _cleanup_legacy_omp_runtime(args)
         else:
             public, summaries, canonical, config, sessions = (
@@ -892,15 +982,67 @@ def _deep_overlay(
             merged[key] = value
     return merged
 
+def _read_omp_runtime_policy(args: argparse.Namespace) -> dict[str, object]:
+    """Read the project-owned semantic OMP policy, preserving unknown fields."""
+
+    path = Path(args.project).expanduser().resolve() / ".cap" / "runtime" / "omp.toml"
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise _MigrationError(f"invalid OMP runtime policy: {path}") from error
+    if data.get("version") != 1 or data.get("client") != "omp":
+        raise _MigrationError("OMP runtime policy must target version 1 client omp")
+    policy = data.get("policy")
+    if not isinstance(policy, dict):
+        raise _MigrationError("OMP runtime policy.policy must be a table")
+    memory_backend = policy.get("memory_backend", "off")
+    if memory_backend != "off":
+        raise _MigrationError("OMP policy memory_backend must be off")
+    project_mcp = policy.get("enable_project_mcp", False)
+    if type(project_mcp) is not bool:
+        raise _MigrationError("OMP policy enable_project_mcp must be boolean")
+    return {
+        **policy,
+        "memory_backend": memory_backend,
+        "enable_project_mcp": project_mcp,
+    }
+def _read_global_omp_preference(
+    args: argparse.Namespace,
+) -> dict[str, object]:
+    """Read only the isolated OMP runtime preference, never ambient config."""
+
+    root = _agent_home_dir(args)
+    config_path = root / "config.yml"
+    if not config_path.is_file():
+        return {}
+    return _read_runtime_config(root, "isolated OMP runtime")
+
+
+
 def _effective_config_template(
     portable_config: Mapping[str, object],
     skill_names: list[str],
+    policy: Mapping[str, object],
+    global_preference: Mapping[str, object],
 ) -> dict[str, object]:
+    global_memory = global_preference.get("memory", {})
+    global_mcp = global_preference.get("mcp", {})
+    if not isinstance(global_memory, dict) or not isinstance(global_mcp, dict):
+        raise _MigrationError("isolated OMP preference has invalid sections")
+    memory_backend = policy.get(
+        "memory_backend", global_memory.get("backend", "off")
+    )
+    project_mcp = policy.get(
+        "enable_project_mcp",
+        global_mcp.get("enableProjectConfig", False),
+    )
+    if memory_backend != "off" or project_mcp is not False:
+        raise _MigrationError("OMP policy rejected unsafe global preference")
     return _deep_overlay(
         portable_config,
         {
-            "memory": {"backend": "off"},
-            "mcp": {"enableProjectConfig": False},
+            "memory": {"backend": policy["memory_backend"]},
+            "mcp": {"enableProjectConfig": policy["enable_project_mcp"]},
             "skills": {
                 "customDirectories": [
                     "<PROFILE_GENERATION>/skills"
@@ -998,6 +1140,7 @@ def _verify_profile_generation(
     effective_hash: str,
     source_context: Mapping[str, object],
     source_digest: str,
+    runtime_policy: Mapping[str, object],
 ) -> dict[str, object]:
     manifest = generation / ".cap-generation.json"
     try:
@@ -1012,6 +1155,7 @@ def _verify_profile_generation(
         "portable_tree_hash": portable_hash,
         "effective_render_hash": effective_hash,
         "source_context": dict(source_context),
+        "runtime_policy": dict(runtime_policy),
         "source_digest": source_digest,
     }
     for key, value in expected.items():
@@ -1079,14 +1223,27 @@ def _materialize_profile_generation(
             if skills_root.is_dir()
             else []
         )
+        policy = _read_omp_runtime_policy(args)
+        global_preference = _read_global_omp_preference(args)
         config_template = _effective_config_template(
-            _read_portable_config(rendered), skill_names
+            _read_portable_config(rendered),
+            skill_names,
+            policy,
+            global_preference,
         )
         fixed_launch = {
             "extension": "explicit",
             "no_extensions": True,
             "no_rules": True,
             "skills": skill_names,
+            "runtime_policy": {
+                "project": policy,
+                "global_preference_digest": _digest_json(global_preference),
+                "effective": {
+                    "memory_backend": policy["memory_backend"],
+                    "enable_project_mcp": policy["enable_project_mcp"],
+                },
+            },
         }
         source_context, source_digest = _generation_source_context(
             args, portable_hash
@@ -1112,12 +1269,12 @@ def _materialize_profile_generation(
                 effective_hash,
                 source_context,
                 source_digest,
+                fixed_launch["runtime_policy"],
             )
             return generation, portable_hash, effective_hash, skill_names
         parent = generation.parent
         for private in (
-            _runtime_real_home(args) / ".cap-user-state",
-            _runtime_real_home(args) / ".cap-user-state" / "renders",
+            _runtime_real_home(args) / ".agent-system-state",
             parent,
         ):
             private.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1161,6 +1318,7 @@ def _materialize_profile_generation(
                 "source_digest": source_digest,
                 "content_digest": content_digest,
                 "skills": skill_names,
+                "runtime_policy": fixed_launch["runtime_policy"],
             }
             (stage / ".cap-generation.json").write_text(
                 json.dumps(
@@ -1184,6 +1342,7 @@ def _materialize_profile_generation(
                     effective_hash,
                     source_context,
                     source_digest,
+                    fixed_launch["runtime_policy"],
                 )
         except BaseException:
             if stage.exists():
@@ -1282,9 +1441,12 @@ def _write_receipt(
         "project_root": str(Path(args.project).expanduser().absolute()),
         "project_source_context": manifest["source_context"],
         "project_source_digest": manifest["source_digest"],
-        "base_digest": binding["base_digest"],
-        "layer_digest": binding["layer_digest"],
-        "effective_digest": binding["effective_digest"],
+        "runtime_policy": manifest.get("runtime_policy", {}),
+        "base_digest": binding.get(
+            "base_digest", binding.get("machine_context_digest")
+        ),
+        "layer_digest": binding.get("layer_digest"),
+        "effective_digest": binding.get("effective_digest"),
         "portable_tree_hash": portable_hash,
         "effective_render_hash": effective_hash,
         "workdir": str(_workdir(args)),

@@ -19,6 +19,7 @@
       "executable": "qoder"
     }
   },
+  "external_imports": [],
   "inputs": {
     ".cap/capabilities": {
       "type": "directory"
@@ -219,17 +220,17 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "ed3bc75877d3b4d7bef70f25a004ce9ea86408a2f3368aad672a5bb21e7d0003",
+      "sha256": "0db0dadf69f5564b2c58cf1d254d0cbc564891ed1bbda2288e67f696e1488492",
       "type": "file"
     },
     ".cap/profiles/implementation.toml": {
       "mode": "0644",
-      "sha256": "c2dfd63f5134d75f3ca0c270f752d3ad4fa13ac381014d620ddb4423774c1a10",
+      "sha256": "26c3e31873420073479f552277a1e7451433489e6938ac3c77ac38f673084b53",
       "type": "file"
     },
     ".cap/profiles/review.toml": {
       "mode": "0644",
-      "sha256": "77b6d331a69a26f375266bd6fcfa5fe59e15b5a81e4cc783745bfe180707bdca",
+      "sha256": "ed0d3e4527f62fb12545fa5d842d54114a3239cede6549009d28d5260ebe9d11",
       "type": "file"
     },
     ".cap/prompts/implementation.md": {
@@ -251,6 +252,7 @@
   "profiles": {
     "implementation": {
       "chain": [
+        "project-defaults",
         "implementation"
       ],
       "clients": {
@@ -264,7 +266,7 @@
           "tree_hash": "sha256:0c33261e1810c70238a545c41e0f6a9ec3c48129d77018c459fd8d3d44a5a7d2"
         }
       },
-      "extends": null,
+      "defaults": "project-defaults",
       "inventory": {
         "hooks": [
           "implementation-hook"
@@ -279,40 +281,44 @@
           "implementation-skill"
         ]
       },
-      "layer_digest": "sha256:0ffcb3b27871148db40489b785a85ca4ca866e44f1574704ba94225e9add5949",
+      "layer_digest": "sha256:b1f1e469c22a0497eeabe07fc853503774d823caf585b52b026a2e5176ef2c97",
       "operations": {
         "hooks": {
-          "add": [
+          "allow": [
             "implementation-hook"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "mcps": {
-          "add": [
+          "allow": [
             "implementation-mcp"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "plugins": {
-          "add": [
+          "allow": [
             "implementation-plugin"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "skills": {
-          "add": [
+          "allow": [
             "implementation-skill"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         }
+      },
+      "runtime": {
+        "omp": "default"
       }
     },
     "review": {
       "chain": [
+        "project-defaults",
         "review"
       ],
       "clients": {
@@ -326,7 +332,7 @@
           "tree_hash": "sha256:4509a221f78da3768bb9885caec8b2eb029962fc200501910da747f23a607ee6"
         }
       },
-      "extends": null,
+      "defaults": "project-defaults",
       "inventory": {
         "hooks": [
           "review-hook"
@@ -341,39 +347,42 @@
           "review-skill"
         ]
       },
-      "layer_digest": "sha256:d165320231fe8a994c1a9f1d01234bb31d6a0c7352f6aad998918b7cf25d06bd",
+      "layer_digest": "sha256:5e0dd408de08a8846a733024b3bf1d080b68f79982ddf2b624b23f0eec5d230f",
       "operations": {
         "hooks": {
-          "add": [
+          "allow": [
             "review-hook"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "mcps": {
-          "add": [
+          "allow": [
             "review-mcp"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "plugins": {
-          "add": [
+          "allow": [
             "review-plugin"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         },
         "skills": {
-          "add": [
+          "allow": [
             "review-skill"
           ],
-          "mask": [],
-          "replace": []
+          "deny": [],
+          "override": []
         }
+      },
+      "runtime": {
+        "omp": "default"
       }
     }
   },
-  "renderer_version": "profile-renderer-v2",
-  "version": 2
+  "renderer_version": "profile-renderer-v3",
+  "version": 3
 }
