@@ -57,11 +57,11 @@ uv run cap lock
 
 # 3. 项目层变化后重建 work 与两个 derived binding；不得自动刷新 base pin
 for profile in work general assembly-helper; do
-  uv run agent-profile --project . bind \
-    --profile "$profile" \
+  uv run cap \
     --base-manifest "$HOME/.cap-user-state/locks/real-home.manifest.json" \
     --base-pin "$HOME/work/_org/locks/agent-system/real-home.pin.json" \
-    --binding-dir "$HOME/work/_org/locks/agent-system/bindings"
+    --binding-dir "$HOME/work/_org/locks/agent-system/bindings" \
+    bind "$profile"
 done
 
 # 4. 检查元数据、项目 lock、base pin 和全部 binding
@@ -76,9 +76,9 @@ uv run cap show general --cli omp
 npx openspec validate <change-id> --strict --json
 ```
 
-裸 `cap` 专用于高频启动；`cap show` 专用于查看。Codex/Qoder 展开使用自动清理的临时 render；OMP 展开还会生成并核对内容寻址、不可变的 effective generation，输出 portable/effective hash、共享 runtime root 和固定门禁，但不启动客户端。`run` 与带 `--output` 的 `render` 是参数完整、可在非 TTY 中执行的自动化接口。旧 `interactive` / `i` 不保留兼容层。当前只注册 Codex、Qoder、OMP；Claude adapter 延期到具备真实 CLI、render 和运行证据后实施。
+裸 `cap` 进入 TUI，只选择 profile；默认是 `general`，选择后直接启动默认 `omp`。TUI 不再选择客户端或 AI 配置方式。需要修改 Agent 系统配置时，直接进入 `assembly-helper`，由该 profile 根据当前项目文件恢复源头、修改所需文件并重新完成 lock、binding、render 和 verify。`cap show` 专用于查看；`run` 与带 `--output` 的 `render` 是参数完整、可在非 TTY 中执行的自动化接口。旧 `interactive` / `i` 不保留兼容层。
 
-Profile engine 已打包在当前 `agent-system` uv 项目中；正常命令不解析或依赖 sibling checkout。
+Profile engine 已打包在当前 `agent-system` uv 项目中，仅由 `uv run cap` 内部调用；用户不直接运行底层 profile engine，也不依赖 sibling checkout。
 
 ## OMP 用户级 runtime 与全局 CAS 维护
 
@@ -167,7 +167,7 @@ cleanup只删除当前项目级shared runtime、project render cache和migration
 - `$HOME/work/_org/locks/agent-system/real-home.pin.json`
 - `$HOME/work/_org/locks/agent-system/bindings/*.binding.json`
 - `uv run cap show`
-- `uv run agent-profile materialize`
+- `uv run cap render <profile> --cli <client> --output <existing-empty-dir>`
 - 真实客户端 runtime environment
 
 检查：项目 lock 没有 stale，base active digest 被 workspace pin 明确批准，derived binding 同时匹配 base digest 与 layer digest，portable render hash 与 lock 一致；持久 OMP 另外显示共享 runtime root、当前 profile generation、effective hash 和固定门禁。真实 `HOME` 保留，但共享 runtime 不得因此继承未审批能力。

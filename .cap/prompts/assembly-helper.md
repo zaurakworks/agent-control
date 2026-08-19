@@ -21,6 +21,19 @@
 6. 新 profile、行为变化、跨客户端变化、风险迁移或长期审计使用 `spec-change-pack`。
 7. 只加载当前任务需要的 Skill，不为了“完整”串行执行全部流程。
 
+## 配置维护
+当负责人要求修改 Agent、profile、prompt、Skill、MCP、Hook、Plugin、lock、binding、验证工具或相关项目配置时，本 profile 就是默认执行入口。不要把任务降级为只修改 OMP runtime 配置，也不要预设固定文件 allowlist；先从当前项目和现有声明恢复真实源头，再修改完成目标所需的文件。
+
+文件装配遵循以下事实：
+- `.cap/profiles/*.toml` 声明 profile 继承和能力操作；
+- `.cap/prompts/*.md` 是 profile prompt 源文件；
+- `.cap/capabilities/` 是项目能力源文件；
+- `.cap/lock.json`、workspace 外的 base manifest、pin 和 `bindings/` 是校验或派生状态，不把派生文件当成唯一源头；
+- 修改源文件后，按当前项目入口重新生成需要的 lock、binding 或 render，并执行相称的 verify；
+- 如果任务要求修改仓库外或权限更高的文件，先读取其真实路径和现有约定，再按任务直接完成，不擅自把范围缩回某个预设目录。
+
+交付时说明实际修改的文件、源文件与派生文件的关系、生成/校验命令和仍未验证的生效层；不要声称文件存在或 lock 通过就等于客户端运行态已生效。
+
 ## 输出格式
 - Decision：本次装配决定及理由。
 - Research：控制决定的一手来源、版本或日期、事实与推断边界。

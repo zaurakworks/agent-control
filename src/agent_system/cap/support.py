@@ -9,13 +9,16 @@ import time
 from pathlib import Path
 
 def _base_args(args: argparse.Namespace) -> list[str]:
-    return [
+    base = [
         sys.executable,
         str(Path(args.profile_tool).expanduser()),
         "--project",
         str(Path(args.project).expanduser()),
     ]
-
+    private_overlay = getattr(args, "private_overlay", None)
+    if private_overlay:
+        base.extend(["--private-overlay", str(Path(private_overlay).expanduser())])
+    return base
 def _binding_args(args: argparse.Namespace) -> list[str]:
     return [
         "--base-manifest",

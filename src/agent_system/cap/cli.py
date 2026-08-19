@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -33,6 +32,7 @@ from agent_system.cap.config import (
     RUNNABLE_PROFILES,
     SKILL_NAME_PATTERN,
 )
+
 from agent_system.cap.support import _base_args, _binding_args, _passthrough, _run_path, _workdir
 from agent_system.omp.runtime import (
     _MigrationError,
@@ -55,6 +55,10 @@ from agent_system.omp.runtime import (
     _write_receipt,
     _write_shared_mcp_policy,
 )
+PROFILE_LABELS = {
+    "general": "通用工程",
+    "assembly-helper": "装配助手",
+}
 
 def _decode_frontmatter_scalar(raw: str, path: Path, line: int) -> str:
     value = raw.strip()
@@ -147,11 +151,11 @@ class _CapArgumentParser(argparse.ArgumentParser):
 def _build_parser() -> argparse.ArgumentParser:
     parser = _CapArgumentParser(
         prog="cap",
-        description="裸 cap 启动显式 Agent profile；cap show 查看能力闭包和 CLI 装配。",
+        description="裸 cap 进入 TUI 选择 profile 并启动默认 OMP；cap show 查看能力闭包和 CLI 装配。",
         epilog=(
-            "高频使用：\n"
+            "TUI 使用：\n"
             "  cap\n"
-            "\n"
+            "  ↑/↓ 选择 profile，Enter 启动，Esc/q 退出\n"
             "独立查看：\n"
             "  cap show\n"
             "  cap show general\n"
@@ -169,7 +173,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--project",
         default=str(DEFAULT_PROJECT),
         metavar="目录",
-        help="profile 项目根目录；默认是 agent-system 目录",
+        help="公共 agent-system 项目根目录；默认使用当前 package 项目",
+    )
+    parser.add_argument(
+        "--private-overlay",
+        default=None,
+        metavar="目录",
+        help="显式私有 capability overlay 根目录；未提供时只使用公共 source",
     )
     parser.add_argument(
         "--home",
@@ -237,7 +247,7 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="command",
         metavar="命令",
         title="命令",
-        description="裸 cap 用于高频启动；子命令用于查看、校验和自动化。",
+        description="裸 cap 进入 TUI 选择 profile 并启动默认 OMP；子命令用于查看、校验和自动化。",
     )
 
     skills_validate = subparsers.add_parser(
@@ -292,7 +302,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="查看 profile 的公共闭包或 CLI 装配",
         description="先查看 prompt、skills、MCP、hooks、plugins 与各 CLI hash；可选展开一个 CLI 的真实目标文件树。",
     )
-    show.add_argument("profile", nargs="?", default=None, help="profile 名；省略时在 TTY 中选择")
+    show.add_argument("profile", nargs="?", default=None, help="profile 名或中文名；省略时在 TTY 中选择")
     show.add_argument("--cli", choices=CLIENTS, help="展开指定客户端的真实装配")
     show.set_defaults(profile_tool_command="explain")
 
@@ -302,7 +312,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="显式使用 profile 启动一个 CLI",
         description="显式指定 profile 和目标 CLI，在当前工作目录中用持久 agent home 启动客户端。",
     )
-    use.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名；默认 assembly-helper")
+    use.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名或中文名；默认 general（通用工程）")
     use.add_argument("--cli", default=DEFAULT_CLI, choices=CLIENTS, help="要启动的客户端 CLI；默认 omp")
     use.add_argument(
         "--receipt",
@@ -328,7 +338,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="使用 profile 执行一次批处理命令",
         description="选择 profile 和目标 CLI，在当前工作目录中执行一次 batch 命令并记录 state；必须在 -- 后提供客户端命令参数。",
     )
-    run.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名；默认 assembly-helper")
+    run.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名或中文名；默认 general（通用工程）")
     run.add_argument("--cli", default=DEFAULT_CLI, choices=CLIENTS, help="要运行的客户端 CLI；默认 omp")
     run.add_argument(
         "--state",
@@ -355,7 +365,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="渲染 profile，不启动 CLI",
         description="把 profile 渲染到指定空目录，用于检查目标 CLI 会看到的配置。",
     )
-    render.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名；默认 assembly-helper")
+    render.add_argument("profile", nargs="?", default=DEFAULT_PROFILE, help="profile 名或中文名；默认 general（通用工程）")
     render.add_argument("--cli", default=DEFAULT_CLI, choices=CLIENTS, help="要渲染的客户端 CLI；默认 omp")
     render.add_argument("--output", required=True, metavar="目录", help="已存在且为空的输出目录")
     render.set_defaults(profile_tool_command="materialize")
@@ -366,6 +376,28 @@ def _build_parser() -> argparse.ArgumentParser:
         description="重新计算 profile 声明、能力文件和三端渲染 hash，并写入 lock。",
     )
     lock.set_defaults(profile_tool_command="lock")
+
+    base_lock = subparsers.add_parser(
+        "base-lock",
+        help="刷新 real-home manifest",
+        description="观察当前 HOME 并写入私有 real-home manifest；不会批准摘要。",
+    )
+    base_lock.set_defaults(profile_tool_command="base-lock")
+
+    base_approve = subparsers.add_parser(
+        "base-approve",
+        help="批准 real-home manifest 摘要",
+        description="把当前 manifest 摘要写入 workspace pin。",
+    )
+    base_approve.set_defaults(profile_tool_command="base-approve")
+
+    bind = subparsers.add_parser(
+        "bind",
+        help="重建 profile binding",
+        description="把项目 profile 绑定到已批准的 real-home manifest。",
+    )
+    bind.add_argument("profile", help="profile 名或中文名")
+    bind.set_defaults(profile_tool_command="bind")
 
     verify = subparsers.add_parser(
         "verify",
@@ -381,6 +413,26 @@ def _profile_args(args: argparse.Namespace) -> list[str]:
     command = args.profile_tool_command
     if command in {"list", "lock"}:
         return [*base, command]
+    if command == "base-lock":
+        return [
+            *base,
+            "base-lock",
+            "--home",
+            str(Path(args.home).expanduser()),
+            "--manifest",
+            str(Path(args.base_manifest).expanduser()),
+        ]
+    if command == "base-approve":
+        return [
+            *base,
+            "base-approve",
+            "--manifest",
+            str(Path(args.base_manifest).expanduser()),
+            "--pin",
+            str(Path(args.base_pin).expanduser()),
+        ]
+    if command == "bind":
+        return [*base, "bind", "--profile", args.profile, *_binding_args(args)]
     if command == "verify":
         return [*base, command, *_binding_args(args)]
     if command == "explain":
@@ -490,11 +542,18 @@ def _available_profiles(args: argparse.Namespace, env: dict[str, str]) -> list[s
     available = {item for item in profiles if isinstance(item, str)}
     return [name for name in RUNNABLE_PROFILES if name in available]
 
-def _choose(label: str, choices: list[str], default: str) -> str:
+def _choose(
+    label: str,
+    choices: list[str],
+    default: str,
+    display_names: dict[str, str] | None = None,
+) -> str:
+    names = display_names or {}
     print(f"\n选择 {label}：")
     for index, choice in enumerate(choices, start=1):
+        display = f"{choice}（{names[choice]}）" if choice in names else choice
         marker = " [默认]" if choice == default else ""
-        print(f"  {index}. {choice}{marker}")
+        print(f"  {index}. {display}{marker}")
     while True:
         raw = input(f"{label} [{default}]: ").strip()
         if not raw:
@@ -505,6 +564,9 @@ def _choose(label: str, choices: list[str], default: str) -> str:
                 return choices[offset]
         if raw in choices:
             return raw
+        for choice, display in names.items():
+            if raw == display:
+                return choice
         print(f"无效选择：{raw}")
 
 def _require_tty(label: str, explicit_example: str) -> bool:
@@ -516,16 +578,99 @@ def _require_tty(label: str, explicit_example: str) -> bool:
     )
     return False
 
-def _interactive_use(args: argparse.Namespace, env: dict[str, str]) -> int:
+def _tui_menu(
+    stdscr,
+    curses_module,
+    title: str,
+    choices: list[str],
+    default: int,
+    descriptions: list[str] | None = None,
+) -> int:
+    selected = default
+    descriptions = descriptions or [""] * len(choices)
+    while True:
+        stdscr.erase()
+        height, width = stdscr.getmaxyx()
+        lines = [
+            "CAP 配置",
+            "↑/↓ 选择   Enter 确认   ←/b 返回   Esc/q 退出",
+            "",
+            title,
+        ]
+        for index, (choice, description) in enumerate(
+            zip(choices, descriptions), start=1
+        ):
+            marker = "▶" if index - 1 == selected else " "
+            default_marker = " [默认]" if index - 1 == default else ""
+            suffix = f"  {description}" if description else ""
+            lines.append(
+                f"{marker} {index}. {choice}{default_marker}{suffix}"
+            )
+        lines.append("")
+        lines.append("当前默认项会标记为 [默认]")
+        for row, line in enumerate(lines[: max(height - 1, 0)]):
+            text = line[: max(width - 1, 1)]
+            try:
+                stdscr.addstr(row, 0, text)
+            except curses_module.error:
+                pass
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key in (curses_module.KEY_UP, ord("k")):
+            selected = (selected - 1) % len(choices)
+        elif key in (curses_module.KEY_DOWN, ord("j")):
+            selected = (selected + 1) % len(choices)
+        elif key in (curses_module.KEY_LEFT, ord("b")):
+            return -1
+        elif key in (27, ord("q")):
+            return -2
+        elif key in (curses_module.KEY_ENTER, 10, 13):
+            return selected
+
+
+def _tui_profile(
+    stdscr,
+    curses_module,
+    profiles: list[str],
+) -> str | None:
+    default = profiles.index(DEFAULT_PROFILE) if DEFAULT_PROFILE in profiles else 0
+    result = _tui_menu(
+        stdscr,
+        curses_module,
+        "选择 profile",
+        profiles,
+        default,
+        [PROFILE_LABELS.get(profile, profile) for profile in profiles],
+    )
+    if result < 0:
+        return None
+    return profiles[result]
+
+
+def _tui_use(args: argparse.Namespace, env: dict[str, str]) -> int:
     profiles = _available_profiles(args, env)
     if not profiles:
         print("没有可用 profile。", file=sys.stderr)
         return 2
-    profile_default = DEFAULT_PROFILE if DEFAULT_PROFILE in profiles else profiles[0]
-    args.profile = _choose("profile", profiles, profile_default)
-    args.cli = _choose("CLI", list(CLIENTS), DEFAULT_CLI)
-    extra = input("客户端参数（可空；例如 --version）: ").strip()
-    args.client_args = shlex.split(extra) if extra else []
+    try:
+        import curses
+    except ImportError:
+        print("当前 Python 没有 curses；请使用显式 cap use/run 命令。", file=sys.stderr)
+        return 2
+    try:
+        profile = curses.wrapper(
+            _tui_profile,
+            curses_module=curses,
+            profiles=profiles,
+        )
+    except curses.error as error:
+        print(f"CAP TUI 启动失败：{error}", file=sys.stderr)
+        return 2
+    if profile is None:
+        return 0
+    args.profile = profile
+    args.cli = DEFAULT_CLI
+    args.client_args = []
     args.receipt = None
     args.workdir = None
     args.fresh = False
@@ -636,7 +781,7 @@ def _show(args: argparse.Namespace, env: dict[str, str]) -> int:
             print("没有可用 profile。", file=sys.stderr)
             return 2
         profile_default = DEFAULT_PROFILE if DEFAULT_PROFILE in profiles else profiles[0]
-        args.profile = _choose("profile", profiles, profile_default)
+        args.profile = _choose("profile", profiles, profile_default, PROFILE_LABELS)
 
     explanation = _profile_json(args, env, "explain")
     if explanation is None:
@@ -722,7 +867,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"agents": _available_profiles(args, env)}, ensure_ascii=False, indent=2))
         return 0
     if args.command is None:
-        return _interactive_use(args, env)
+        return _tui_use(args, env)
     if getattr(args, "profile_tool_command", None) == "explain":
         return _show(args, env)
     if getattr(args, "profile_tool_command", None) == "run" and not args.client_args:
