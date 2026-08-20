@@ -39,6 +39,7 @@ from agent_system.omp.runtime import (
     _MigrationError,
     _agent_home_dir,
     _agent_home_env,
+    _omp_config_dir_value,
     _apply_omp_runtime_migration,
     _cleanup_legacy_omp_runtime,
     _rollback_omp_runtime,

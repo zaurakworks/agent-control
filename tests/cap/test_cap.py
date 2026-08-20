@@ -416,12 +416,30 @@ class _HiddenAttr:
 
 
 class SharedRuntimeTest(unittest.TestCase):
+    def test_config_dir_is_named_relative_to_the_real_home(self) -> None:
+        real_home = Path("/srv/home/agent") if os.name != "nt" else Path("C:/home/agent")
+        agent_home = real_home / ".agent-system-state" / "runtimes" / "omp" / "default"
+        self.assertEqual(
+            cap._omp_config_dir_value(agent_home, real_home),
+            ".agent-system-state/runtimes/omp/default",
+        )
+
+    def test_runtime_root_outside_the_real_home_fails_closed(self) -> None:
+        # omp cannot express a config root outside the home, so cap refuses
+        # instead of handing over an absolute value it would silently double.
+        real_home = Path("/srv/home/agent") if os.name != "nt" else Path("C:/home/agent")
+        outside = Path("/srv/elsewhere/omp") if os.name != "nt" else Path("C:/elsewhere/omp")
+        with self.assertRaisesRegex(Exception, "must live under the real home"):
+            cap._omp_config_dir_value(outside, real_home)
+
     def test_profiles_share_runtime_and_clear_broker_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            shared = root / "agent-homes" / "shared" / "omp"
             real_home = root / "home"
             real_home.mkdir()
+            # Production always places the managed runtime under the real home;
+            # omp resolves PI_CONFIG_DIR as a name relative to that home.
+            shared = real_home / "agent-homes" / "shared" / "omp"
             ambient = {
                 "HOME": "/ambient",
                 "PI_CONFIG_DIR": "/ambient-config",
@@ -444,9 +462,10 @@ class SharedRuntimeTest(unittest.TestCase):
             {environment["PI_CODING_AGENT_DIR"] for environment in environments},
             {str(shared)},
         )
+        # omp reads PI_CONFIG_DIR as a name under the home, not as a root path.
         self.assertEqual(
             {environment["PI_CONFIG_DIR"] for environment in environments},
-            {str(shared)},
+            {"agent-homes/shared/omp"},
         )
         self.assertEqual(
             {environment["HOME"] for environment in environments},
