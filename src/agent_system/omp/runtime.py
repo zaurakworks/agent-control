@@ -1514,6 +1514,20 @@ def _write_receipt(
         encoding="utf-8",
     )
 
+def _client_stdin(args: argparse.Namespace) -> int | None:
+    """Return the stdin handle for one client launch.
+
+    `run` is the batch entry point: omp blocks in its readPipedInput phase
+    until stdin reaches EOF, so inheriting a pipe that never closes hangs the
+    launch instead of running the forwarded prompt. `use` is interactive and
+    must keep the real stdin.
+    """
+
+    if getattr(args, "profile_tool_command", None) == "run":
+        return subprocess.DEVNULL
+    return None
+
+
 def _run_omp_agent_home(
     args: argparse.Namespace, env: dict[str, str]
 ) -> int:
@@ -1552,6 +1566,7 @@ def _run_omp_agent_home(
         env=_agent_home_env(
             env, agent_home, generation, real_home
         ),
+        stdin=_client_stdin(args),
         check=False,
     )
     verified = subprocess.run(

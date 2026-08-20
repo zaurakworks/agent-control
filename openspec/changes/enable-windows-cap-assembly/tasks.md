@@ -44,8 +44,8 @@
 
 - [x] 5.1 在 Windows 宿主运行 `uv run cap render agent-assembler --cli omp --output <项目外空目录>`，确认产出完整装配树
 - [x] 5.2 在 Windows 宿主运行 `uv run cap show agent-assembler --cli omp`，确认返回该客户端的目标装配与渲染 hash
-- [ ] 5.3 在 Windows 宿主运行 `uv run cap run agent-assembler -- -p "<一次性只读探测>"`，取得真实客户端运行证据与 receipt，并据此回答 design 的 Open Question（`HOME` 与 `USERPROFILE`）
-- [ ] 5.4 按三层证据记录结论：声明态、配置态给出通过依据；实际生效态仅在有真实客户端证据时给出，否则保持 `unknown`
+- [~] 5.3 **被上游阻塞**：实测确认 omp v17.3.5 在 Windows 上把绝对 `PI_CODING_AGENT_DIR` 拼成双份路径，客户端无法启动；design 的 Open Question 已据此解答（与主目录变量无关）。记录见 `work/records/2026-08-20-omp-windows-agent-dir/finding.md`。同次实测发现并修复了 cap 侧 `run` 未关闭 stdin 的问题
+- [x] 5.4 按三层证据记录结论：声明态与配置态由两端 CI 门禁给出通过依据；实际生效态保持 `unknown`，原因是上游阻塞而非验证缺失
 - [x] 5.5 扩展 `windows-latest` CI job 覆盖 render smoke，使 Windows 结论不依赖单机手工执行
 
 ## 6. 文档与合同同步
@@ -54,4 +54,4 @@
 - [x] 6.2 复核 `docs/profile.md` 与 `docs/maintenance.zh-CN.md`：两份文档均未描述权限位记录方式或目录句柄保证，没有因本变更失真的表述，因此不改；保证边界写入使用指南的《宿主之间的差异》
 - [x] 6.3 复核 `.cap/capabilities/skills/*` 与 `.cap/skill-imports.toml`：无变更；`.cap/lock.json` 全程未产生差异，`cap verify` 通过，可证闭包未动
 - [x] 6.4 运行 `npx openspec validate enable-windows-cap-assembly --strict` 并通过
-- [ ] 6.5 归档前确认 OpenSpec 校验与 `cap verify` 在 Windows 与 macOS 两端均通过
+- [~] 6.5 归档前确认 OpenSpec 校验与 `cap verify` 在两端均通过；Windows 侧已由 `cross-host-checks` 的 `windows-assembly` job 覆盖（含 render smoke），POSIX 侧由 `posix-assembly` 与 `checks` 覆盖。实际生效态的归档结论待上游解除阻塞
