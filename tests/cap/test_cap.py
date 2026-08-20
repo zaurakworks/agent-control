@@ -358,6 +358,113 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class SharedAdapterPrimitiveTests(unittest.TestCase):
+    """The client-agnostic primitives must be shared, not duplicated per adapter.
+
+    A second adapter that restates canonical digests or the managed-path rules
+    would drift from OMP silently, and the drift would only surface as a hash
+    mismatch long after the fact.
+    """
+
+    def test_omp_uses_the_shared_implementations(self) -> None:
+        from agent_system.adapter import common
+        from agent_system.omp import runtime
+
+        for name in (
+            "_digest_bytes",
+            "_digest_json",
+            "_tree_digest",
+            "_deep_overlay",
+            "_assert_managed_path",
+            "_validate_private_runtime",
+            "_reject_unsafe_tree",
+            "_safe_remove_tree",
+            "_replace_generation_placeholder",
+        ):
+            with self.subTest(primitive=name):
+                self.assertIs(
+                    getattr(runtime, name),
+                    getattr(common, name),
+                    f"{name} is not the shared implementation",
+                )
+
+    def test_migration_error_alias_is_preserved(self) -> None:
+        from agent_system.adapter import common
+        from agent_system.omp import runtime
+
+        self.assertIs(runtime._MigrationError, common.AdapterError)
+
+    def test_canonical_json_digest_is_key_order_independent(self) -> None:
+        from agent_system.adapter import common
+
+        first = common._digest_json({"b": 1, "a": [1, 2]})
+        second = common._digest_json({"a": [1, 2], "b": 1})
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("sha256:"))
+        self.assertNotEqual(first, common._digest_json({"a": [2, 1], "b": 1}))
+
+    def test_tree_digest_covers_content_and_honours_exclude(self) -> None:
+        from agent_system.adapter import common
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "kept.txt").write_text("kept", encoding="utf-8")
+            (root / "ignored.json").write_text("{}", encoding="utf-8")
+
+            full = common._tree_digest(root)
+            excluded = common._tree_digest(root, exclude={"ignored.json"})
+            self.assertNotEqual(full, excluded)
+
+            (root / "ignored.json").write_text('{"changed": 1}', encoding="utf-8")
+            self.assertEqual(
+                excluded, common._tree_digest(root, exclude={"ignored.json"})
+            )
+            self.assertNotEqual(full, common._tree_digest(root))
+
+    def test_assert_managed_path_rejects_escape_and_root(self) -> None:
+        from agent_system.adapter import common
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "state"
+            inside = root / "renders"
+            inside.mkdir(parents=True)
+
+            self.assertEqual(
+                common._assert_managed_path(root, inside, "inside"), inside
+            )
+            with self.assertRaisesRegex(
+                common.AdapterError, "outside the CAP state root"
+            ):
+                common._assert_managed_path(root, Path(temporary), "outside")
+            with self.assertRaisesRegex(
+                common.AdapterError, "must not be the CAP state root"
+            ):
+                common._assert_managed_path(root, root, "root itself")
+
+    def test_deep_overlay_merges_nested_tables(self) -> None:
+        from agent_system.adapter import common
+
+        merged = common._deep_overlay(
+            {"a": {"x": 1, "y": 2}, "b": 3},
+            {"a": {"y": 9, "z": 10}},
+        )
+        self.assertEqual(merged, {"a": {"x": 1, "y": 9, "z": 10}, "b": 3})
+
+    def test_replace_generation_placeholder_walks_containers(self) -> None:
+        from agent_system.adapter import common
+
+        value = {
+            "dirs": ["<PROFILE_GENERATION>/skills", "plain"],
+            "nested": {"path": "<PROFILE_GENERATION>/config.yml"},
+            "untouched": 7,
+        }
+        replaced = common._replace_generation_placeholder(value, Path("/gen"))
+        self.assertEqual(replaced["dirs"][0], f"{Path('/gen')}/skills")
+        self.assertEqual(replaced["dirs"][1], "plain")
+        self.assertEqual(replaced["nested"]["path"], f"{Path('/gen')}/config.yml")
+        self.assertEqual(replaced["untouched"], 7)
+
+
 class PrivateRuntimeValidationTest(unittest.TestCase):
     """Cover both branches of _validate_private_runtime on either host."""
 
