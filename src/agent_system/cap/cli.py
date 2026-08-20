@@ -48,7 +48,6 @@ from agent_system.omp.runtime import (
     _migration_plan,
     _omp_command,
     _omp_runtime_id,
-    _project_render_root,
     _project_shared_omp_home,
     _require_shared_runtime_ready,
     _run_omp_agent_home,
