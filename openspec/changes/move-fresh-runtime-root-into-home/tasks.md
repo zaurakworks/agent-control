@@ -54,7 +54,11 @@
 - 取得自述标记与 receipt。
 - 只有拿到真实客户端证据才把实际生效态从 `unknown` 改写；拿不到就保持 `unknown` 并说明原因。
 
-- [ ] 3.3 两端 CI 覆盖 `--fresh` smoke
+- [x] 3.3 两端 CI 覆盖 `--fresh` smoke
 
 **依赖**：3.2
 **验收**：`cross-host-checks` 在两端执行 `--fresh` 路径的 smoke，使结论由自动门禁产生而非单机手工记录。
+
+**实施说明（2026-08-20）**：`EphemeralRuntimeRootTests` 已加入 `windows-assembly`、`posix-assembly` 与新增的 `macos-assembly` 三个 job。该组用例真实构造并销毁一次性根，断言它落在真实 home 之下、可表达为 client 需要的 home 相对名、通过目录门禁、且位置选择中不含平台分支。
+
+**门禁覆盖不到的部分**：真实拉起 omp 进程的 `--fresh` 启动不在 CI 内 —— runner 上既没有 omp 二进制，也不应放置认证凭据。因此「`--fresh` 能真正启动客户端」这一条仍只有单机手工证据（Windows，见 #109 的验收记录），生效态维持 `self-reported`，不因本 CI 升级为 `observed`。

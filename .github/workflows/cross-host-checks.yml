@@ -42,6 +42,14 @@ jobs:
           tests.profile.test_profile.CanonicalModeTests
           tests.profile.test_profile.PortableDirectoryTests -v
 
+      # --fresh 的一次性根必须落在真实 home 之下，并且能表达为 client 需要的
+      # home 相对名。这一组在每个宿主上真实构造并销毁该根，因此「一次性根两端
+      # 可用」由门禁产生，而不是靠单机手工执行记录。
+      - name: Test one-shot runtime root is usable on this host
+        run: >-
+          uv run python -m unittest
+          tests.profile.test_profile.EphemeralRuntimeRootTests -v
+
       - name: Lock reproduces the committed digest
         run: uv run cap lock
 
@@ -101,8 +109,100 @@ jobs:
           tests.profile.test_profile.CanonicalModeTests
           tests.profile.test_profile.PortableDirectoryTests -v
 
+      # --fresh 的一次性根必须落在真实 home 之下，并且能表达为 client 需要的
+      # home 相对名。这一组在每个宿主上真实构造并销毁该根，因此「一次性根两端
+      # 可用」由门禁产生，而不是靠单机手工执行记录。
+      - name: Test one-shot runtime root is usable on this host
+        run: >-
+          uv run python -m unittest
+          tests.profile.test_profile.EphemeralRuntimeRootTests -v
+
       - name: Lock reproduces the committed digest
         run: uv run cap lock
 
       - name: Committed lock is unchanged
         run: git diff --exit-code .cap/lock.json
+
+  # macOS 是 #109 认定的第二个受支持宿主，也是唯一同时具备「临时目录不在 home
+  # 之下」与「原生 render 可用」的宿主：Windows 的临时目录在 home 之下，因此
+  # 无法在那里断言「home 之外不可命名」。没有这个 job，macOS 侧的结论只能记为
+  # not-verified。
+  macos-assembly:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync locked Python project
+        run: uv sync --locked
+
+      - name: Test host-independent digests and portable directory checks
+        run: >-
+          uv run python -m unittest
+          tests.profile.test_profile.CanonicalModeTests
+          tests.profile.test_profile.PortableDirectoryTests -v
+
+      - name: Test one-shot runtime root is usable on this host
+        run: >-
+          uv run python -m unittest
+          tests.profile.test_profile.EphemeralRuntimeRootTests -v
+
+      - name: Lock reproduces the committed digest
+        run: uv run cap lock
+
+      - name: Committed lock is unchanged
+        run: git diff --exit-code .cap/lock.json
+
+      - name: Show declared closure for general
+        run: uv run cap show general
+
+      - name: Show declared closure for agent-assembler
+        run: uv run cap show agent-assembler
+
+      - name: Lock machine context
+        run: uv run cap machine-context-lock
+
+      - name: Approve machine context
+        run: uv run cap machine-context-approve
+
+      - name: Bind agent-assembler
+        run: uv run cap assembly-bind agent-assembler
+
+      - name: Bind general
+        run: uv run cap assembly-bind general
+
+      - name: Prepare render output directories
+        run: mkdir -p "$RUNNER_TEMP/cap-render-omp" "$RUNNER_TEMP/cap-render-claude"
+
+      - name: Render agent-assembler for omp
+        run: >-
+          uv run cap render agent-assembler --cli omp
+          --output "$RUNNER_TEMP/cap-render-omp"
+
+      # Claude adapter 的 macOS 侧此前完全未验证。portable render 不需要安装
+      # claude，因此这一步可以把 macOS 从 not-verified 提升为门禁覆盖。
+      - name: Render general for claude
+        run: >-
+          uv run cap render general --cli claude
+          --output "$RUNNER_TEMP/cap-render-claude"
+
+      - name: Rendered trees are not empty
+        run: |
+          for dir in "$RUNNER_TEMP/cap-render-omp" "$RUNNER_TEMP/cap-render-claude"; do
+            count=$(find "$dir" -type f | wc -l | tr -d ' ')
+            if [ "$count" -lt 1 ]; then
+              echo "render produced no files: $dir" >&2
+              exit 1
+            fi
+            echo "rendered $count files: $dir"
+          done
