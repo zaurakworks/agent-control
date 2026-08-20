@@ -1,6 +1,6 @@
 version = 3
 prompt = ".cap/prompts/general.md"
-runtime = { omp = "default" }
+runtime = { omp = "default", claude = "default" }
 
 [skills]
 allow = []

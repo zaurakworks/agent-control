@@ -2650,6 +2650,17 @@ class ClaudeClientRegistrationTests(ProfileTestCase):
             profile.build_launch("claude", self.root / "runtime", tree)
 
 
+class ClaudeRuntimePolicyIsLockedTests(unittest.TestCase):
+    """The declared Claude policy must be a lock input like every other source."""
+
+    def test_repository_declares_and_locks_the_claude_policy(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        project = profile.load_project(repository)
+        self.assertIn("claude", project.runtime_policies)
+        inputs = profile._desired_lock(project)["inputs"]
+        self.assertIn(".cap/runtime/claude.toml", inputs)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent

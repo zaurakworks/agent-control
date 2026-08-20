@@ -1,0 +1,27 @@
+version = 1
+client = "claude"
+
+[policy]
+# 只声明已对 Claude Code 2.1.236 核实过的语义字段。
+# 未知字段会被保留进 runtime policy 证据并影响 effective render hash，
+# 但不会被投影成任何 native 配置键。
+
+# subscription：沿用 claude.ai 订阅登录，在 CAP runtime 内登录一次。
+# 代价是账号级远程 MCP connector 不可由 CAP 关闭，MCP 生效态只能记为
+# reported_client_limited。bare 可消除该 connector，但完全不读 OAuth，
+# 只接受 ANTHROPIC_API_KEY 或 apiKeyHelper。
+# 负责人 2026-08-19 选定 subscription 为默认。
+auth_mode = "subscription"
+
+# 合法取值：acceptEdits auto bypassPermissions manual dontAsk plan。
+# bypassPermissions 是不可选的系统固定门禁。
+permission_mode = "manual"
+
+# 是否允许工作目录的项目级 MCP 进入闭包。
+enable_project_mcp = false
+
+# 是否允许用户级 skills／subagents／commands。固定 false，不可放宽。
+enable_user_assets = false
+
+# 是否允许 auto memory。
+auto_memory = false
