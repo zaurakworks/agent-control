@@ -16,6 +16,7 @@ import tempfile
 import time
 import tomllib
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 
@@ -115,6 +116,43 @@ def _shared_runtime_marker(args: argparse.Namespace) -> Path:
 # The historical name is kept so existing raises, excepts and importers keep
 # working; the type itself is now shared with every other adapter.
 _MigrationError = AdapterError
+
+_SHARED_PREFERENCE_SOURCE_VERSION = 1
+_SHARED_PREFERENCE_FIELDS = frozenset(
+    {
+        "advisor",
+        "colorBlindMode",
+        "composer",
+        "cycleOrder",
+        "defaultThinkingLevel",
+        "disabledProviders",
+        "display",
+        "enabledModels",
+        "extendedContext",
+        "modelProviderOrder",
+        "modelRoles",
+        "modelTags",
+        "statusLine",
+        "symbolPreset",
+        "textVerbosity",
+        "theme",
+        "thinkingBudgets",
+        "tier",
+    }
+)
+
+_SHARED_PROVIDER_ENDPOINT_ENV = frozenset(
+    {
+        "ANTHROPIC_BASE_URL",
+        "AZURE_OPENAI_BASE_URL",
+        "GEMINI_BASE_URL",
+        "KIMI_CODE_BASE_URL",
+        "LM_STUDIO_BASE_URL",
+        "OLLAMA_BASE_URL",
+        "OPENAI_BASE_URL",
+        "OPENROUTER_BASE_URL",
+    }
+)
 
 @dataclass(frozen=True)
 class _RuntimeSummary:
@@ -929,6 +967,11 @@ def _read_omp_runtime_policy(args: argparse.Namespace) -> dict[str, object]:
     policy = data.get("policy")
     if not isinstance(policy, dict):
         raise _MigrationError("OMP runtime policy.policy must be a table")
+    preference_source = policy.get("shared_preference_source", "omp-user")
+    if preference_source != "omp-user":
+        raise _MigrationError(
+            "OMP policy shared_preference_source must be omp-user"
+        )
     memory_backend = policy.get("memory_backend", "off")
     if memory_backend != "off":
         raise _MigrationError("OMP policy memory_backend must be off")
@@ -937,20 +980,147 @@ def _read_omp_runtime_policy(args: argparse.Namespace) -> dict[str, object]:
         raise _MigrationError("OMP policy enable_project_mcp must be boolean")
     return {
         **policy,
+        "shared_preference_source": preference_source,
         "memory_backend": memory_backend,
         "enable_project_mcp": project_mcp,
     }
-def _read_global_omp_preference(
-    args: argparse.Namespace,
-) -> dict[str, object]:
-    """Read only the isolated OMP runtime preference, never ambient config."""
+def _shared_omp_preference_path(args: argparse.Namespace) -> Path:
+    """Return the sole user-owned OMP preference file CAP may project."""
 
-    root = _agent_home_dir(args)
-    config_path = root / "config.yml"
-    if not config_path.is_file():
+    configured = getattr(args, "omp_preference_root", None)
+    root = (
+        Path(configured).expanduser().absolute()
+        if configured
+        else _runtime_real_home(args) / ".omp" / "agent"
+    )
+    return root / "config.yml"
+
+
+def _json_value(value: object, context: str) -> object:
+    """Reject values that cannot safely enter the canonical preference digest."""
+
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, list):
+        return [_json_value(item, f"{context}[]") for item in value]
+    if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        return {
+            key: _json_value(item, f"{context}.{key}")
+            for key, item in sorted(value.items())
+        }
+    raise _MigrationError(f"{context} must contain only JSON values")
+
+
+def _read_shared_omp_config(args: argparse.Namespace) -> dict[str, object]:
+    """Read the explicitly selected normal-OMP configuration file."""
+
+    path = _shared_omp_preference_path(args)
+    if not path.is_file():
         return {}
-    return _read_runtime_config(root, "isolated OMP runtime")
+    try:
+        parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        raise _MigrationError(f"shared OMP preference is invalid: {path}") from error
+    if parsed is None:
+        return {}
+    if not isinstance(parsed, dict) or not all(
+        isinstance(key, str) for key in parsed
+    ):
+        raise _MigrationError("shared OMP preference must be an object")
+    return parsed
 
+
+def _read_global_omp_preference(args: argparse.Namespace) -> dict[str, object]:
+    """Read the explicit user preference source through a capability-safe allowlist."""
+
+    parsed = _read_shared_omp_config(args)
+    return {
+        key: _json_value(value, f"shared OMP preference.{key}")
+        for key, value in sorted(parsed.items())
+        if key in _SHARED_PREFERENCE_FIELDS
+    }
+
+
+def _shared_omp_auth(args: argparse.Namespace) -> tuple[dict[str, str], dict[str, object]]:
+    """Resolve only a configured local auth-broker, never ambient credentials."""
+
+    auth = _read_shared_omp_config(args).get("auth")
+    if auth is None:
+        return {}, {"configured": False}
+    if not isinstance(auth, dict):
+        raise _MigrationError("shared OMP auth must be an object")
+    broker = auth.get("broker")
+    if broker is None:
+        return {}, {"configured": False}
+    if not isinstance(broker, dict):
+        raise _MigrationError("shared OMP auth.broker must be an object")
+    url = broker.get("url")
+    if not isinstance(url, str) or not url:
+        raise _MigrationError("shared OMP auth.broker.url must be a non-empty string")
+    parsed_url = urlparse(url)
+    is_loopback_http = (
+        parsed_url.scheme == "http"
+        and parsed_url.hostname in {"127.0.0.1", "::1", "localhost"}
+    )
+    if not (parsed_url.scheme == "https" or is_loopback_http):
+        raise _MigrationError(
+            "shared OMP auth broker must use https or loopback http"
+        )
+    token = broker.get("token")
+    if token is None:
+        token_path = _shared_omp_preference_path(args).parent / "auth-broker.token"
+        try:
+            token = token_path.read_text(encoding="utf-8").strip()
+        except OSError as error:
+            raise _MigrationError(
+                "shared OMP auth broker token is missing"
+            ) from error
+    if not isinstance(token, str) or not token:
+        raise _MigrationError("shared OMP auth broker token must be non-empty")
+    return (
+        {
+            "OMP_AUTH_BROKER_URL": url,
+            "OMP_AUTH_BROKER_TOKEN": token,
+        },
+        {
+            "configured": True,
+            "mode": "broker",
+            "source_digest": _digest_json({"url": url}),
+        },
+    )
+
+
+def _shared_provider_endpoints(
+    base_env: Mapping[str, str],
+) -> tuple[dict[str, str], dict[str, object]]:
+    """Pass only approved, credential-free provider endpoint variables through."""
+
+    endpoints: dict[str, str] = {}
+    for name in sorted(_SHARED_PROVIDER_ENDPOINT_ENV):
+        value = base_env.get(name)
+        if not value:
+            continue
+        parsed_url = urlparse(value)
+        is_loopback_http = (
+            parsed_url.scheme == "http"
+            and parsed_url.hostname in {"127.0.0.1", "::1", "localhost"}
+        )
+        if (
+            not (parsed_url.scheme == "https" or is_loopback_http)
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
+            raise _MigrationError(
+                f"shared provider endpoint {name} must be credential-free https "
+                "or loopback http"
+            )
+        endpoints[name] = value
+    return endpoints, {
+        "names": sorted(endpoints),
+        "digest": _digest_json(endpoints),
+    }
 
 
 def _effective_config_template(
@@ -959,24 +1129,17 @@ def _effective_config_template(
     policy: Mapping[str, object],
     global_preference: Mapping[str, object],
 ) -> dict[str, object]:
-    global_memory = global_preference.get("memory", {})
-    global_mcp = global_preference.get("mcp", {})
-    if not isinstance(global_memory, dict) or not isinstance(global_mcp, dict):
-        raise _MigrationError("isolated OMP preference has invalid sections")
-    memory_backend = policy.get(
-        "memory_backend", global_memory.get("backend", "off")
-    )
-    project_mcp = policy.get(
-        "enable_project_mcp",
-        global_mcp.get("enableProjectConfig", False),
-    )
+    """Merge user appearance/model preferences without reopening capability gates."""
+
+    memory_backend = policy.get("memory_backend", "off")
+    project_mcp = policy.get("enable_project_mcp", False)
     if memory_backend != "off" or project_mcp is not False:
         raise _MigrationError("OMP policy rejected unsafe global preference")
     return _deep_overlay(
-        portable_config,
+        _deep_overlay(portable_config, global_preference),
         {
-            "memory": {"backend": policy["memory_backend"]},
-            "mcp": {"enableProjectConfig": policy["enable_project_mcp"]},
+            "memory": {"backend": memory_backend},
+            "mcp": {"enableProjectConfig": project_mcp},
             "skills": {
                 "customDirectories": [
                     "<PROFILE_GENERATION>/skills"
@@ -1047,7 +1210,7 @@ def _verify_profile_generation(
 def _materialize_profile_generation(
     args: argparse.Namespace,
     env: dict[str, str],
-) -> tuple[Path, str, str, list[str]]:
+) -> tuple[Path, str, str, list[str], dict[str, str]]:
     with tempfile.TemporaryDirectory(
         prefix=f"cap-render-{args.profile}-omp-"
     ) as temporary:
@@ -1071,6 +1234,9 @@ def _materialize_profile_generation(
         skill_names = list(rendered_skills)
         policy = _read_omp_runtime_policy(args)
         global_preference = _read_global_omp_preference(args)
+        shared_auth, shared_auth_state = _shared_omp_auth(args)
+        shared_endpoints, shared_endpoint_state = _shared_provider_endpoints(env)
+        shared_launch_env = {**shared_endpoints, **shared_auth}
         config_template = _effective_config_template(
             _read_portable_config(rendered),
             skill_names,
@@ -1084,7 +1250,13 @@ def _materialize_profile_generation(
             "skills": skill_names,
             "runtime_policy": {
                 "project": policy,
-                "global_preference_digest": _digest_json(global_preference),
+                "shared_preference": {
+                    "version": _SHARED_PREFERENCE_SOURCE_VERSION,
+                    "fields": sorted(global_preference),
+                    "digest": _digest_json(global_preference),
+                },
+                "shared_auth": shared_auth_state,
+                "shared_provider_endpoints": shared_endpoint_state,
                 "effective": {
                     "memory_backend": policy["memory_backend"],
                     "enable_project_mcp": policy["enable_project_mcp"],
@@ -1158,7 +1330,7 @@ def _materialize_profile_generation(
             },
             verify=verify,
         )
-        return generation, portable_hash, effective_hash, skill_names
+        return generation, portable_hash, effective_hash, skill_names, shared_launch_env
 
 def _omp_command(
     generation: Path,
@@ -1219,6 +1391,7 @@ def _agent_home_env(
     agent_home: Path,
     generation: Path,
     real_home: Path,
+    shared_auth: Mapping[str, str],
 ) -> dict[str, str]:
     env = base_env.copy()
     for name in AMBIENT_CONFIG_ENV:
@@ -1245,6 +1418,7 @@ def _agent_home_env(
             "PI_PROFILE": "default",
         }
     )
+    env.update(shared_auth)
     return env
 
 def _write_receipt(
@@ -1316,6 +1490,7 @@ def _run_omp_agent_home(
             portable_hash,
             effective_hash,
             skill_names,
+            shared_auth,
         ) = _materialize_profile_generation(args, env)
     except _MigrationError as error:
         print(f"持久 OMP 启动失败：{error}", file=sys.stderr)
@@ -1342,7 +1517,7 @@ def _run_omp_agent_home(
         ),
         cwd=str(workdir),
         env=_agent_home_env(
-            env, agent_home, generation, real_home
+            env, agent_home, generation, real_home, shared_auth
         ),
         stdin=_client_stdin(args),
         check=False,

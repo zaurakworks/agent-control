@@ -39,11 +39,14 @@ version = 1
 client = "omp"
 
 [policy]
+shared_preference_source = "omp-user"
 memory_backend = "off"
 enable_project_mcp = false
 ```
 
-合成顺序固定为：系统安全门禁 > project policy > role override > `omp/<runtime-id>` 用户 preference。未验证字段保留在 policy evidence 中，但不猜测 OMP native key。当前 adapter 将 `memory_backend` 和 `enable_project_mcp` 投影到隔离 `config.yml`；未知的 advisor、预算和压缩键保持未接入。
+合成顺序固定为：系统安全门禁 > project policy > role override > 普通 OMP 用户 preference。`omp-user` 只投影模型角色、`extendedContext`、thinking/tier、advisor、theme、status line、composer 与显示字段；MCP、Skill、Hook、Plugin、extension、工具审批、路径和 memory 不得从该 source 进入 CAP native config。共享 preference 的摘要与 allowlist 版本参与 OMP generation；值变更后旧 generation 不得作为当前命中。
+
+Provider endpoint 与认证只允许由明确批准的私有 source adapter 在启动期注入。API key、OAuth token、cookie、broker token 与完整 secret 配置不得进入 portable render、lock、binding、generation、receipt 或日志。配置态只证明投影正确；未执行真实客户端请求时，provider、advisor 与模型行为保持 unknown。
 
 ## 命令
 

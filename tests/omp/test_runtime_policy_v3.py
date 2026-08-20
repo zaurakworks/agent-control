@@ -11,10 +11,14 @@ from agent_system.profile import cli as profile_cli
 
 
 def _args(project: Path, home: Path) -> argparse.Namespace:
-    return argparse.Namespace(project=str(project), agent_home_root=str(home))
+    return argparse.Namespace(
+        project=str(project),
+        agent_home_root=str(home / "state"),
+        _real_home=home,
+    )
 
 
-def test_policy_preserves_unknown_fields_without_projecting_them(tmp_path: Path) -> None:
+def test_shared_preference_projects_only_allowlisted_fields(tmp_path: Path) -> None:
     (tmp_path / ".cap" / "runtime").mkdir(parents=True)
     (tmp_path / ".cap" / "runtime" / "omp.toml").write_text(
         'version = 1\nclient = "omp"\n\n[policy]\n'
@@ -23,14 +27,40 @@ def test_policy_preserves_unknown_fields_without_projecting_them(tmp_path: Path)
         'future_field = "untouched"\n',
         encoding="utf-8",
     )
-    policy = runtime._read_omp_runtime_policy(_args(tmp_path, tmp_path / "home"))
-    rendered = runtime._effective_config_template(
-        {}, [], policy, {"memory": {"backend": "off"}, "future_global": 1}
+    preference = tmp_path / ".omp" / "agent"
+    preference.mkdir(parents=True)
+    (preference / "config.yml").write_text(
+        "modelRoles:\n"
+        "  default: openai-codex/gpt-5.6-terra\n"
+        "extendedContext: false\n"
+        "advisor:\n"
+        "  enabled: true\n"
+        "mcp:\n"
+        "  enableProjectConfig: true\n"
+        "skills:\n"
+        "  enablePiUser: true\n"
+        "worktree:\n"
+        "  base: C:/unsafe\n",
+        encoding="utf-8",
     )
+    args = _args(tmp_path, tmp_path)
+    policy = runtime._read_omp_runtime_policy(args)
+    preference_value = runtime._read_global_omp_preference(args)
+    rendered = runtime._effective_config_template({}, [], policy, preference_value)
+    assert preference_value == {
+        "advisor": {"enabled": True},
+        "extendedContext": False,
+        "modelRoles": {"default": "openai-codex/gpt-5.6-terra"},
+    }
     assert policy["future_field"] == "untouched"
-    assert "future_field" not in rendered
+    assert rendered["modelRoles"]["default"] == "openai-codex/gpt-5.6-terra"
+    assert rendered["extendedContext"] is False
+    assert rendered["advisor"]["enabled"] is True
     assert rendered["memory"]["backend"] == "off"
     assert rendered["mcp"]["enableProjectConfig"] is False
+    assert rendered["skills"]["enablePiUser"] is False
+    assert "worktree" not in rendered
+
 
 def test_project_policy_overrides_unsafe_global_preference(
     tmp_path: Path,
@@ -38,9 +68,98 @@ def test_project_policy_overrides_unsafe_global_preference(
     rendered = runtime._effective_config_template(
         {}, [],
         {"memory_backend": "off", "enable_project_mcp": False},
-        {"memory": {"backend": "sqlite"}},
+        {"theme": {"dark": "titanium"}},
     )
     assert rendered["memory"]["backend"] == "off"
+    assert rendered["theme"]["dark"] == "titanium"
+
+
+def test_shared_broker_auth_uses_token_file_without_serializing_secret(
+    tmp_path: Path,
+) -> None:
+    preference = tmp_path / ".omp" / "agent"
+    preference.mkdir(parents=True)
+    (preference / "config.yml").write_text(
+        "auth:\n"
+        "  broker:\n"
+        "    url: http://127.0.0.1:8765\n",
+        encoding="utf-8",
+    )
+    (preference / "auth-broker.token").write_text(
+        "secret-token\n", encoding="utf-8"
+    )
+    auth, state = runtime._shared_omp_auth(_args(tmp_path, tmp_path))
+    assert auth == {
+        "OMP_AUTH_BROKER_URL": "http://127.0.0.1:8765",
+        "OMP_AUTH_BROKER_TOKEN": "secret-token",
+    }
+    assert state["configured"] is True
+    assert "secret-token" not in json.dumps(state)
+
+
+def test_shared_broker_auth_rejects_unapproved_http_endpoint(
+    tmp_path: Path,
+) -> None:
+    preference = tmp_path / ".omp" / "agent"
+    preference.mkdir(parents=True)
+    (preference / "config.yml").write_text(
+        "auth:\n"
+        "  broker:\n"
+        "    url: http://broker.example.test\n"
+        "    token: secret-token\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(runtime._MigrationError, match="https or loopback"):
+        runtime._shared_omp_auth(_args(tmp_path, tmp_path))
+
+
+def test_shared_provider_endpoint_is_redacted_in_state() -> None:
+    endpoints, state = runtime._shared_provider_endpoints(
+        {"OPENAI_BASE_URL": "https://gateway.example.test/v1"}
+    )
+    assert endpoints == {"OPENAI_BASE_URL": "https://gateway.example.test/v1"}
+    assert state["names"] == ["OPENAI_BASE_URL"]
+    assert "gateway.example.test" not in json.dumps(state)
+
+
+def test_shared_provider_endpoint_rejects_query_credentials() -> None:
+    with pytest.raises(runtime._MigrationError, match="credential-free"):
+        runtime._shared_provider_endpoints(
+            {"OPENAI_BASE_URL": "https://gateway.example.test/v1?key=secret"}
+        )
+
+
+def test_profiles_share_omp_runtime_and_native_resume_root(tmp_path: Path) -> None:
+    general = _args(tmp_path, tmp_path)
+    general.profile = "general"
+    assembler = _args(tmp_path, tmp_path)
+    assembler.profile = "agent-assembler"
+    (tmp_path / "system-prompt.md").write_text("prompt", encoding="utf-8")
+    assert runtime._agent_home_dir(general) == runtime._agent_home_dir(assembler)
+    command = runtime._omp_command(
+        tmp_path, ["example-skill"], ["--resume", "session-id"]
+    )
+    assert "--session-dir" not in command
+    assert command[-2:] == ["--resume", "session-id"]
+
+
+def test_cap_environment_replaces_ambient_credentials_with_shared_broker(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    agent_home = home / ".agent-system-state" / "runtimes" / "omp" / "default"
+    env = runtime._agent_home_env(
+        {"OPENAI_API_KEY": "ambient-secret", "OMP_AUTH_BROKER_TOKEN": "old"},
+        agent_home,
+        tmp_path,
+        home,
+        {
+            "OMP_AUTH_BROKER_URL": "http://127.0.0.1:8765",
+            "OMP_AUTH_BROKER_TOKEN": "shared-secret",
+        },
+    )
+    assert env["OPENAI_API_KEY"] == ""
+    assert env["OMP_AUTH_BROKER_TOKEN"] == "shared-secret"
 
 def test_external_import_requires_approved_profile_and_digest() -> None:
     project = type(

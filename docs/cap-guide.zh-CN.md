@@ -27,7 +27,7 @@ CAP 管理四类 Agent-facing 能力：
 - **宿主与观察**：machine-context manifest/pin、asset inventory；
 - **锁定与运行**：`.cap/lock.json`、assembly binding、runtime policy、generation、receipt。
 
-CAP **不**接管认证、token、provider 账号、Git/SSH、语言工具链或任意用户目录。认证通过显式 `--auth-root` 提供，业务能力不能从用户目录或 provider ambient 配置隐式补齐。
+CAP 不从用户目录隐式获得 Agent-facing capability；但 OMP 的已声明共享 preference source 可以提供模型、advisor、界面、已批准 endpoint 和认证 broker。API key、OAuth token、cookie 与 broker token 仅启动期注入，永不进入 CAP render、lock 或 receipt。
 
 ## 2. 三个最重要的概念
 
@@ -58,6 +58,12 @@ uv run cap agents
 uv run cap show general
 uv run cap show agent-assembler
 ```
+
+### OMP 共享设置与恢复会话
+
+普通 OMP 的模型角色、`extendedContext`、advisor、theme、status line 和 composer 会进入后续 CAP OMP launch；CAP 固定关闭 memory、project MCP discovery 和用户能力目录。认证通过普通 OMP 配置的 auth-broker 共享；未配置 broker 时，CAP 不会借用环境变量中的 API key。
+
+CAP profile 共享同一 OMP runtime id 的原生 session root。先选择要继续使用的 profile，随后在相同工作目录的 OMP 中运行 `/resume` 并选择旧 session；历史保留，但新的请求使用当前 profile 的 prompt、模型、advisor 和能力闭包。
 
 ### 能力闭包
 

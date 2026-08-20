@@ -44,6 +44,15 @@ npx openspec validate <change-id> --strict --json
 
 供人阅读的 proposal、spec、design、tasks 正文使用中文，保留 OpenSpec 解析要求的英文结构关键字。初始化保持 `--tools none`：OpenSpec CLI 管理 `openspec/` 规划资产；六个中文 Workflow Skill 合同由 `.cap` 显式声明，不向 `.agents`、`.omp`、`.qoder` 生成 profile 外运行时能力。
 
+OpenSpec 官方 CLI 与项目内中文 Workflow Skill 的采用状态由 `.cap/capabilities/skills/capability-lifecycle/references/openspec-upstream.json` 控制。修改 package、lock、六个兼容声明、provenance 或 CAP closure 后运行：
+
+```bash
+python tools/openspec_lifecycle/openspec_lifecycle.py --project . verify
+python tools/openspec_lifecycle/openspec_lifecycle.py --project . digest --change <change-id>
+```
+
+不带 `--revision` 的 digest 只是 working-tree preview，不能回写 Issue 为已同步；受管摘要必须使用固定 Git commit 的 `--revision <commit>` 结果，并通过 `summary-check` 校验字段。检测到新版本只更新 review／candidate，不自动覆盖 adopted。
+
 ## 修改后
 
 从仓库根目录执行：
@@ -227,6 +236,16 @@ git diff --stat
 - 新方案会把本仓变成 Plugin Marketplace、调度器、secret broker 或全局能力安装器。
 
 此时保留已验证的局部结果，报告缺口和下一步所有者。
+
+## OMP 共享 preference 与跨 profile resume
+
+普通 OMP 的 `~/.omp/agent/config.yml` 是 CAP OMP 的唯一共享 preference source。CAP 只投影模型角色、`extendedContext`、thinking/tier、advisor、theme、status line、composer、显示字段和经过校验的无 credential provider endpoint；项目固定门禁仍强制关闭 memory、project MCP discovery 与 ambient capability。
+
+认证使用配置的本地或 HTTPS auth-broker。broker token 只在启动 OMP 子进程时从私有 token 文件或 broker 配置读入环境；不得手工写入 CAP generation、receipt、lock 或项目文件。broker 未配置时 CAP 保持其隔离 credential store，不得借用 ambient API key。
+
+同一 OMP runtime id 下的 CAP profile 共用 OMP 原生 session/history/database/models-cache root。先打开目标 profile，再在同一工作目录执行 `/resume`，即可选择此前 profile 创建的 session；续接后的模型、advisor、prompt 与能力闭包以当前 profile 为准。CAP 不创建 profile 专属 `--session-dir`，也不恢复旧 profile 的运行中 tool、子 Agent 或 worktree。
+
+回滚共享 preference 时移除或恢复普通 OMP source 中的相应字段后重新启动 CAP；CAP generation 将按摘要重建。不要删除 session JSONL、broker token 或 credential store 作为回滚手段。
 
 ## Claude runtime 与 CAS 维护
 
