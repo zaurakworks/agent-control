@@ -35,6 +35,29 @@ class ClientStdinTest(unittest.TestCase):
         self.assertIsNone(omp_runtime._client_stdin(SimpleNamespace()))
 
 
+def _claude_evidence_root() -> Path:
+    """Locate the Claude adapter evidence wherever its change package lives.
+
+    The code depends on these recorded observations regardless of whether the
+    change is still active or already archived, so the invariant must survive
+    archiving rather than break on it.
+    """
+
+    repository = Path(__file__).resolve().parents[2]
+    candidates = [
+        repository / "openspec" / "changes" / "add-claude-cap-adapter" / "evidence",
+        *sorted(
+            (repository / "openspec" / "changes" / "archive").glob(
+                "*-add-claude-cap-adapter/evidence"
+            )
+        ),
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    raise AssertionError("Claude adapter evidence not found in any change package")
+
+
 class NonTTY(io.StringIO):
     def isatty(self) -> bool:
         return False
@@ -875,15 +898,7 @@ class ClaudeGenerationEvidencePinTests(unittest.TestCase):
         from agent_system.adapter.common import _digest_bytes
         from agent_system.claude import generation
 
-        repository = Path(__file__).resolve().parents[2]
-        evidence = (
-            repository
-            / "openspec"
-            / "changes"
-            / "add-claude-cap-adapter"
-            / "evidence"
-            / "claude-native-surface.json"
-        )
+        evidence = _claude_evidence_root() / "claude-native-surface.json"
         # The generation manifest pins this digest, so revising the recorded
         # observations must invalidate cached renders rather than let a stale
         # assumption keep serving them.
@@ -1018,10 +1033,7 @@ class ClaudeNativeEvidenceTests(unittest.TestCase):
     """Every native key in the projection must be backed by recorded evidence."""
 
     def test_recorded_evidence_covers_the_projected_keys(self) -> None:
-        repository = Path(__file__).resolve().parents[2]
-        evidence_root = (
-            repository / "openspec" / "changes" / "add-claude-cap-adapter" / "evidence"
-        )
+        evidence_root = _claude_evidence_root()
         surface = json.loads(
             (evidence_root / "claude-native-surface.json").read_text(encoding="utf-8")
         )
