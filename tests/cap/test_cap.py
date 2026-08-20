@@ -1148,9 +1148,11 @@ class OmpRuntimeMigrationTest(unittest.TestCase):
             cap._project_shared_omp_home(self.args),
             identity="account",
         )
-        project_renders = cap._project_render_root(self.args)
-        project_renders.mkdir(parents=True)
-        (project_renders / "old").write_text("old", encoding="utf-8")
+        from agent_system.omp import runtime as omp_runtime
+
+        generation = omp_runtime._global_render_root(self.args) / "deadbeef"
+        generation.mkdir(parents=True)
+        (generation / ".cap-generation.json").write_text("{}", encoding="utf-8")
         public, summaries, canonical, config, sessions = cap._migration_plan(
             self.args
         )
@@ -1162,15 +1164,75 @@ class OmpRuntimeMigrationTest(unittest.TestCase):
 
         self.assertEqual(result["status"], "cleaned-project-state")
         self.assertFalse(cap._project_shared_omp_home(self.args).exists())
-        self.assertFalse(cap._project_render_root(self.args).exists())
         self.assertFalse(cap._migration_backup_root(self.args).exists())
         self.assertTrue(cap._agent_home_dir(self.args).is_dir())
+        # The global render CAS is current state, not migration leftovers.
+        self.assertTrue((generation / ".cap-generation.json").is_file())
         outside = self.root / "outside"
         outside.mkdir()
         with self.assertRaisesRegex(
             cap._MigrationError, "outside the CAP state root"
         ):
             cap._safe_remove_tree(self.agent_root, outside, "outside")
+
+    def test_cleanup_preserves_render_cas_in_production_layout(self) -> None:
+        """Reproduce the real default layout, where the roots overlap.
+
+        `setUp` puts `agent_home_root` outside `home`, so the roots never
+        overlap and the historical cleanup bug could not surface there. In
+        production `--agent-state-root` defaults to `$HOME/.agent-system-state`,
+        which makes it the parent of the global render CAS.
+        """
+
+        from agent_system.omp import runtime as omp_runtime
+
+        args = cap.argparse.Namespace(
+            home=str(self.home),
+            omp_runtime_id="default",
+            omp_runtime_root=None,
+            agent_home_root=str(self.home / ".agent-system-state"),
+            auth_root=str(self.root / "project.auth"),
+        )
+        cas = omp_runtime._global_render_root(args)
+        self.assertTrue(
+            cas.is_relative_to(omp_runtime._agent_home_root(args) / "renders"),
+            "test must reproduce the overlapping production layout",
+        )
+
+        generation = cas / "deadbeef"
+        generation.mkdir(parents=True)
+        (generation / ".cap-generation.json").write_text("{}", encoding="utf-8")
+
+        self.make_runtime(
+            omp_runtime._project_shared_omp_home(args), identity="account"
+        )
+        public, summaries, canonical, config, sessions = cap._migration_plan(args)
+        cap._apply_omp_runtime_migration(
+            args, public, summaries, canonical, config, sessions
+        )
+        cap._cleanup_legacy_omp_runtime(args)
+
+        self.assertTrue(
+            (generation / ".cap-generation.json").is_file(),
+            "cleanup must not remove the global render CAS",
+        )
+
+    def test_safe_remove_tree_refuses_ancestor_of_preserved_state(self) -> None:
+        renders = self.agent_root / "renders"
+        generation = renders / "omp" / "deadbeef"
+        generation.mkdir(parents=True)
+        (generation / ".cap-generation.json").write_text("{}", encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            cap._MigrationError, "would remove preserved state"
+        ):
+            cap._safe_remove_tree(
+                self.agent_root,
+                renders,
+                "project-render-cache",
+                protected=(generation.parent,),
+            )
+        self.assertTrue((generation / ".cap-generation.json").is_file())
 
 
 def yaml_from(path: Path) -> dict[str, object]:

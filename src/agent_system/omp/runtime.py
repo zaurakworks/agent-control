@@ -86,9 +86,6 @@ def _global_render_root(args: argparse.Namespace) -> Path:
 def _profile_render_parent(args: argparse.Namespace) -> Path:
     return _global_render_root(args)
 
-def _project_render_root(args: argparse.Namespace) -> Path:
-    return _agent_home_root(args) / "renders"
-
 def _migration_backup_root(args: argparse.Namespace) -> Path:
     return (
         _agent_home_root(args)
@@ -811,10 +808,27 @@ def _apply_omp_runtime_migration(
         "backup_created": True,
     }
 
-def _safe_remove_tree(root: Path, candidate: Path, label: str) -> bool:
+def _safe_remove_tree(
+    root: Path,
+    candidate: Path,
+    label: str,
+    *,
+    protected: tuple[Path, ...] = (),
+) -> bool:
     if not candidate.exists() and not candidate.is_symlink():
         return False
     _assert_managed_path(root, candidate, label)
+    resolved = candidate.expanduser().absolute()
+    for guarded in protected:
+        guarded = guarded.expanduser().absolute()
+        if guarded == resolved or guarded.is_relative_to(resolved):
+            # `_assert_managed_path` only rejects escaping the CAP state root;
+            # it cannot tell that a legitimate in-root target is an ancestor of
+            # live state. Without this check a cleanup entry that names a parent
+            # directory silently takes the global render CAS with it.
+            raise _MigrationError(
+                f"{label} would remove preserved state: {guarded}"
+            )
     _reject_unsafe_tree(candidate, label)
     shutil.rmtree(candidate)
     return True
@@ -922,13 +936,18 @@ def _cleanup_legacy_omp_runtime(args: argparse.Namespace) -> dict[str, object]:
     ):
         raise _MigrationError("global OMP marker does not match runtime id")
     root = _agent_home_root(args)
+    # The global render CAS and the persistent runtime survive cleanup: they are
+    # current state, not migration leftovers. `renders/` used to be a per-project
+    # cache, but after the v3 move to `$HOME/.agent-system-state` it is the
+    # parent of `renders/omp`, so removing it would take every generation for
+    # every project and runtime-id with it.
+    protected = (_global_render_root(args), _agent_home_dir(args))
     removed: list[str] = []
     for label, path in (
         ("project-shared-runtime", _project_shared_omp_home(args)),
-        ("project-render-cache", _project_render_root(args)),
         ("migration-backup", _migration_backup_root(args)),
     ):
-        if _safe_remove_tree(root, path, label):
+        if _safe_remove_tree(root, path, label, protected=protected):
             removed.append(label)
     return {
         "status": "cleaned-project-state",
