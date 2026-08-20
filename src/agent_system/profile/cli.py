@@ -3395,29 +3395,35 @@ def _redact_secret_values(value: Any, parent_key: str = "") -> Any:
 
 
 def _canonical_mode(path: Path) -> int:
-    """Return a platform-independent permission value for one lock or render input.
+    """Return a filesystem-independent permission value for one lock or render input.
 
-    The raw `stat.S_IMODE` value is not comparable across platforms: POSIX
-    reports 0o644/0o755, while Windows exposes only a read-only flag and Python
-    reports 0o666 for any writable file. Recording it verbatim made
-    `.cap/lock.json` and every `tree_hash` platform-dependent, so a lock written
-    on one platform always failed verification on the other.
+    The raw `stat.S_IMODE` value is not comparable across platforms or even
+    across filesystems on one platform, so recording it verbatim made
+    `.cap/lock.json` and every `tree_hash` environment-dependent: a lock written
+    in one environment always failed verification in another. Observed values
+    for the same committed, non-executable file:
 
-    Git preserves exactly one permission distinction for tracked files -- the
-    owner executable bit -- so that is the only distinction worth recording.
-    Git for Windows additionally defaults to `core.fileMode=false` and checks
-    every file out as non-executable, so Windows cannot observe that bit at all
-    and always canonicalizes to the non-executable value.
+        Linux ext4        0o644
+        Windows (native)  0o666   -- only a read-only flag exists
+        WSL on DrvFs      0o777   -- every file reports as executable
 
-    Consequence: a file committed as executable renders as 0755 on POSIX and
-    0644 on Windows. No lock input is currently executable, so this does not
-    apply today; capability trees that need executable files must be verified on
-    POSIX. See zaurakworks/agent-system#82.
+    No canonicalization of these values can agree, because DrvFs reports the
+    executable bit set for everything while Git for Windows checks every file
+    out as non-executable. The permission bits therefore carry no portable
+    information, and this function returns a constant.
+
+    Integrity is unaffected: `type` plus the content `sha256` already identify
+    every lock input, and capability permissions are gated separately.
+
+    Consequence: an executable capability file is recorded and materialized as
+    non-executable. No lock input is currently executable. Restoring executable
+    support requires a portable source for that bit -- Git's index rather than
+    the filesystem -- and a lock version bump; the field should simply be
+    removed at that point. See zaurakworks/agent-system#82.
     """
 
-    if os.name == "nt":
-        return 0o644
-    return 0o755 if stat.S_IMODE(path.stat().st_mode) & 0o111 else 0o644
+    del path
+    return 0o644
 
 
 def _redacted_file_bytes(path: Path) -> bytes:
