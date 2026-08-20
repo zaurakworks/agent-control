@@ -2,6 +2,7 @@ version = 1
 client = "omp"
 
 [policy]
-# 只允许已核验的 OMP runtime 字段；当前项目不覆盖用户全局 preference。
+# 固定门禁优先；仅从指定的普通 OMP 用户配置投影非能力 preference。
+shared_preference_source = "omp-user"
 memory_backend = "off"
 enable_project_mcp = false
