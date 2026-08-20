@@ -1455,6 +1455,29 @@ def _omp_command(
         *forwarded,
     ]
 
+def _omp_config_dir_value(agent_home: Path, real_home: Path) -> str:
+    """Return the PI_CONFIG_DIR value omp's own contract accepts.
+
+    omp resolves PI_CONFIG_DIR as a directory *name* under the user home
+    (`getBaseConfigRoot()` joins `os.homedir()` with it) and only passes
+    PI_CODING_AGENT_DIR through `path.resolve()`. Handing over an absolute
+    path therefore yields `<home>/<absolute path>` and the run fails before it
+    starts. Upstream confirmed this split is deliberate, so cap converts the
+    managed runtime root into the home-relative name it is by construction.
+
+    See can1357/oh-my-pi#9067 and
+    work/records/2026-08-20-omp-windows-agent-dir/finding.md.
+    """
+
+    try:
+        return agent_home.relative_to(real_home).as_posix()
+    except ValueError as error:
+        raise _MigrationError(
+            "omp runtime root must live under the real home so that "
+            f"PI_CONFIG_DIR can name it: {agent_home}"
+        ) from error
+
+
 def _agent_home_env(
     base_env: dict[str, str],
     agent_home: Path,
@@ -1479,7 +1502,7 @@ def _agent_home_env(
             "HOME": str(real_home),
             "OMP_PROFILE": "default",
             "PI_CODING_AGENT_DIR": str(agent_home),
-            "PI_CONFIG_DIR": str(agent_home),
+            "PI_CONFIG_DIR": _omp_config_dir_value(agent_home, real_home),
             "PI_CONFIG_FILES": str(
                 generation / "config.yml"
             ),

@@ -1,5 +1,7 @@
 > 已提交：[can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)（2026-08-20，以 zaurakworks 身份）。
-> 以下为提交的正文，保留在仓内以便追溯；上游正文若被编辑，以上游为准。
+> **结果：`wontfix`。** 上游指出 `PI_CONFIG_DIR` 按设计就是相对 home 的目录名，`PI_CODING_AGENT_DIR` 才走 `path.resolve()`；
+> 支持绝对值会改变 config-root 契约而非修复回归。诊断与隔离被确认准确，但定性有误——问题在 cap 的用法，已按契约修正。
+> 详见同目录 [finding.md](./finding.md)。以下保留提交正文以便追溯。
 
 ---
 

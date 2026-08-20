@@ -44,7 +44,7 @@
 
 - [x] 5.1 在 Windows 宿主运行 `uv run cap render agent-assembler --cli omp --output <项目外空目录>`，确认产出完整装配树
 - [x] 5.2 在 Windows 宿主运行 `uv run cap show agent-assembler --cli omp`，确认返回该客户端的目标装配与渲染 hash
-- [~] 5.3 **被上游阻塞**：逐变量隔离确认 omp（v17.3.5 与 v17.3.8 均复现）在 Windows 上把绝对 `PI_CONFIG_DIR` 拼成 `<home> + <绝对路径>`，客户端无法启动；`PI_CODING_AGENT_DIR` 处理正确，与主目录及 profile 变量无关。design 的 Open Question 已据此解答。上游跟踪于 [can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)，记录与提交正文见 `work/records/2026-08-20-omp-windows-agent-dir/`。同次实测发现并修复了 cap 侧 `run` 未关闭 stdin 的问题（#98）
+- [~] 5.3 **部分完成**：Windows 上 `cap run agent-assembler` 已能成功拉起 omp 并进入模型调用——原判定的"上游阻塞"经上游裁定（[oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067) `wontfix`）更正为 cap 误用 `PI_CONFIG_DIR`，已按契约修正。**生效态自述标记仍未取得**，因为默认共享运行时路径主动删除 `OMP_AUTH_BROKER_*`，`--auth-root` 的 broker 凭据不在该路径生效；这是独立的设计问题，见 `work/records/2026-08-20-omp-windows-agent-dir/finding.md`
 - [x] 5.4 按三层证据记录结论：声明态与配置态由两端 CI 门禁给出通过依据；实际生效态保持 `unknown`，原因是上游阻塞而非验证缺失
 - [x] 5.5 扩展 `windows-latest` CI job 覆盖 render smoke，使 Windows 结论不依赖单机手工执行
 

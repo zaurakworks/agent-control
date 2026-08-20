@@ -130,19 +130,21 @@ receipt 采用"先 `O_EXCL` 预留占位、运行结束再提交"。旧实现持
 
 ## 已解答的问题
 
-原文在此挂了一个待定问题：Windows 上的 omp 读 `HOME` 还是 `USERPROFILE`。2026-08-20 实测**否掉了这个问题的前提**，记录见 [`work/records/2026-08-20-omp-windows-agent-dir/finding.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/finding.md)。
+原文在此挂了一个待定问题：Windows 上的 omp 读 `HOME` 还是 `USERPROFILE`。实测**否掉了这个问题的前提**，且经历两次更正才收敛。完整更正链见 [`work/records/2026-08-20-omp-windows-agent-dir/finding.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/finding.md)。
 
-逐变量隔离（omp v17.3.8，Windows 11），每组只改一个变量：
+结论：与主目录变量、profile 变量都无关。**是 cap 误用了 `PI_CONFIG_DIR`。**
 
-| 设置的变量 | 结果 |
-| --- | --- |
-| 仅 `PI_CODING_AGENT_DIR`（绝对） | 正常，进入模型调用 |
-| 仅 `PI_CONFIG_DIR`（绝对） | 路径翻倍为 `<home> + <绝对路径>`，`ENOENT` |
-| 两者 + `OMP_PROFILE`／`PI_PROFILE` | 翻倍 |
-| 两者，不设 profile 变量 | 翻倍（与上一行相同） |
+上游 [can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067) 裁定 `wontfix` 并给出理由：`getBaseConfigRoot()` 无条件把 `os.homedir()` 与 `getConfigDirName()` 拼接，而 `PI_CODING_AGENT_DIR` 单独经过 `path.resolve()`；这个区分是设计意图，`PI_CONFIG_DIR` 被定义为**相对 home 的目录名**，支持绝对值会改变契约而不是修复回归。
 
-真正的原因是 omp 对 **`PI_CONFIG_DIR`** 做拼接而不是解析，与主目录变量、profile 变量均无关。这是上游行为，不在本仓代码内。
+因此两个变量的契约不同，cap 分别按契约传值：
 
-**不做绕过**：`PI_CONFIG_DIR` 正是 cap 隔离客户端配置的手段——实测中不设它，omp 就会读取用户目录下的 `~/.omp` 配置并据此选模型，这恰是本仓"业务能力不得从用户目录隐式补齐"要防的事；`--config` 是叠加式覆盖，不提供隔离。改传相对路径可以避开翻倍，但相对 cwd 解析，而 cap 把 cwd 设为项目根，会把运行时状态写进项目，已实测并回退。
+| 变量 | 契约 | cap 传什么 |
+| --- | --- | --- |
+| `PI_CODING_AGENT_DIR` | 经 `path.resolve()`，接受绝对路径 | 托管运行时根的绝对路径 |
+| `PI_CONFIG_DIR` | 与 `os.homedir()` 拼接的目录名 | 同一目录相对真实 home 的名字 |
 
-**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。上游跟踪于 [can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)，提交正文见 [`upstream-issue.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/upstream-issue.md)。
+cap 的托管运行时根按构造就在真实 home 之下，因此总能表达为 home 相对名；运行时根被显式配置到 home 之外时该配置无法用 `PI_CONFIG_DIR` 表达，cap 显式失败而不是交出会被静默翻倍的绝对值。
+
+**修复后实测**：`cap run agent-assembler` 在 Windows 上成功拉起 omp，进入模型调用。
+
+**生效态仍为 `unknown`，原因已更正**：不再是上游阻塞，而是 cap 内两条认证路径来源不一致——默认的共享运行时路径主动删除 `OMP_AUTH_BROKER_*` 并设 `PI_AUTH_NO_BORROW=1`，`--auth-root` 的 broker 凭据只在 profile engine 的一次性运行时路径生效。这是一个独立于本 change 的设计问题。
