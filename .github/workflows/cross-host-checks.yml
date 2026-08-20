@@ -54,6 +54,28 @@ jobs:
       - name: Show declared closure for agent-assembler
         run: uv run cap show agent-assembler
 
+      # render smoke：目录校验在 Windows 上真的走通，而不是只有声明态通过。
+      - name: Lock machine context
+        run: uv run cap machine-context-lock
+
+      - name: Approve machine context
+        run: uv run cap machine-context-approve
+
+      - name: Bind agent-assembler
+        run: uv run cap assembly-bind agent-assembler
+
+      - name: Prepare render output directory
+        run: New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/cap-render" | Out-Null
+
+      - name: Render agent-assembler for omp
+        run: uv run cap render agent-assembler --cli omp --output "$env:RUNNER_TEMP/cap-render"
+
+      - name: Rendered tree is not empty
+        run: |
+          $files = Get-ChildItem -Recurse -File "$env:RUNNER_TEMP/cap-render"
+          if ($files.Count -lt 1) { throw "render produced no files" }
+          Write-Output "rendered $($files.Count) files"
+
   posix-assembly:
     runs-on: ubuntu-latest
     steps:

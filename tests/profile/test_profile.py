@@ -2276,6 +2276,45 @@ class PortableDirectoryTests(ProfileTestCase):
         ):
             profile._open_stable_directory(link, "test directory")
 
+    def test_directory_below_the_user_home_is_accepted(self) -> None:
+        # Windows puts every temporary root under %LOCALAPPDATA%\\Temp, which lives
+        # inside the user home. Only the home itself, the project and the native
+        # capability roots are off limits; anything below the home is fine.
+        below_home = self.home / "AppData" / "Local" / "Temp" / "cap-render"
+        below_home.mkdir(parents=True)
+        project = profile.load_project(self.project)
+        directory = profile._open_stable_directory(below_home, "render output")
+        profile._require_external_directory(project, directory, "render output")
+
+    def test_the_user_home_itself_is_rejected(self) -> None:
+        # The guard reads the real home through Path.home(), which resolves from
+        # USERPROFILE on Windows, so patching HOME in the environment is not
+        # enough to redirect it here.
+        project = profile.load_project(self.project)
+        directory = profile._open_stable_directory(self.home, "render output")
+        with mock.patch.object(profile.Path, "home", return_value=self.home):
+            with self.assertRaisesRegex(
+                profile.ProfileError, "outside global capability roots"
+            ):
+                profile._require_external_directory(project, directory, "render output")
+
+    def test_target_paths_beyond_the_host_limit_fail_legibly(self) -> None:
+        # knowledge/windows-agent-ops.md fixes the policy: keep paths within what
+        # the weakest consumer accepts, do not turn on the machine long-path
+        # setting. So the contract here is only that exceeding the host limit
+        # surfaces as a ProfileError naming the operation, never a raw OSError.
+        target = self.root / "limit-probe"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "render output")
+        tree = {"config.yml": profile.RenderedFile(b"{}\n")}
+        with mock.patch.object(
+            profile, "_publish_staged_entry", side_effect=OSError("path too long")
+        ):
+            with self.assertRaisesRegex(
+                profile.ProfileError, "could not materialize tree"
+            ):
+                profile._materialize_tree(directory, tree)
+
     def test_credential_privacy_conclusion_follows_host_expressiveness(self) -> None:
         with mock.patch.object(
             profile, "_private_checks_are_expressible", return_value=True
