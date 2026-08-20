@@ -331,7 +331,7 @@
 
 ### 4.2 启动与环境隔离
 
-- [ ] 4.2 实现 `_claude_command`、`_claude_env`、`_run_claude`、`_require_claude_runtime_ready`
+- [x] 4.2 实现 `_claude_command`、`_claude_env`、`_run_claude`、`_require_claude_runtime_ready` —— **已完成**（#116）
 
 **描述**：见 `design-spec.md` 4.1 与 `delta-specs.md` C-4。`CLAUDE_CONFIG_DIR` 按 runtime-id 指向 `runtimes/claude/<id>/`（只承载认证与会话）；能力面全部经 `--settings` / `--mcp-config` / `--strict-mcp-config` / `--plugin-dir` / `--setting-sources ""` 只读引用 generation；`--append-system-prompt` 注入 prompt；ambient 凭据变量置空；`HOME` 保留真实值以维持宿主底座。`auth_mode = "bare"` 时额外加 `--bare`。
 
@@ -349,7 +349,7 @@
 
 ### 4.3 receipt 与三层证据
 
-- [ ] 4.3 实现 `_write_claude_receipt` 与 `effective_observations` 分类
+- [x] 4.3 实现 `_write_claude_receipt` 与 `effective_observations` 分类 —— **已完成**（#116）
 
 **描述**：见 `design-spec.md` 4.2。receipt 含 `auth_mode`、`post_run_content_digest`、`evidence` 三层、`effective_observations` 逐维度、`ambient_floor`。同步在 `run_observed` 的 `client_limited` 中登记 Claude 的降级维度。
 
@@ -366,7 +366,7 @@
 
 ### 4.4 CAP CLI 分派
 
-- [ ] 4.4 把 `_run_selected` / `_render_preview` 的 OMP 硬编码改为 adapter 表分派
+- [x] 4.4 把 `_run_selected` / `_render_preview` 的 OMP 硬编码改为 adapter 表分派 —— **已完成**（#116）
 
 **描述**：见 `delta-specs.md` I-7。`EFFECTIVE_ADAPTERS` 表；codex / qoder 保持走通用 `subprocess` 路径。更新 parser description、epilog 与 `--cli` help 文案。`DEFAULT_CLI` 与 TUI 行为**不变**。
 

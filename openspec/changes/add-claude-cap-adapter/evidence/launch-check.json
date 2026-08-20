@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "captured_at": "2026-08-20",
+  "claude_cli_version": "2.1.236",
+  "platform": "win32-x64",
+  "purpose": "取得 cap use/run --cli claude 的启动期证据，并证明该路径不触及负责人自己的 Claude 配置与认证。",
+  "command": "cap run general --cli claude -- -p hi",
+  "observations": [
+    {
+      "id": "config-dir-is-cap-owned",
+      "claim": "CLAUDE_CONFIG_DIR 指向 CAP 自己的 runtime 根，不是负责人的 ~/.claude",
+      "status": "confirmed",
+      "evidence": "实测取值 C:\Users\<user>\.agent-system-state\runtimes\claude\default；与 ~/.claude 不相等"
+    },
+    {
+      "id": "user-client-untouched",
+      "claim": "CAP 启动不写入负责人的 Claude 配置面",
+      "status": "confirmed",
+      "evidence": "对 ~/.claude 与 ~/.claude.json 的 19 个条目（排除本会话自身持续写入的 history.jsonl、shell-snapshots 等）取 mtime 快照，跨一次完整 CAP 启动前后 diff 为空。"
+    },
+    {
+      "id": "user-credentials-not-read",
+      "claim": "CAP 启动不读取负责人的认证",
+      "status": "confirmed",
+      "evidence": "日志 [Bootstrap] Skipped: no usable OAuth, WIF, or API key，随后 API 报 Could not resolve authentication method——而负责人本人的 ~/.claude 中 OAuth 是可用的。若曾读取用户凭据，此处不会失败。"
+    },
+    {
+      "id": "generation-loaded-read-only",
+      "claim": "全部 CAP Skill 从 CAS generation 被真实加载，且 generation 在运行后仍通过 content_digest 校验",
+      "status": "confirmed",
+      "evidence": "Loaded inline plugin from path: cap-general；Loaded 6 skills from plugin cap-general default directory；运行后重新物化命中同一 CAS 且校验通过"
+    },
+    {
+      "id": "ambient-discovery-off",
+      "claim": "managed／user／project 三个 ambient Skill 发现路径均未贡献",
+      "status": "confirmed",
+      "evidence": "Loaded 0 unique skills (0 unconditional, 0 conditional, managed: 0, user: 0, project: 0, additional: 0, legacy commands: 0)"
+    },
+    {
+      "id": "settings-watch-is-cap-owned",
+      "claim": "被 watch 的用户级 settings 文件位于 CAP runtime 内",
+      "status": "confirmed",
+      "evidence": "Watching for changes in setting files ...\.agent-system-state\runtimes\claude\default\settings.json"
+    },
+    {
+      "id": "model-call-not-exercised",
+      "claim": "模型调用未被执行",
+      "status": "not-exercised",
+      "evidence": "CAP runtime 内尚无登录，进程以 Not logged in 结束，exit_code=1。",
+      "notes": "这是设计内结果，不是缺陷：认证随 CLAUDE_CONFIG_DIR 迁移，首次在 CAP 下使用需由负责人自行登录一次。本次未代其登录，因此模型调用维度保持未验证。"
+    }
+  ],
+  "evidence_level": {
+    "declared": "ok",
+    "configured": "generation-verified",
+    "effective": "unknown",
+    "notes": "能力面（Skill 加载、ambient 关闭、配置目录归属）已由真实客户端启动期日志确定性观察；但 receipt 的 evidence.effective 仍为 unknown，因为本 adapter 没有逐项 probe，且模型调用未被执行。不得由启动期观察升级为 observed。"
+  },
+  "effective_observations_final": {
+    "skills": "unknown",
+    "context": "unknown",
+    "managed_settings": "unknown",
+    "hooks": "reported_client_limited",
+    "plugins": "reported_client_limited",
+    "bundled_skills": "reported_client_limited",
+    "mcps": "reported_client_limited",
+    "notes": "subscription 模式下 mcps 恒为 reported_client_limited：claude.ai 账号级远程 connector 无视 --strict-mcp-config，已两次独立复现。代码中不存在把该维度提升为 observed 的路径。"
+  }
+}
