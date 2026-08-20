@@ -20,3 +20,8 @@ WATCHDOG.yml
 .agents/skills/.openspec-target
 .agents/skills/openspec-*/
 .claude/skills/openspec-*/
+.claude/commands/opsx/
+.omp/commands/opsx-*.md
+.omp/skills/openspec-*/
+.qoder/commands/opsx/
+.qoder/skills/openspec-*/
