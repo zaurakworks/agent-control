@@ -57,6 +57,88 @@ from agent_system.omp.runtime import (
     _write_receipt,
     _write_shared_mcp_policy,
 )
+def _omp_effective_preview(args, env):
+    (
+        generation,
+        portable_hash,
+        effective_hash,
+        skill_names,
+    ) = _materialize_profile_generation(args, env)
+    manifest = json.loads(
+        (generation / ".cap-generation.json").read_text(encoding="utf-8")
+    )
+    return {
+        "runtime_id": _omp_runtime_id(args),
+        "global_runtime_root": str(_agent_home_dir(args)),
+        "global_generation": str(generation),
+        "portable_tree_hash": portable_hash,
+        "effective_render_hash": effective_hash,
+        "project_source_context": manifest["source_context"],
+        "project_source_digest": manifest["source_digest"],
+        "skills": skill_names,
+        "fixed_flags": ["--no-extensions", "--no-rules"],
+    }
+
+
+def _claude_effective_preview(args, env):
+    from agent_system.claude.generation import (
+        claude_runtime_dir,
+        materialize_claude_generation,
+    )
+    from agent_system.claude.launch import claude_command, effective_observations
+
+    (
+        generation,
+        portable_hash,
+        effective_hash,
+        skill_names,
+    ) = materialize_claude_generation(args, env)
+    manifest = json.loads(
+        (generation / ".cap-generation.json").read_text(encoding="utf-8")
+    )
+    login_mode = str(manifest["login_mode"])
+    argv = claude_command(generation, skill_names, login_mode, [])
+    return {
+        "runtime_id": getattr(args, "claude_runtime_id", "default"),
+        "global_runtime_root": str(claude_runtime_dir(args)),
+        "global_generation": str(generation),
+        "login_mode": login_mode,
+        "portable_tree_hash": portable_hash,
+        "effective_render_hash": effective_hash,
+        "project_source_context": manifest["source_context"],
+        "project_source_digest": manifest["source_digest"],
+        "skills": list(skill_names),
+        "fixed_flags": [a for a in argv if a.startswith("--")],
+        "unsupported": manifest["native_projection"]["unsupported"],
+        "effective_observations": effective_observations(login_mode),
+    }
+
+
+def _run_omp(args, env):
+    return _run_omp_agent_home(args, env)
+
+
+def _run_claude(args, env):
+    from agent_system.profile.cli import _validate_forwarded_args
+    from agent_system.claude.launch import run_claude
+
+    # The fixed gates are only fixed if a forwarded flag cannot reopen them.
+    _validate_forwarded_args("claude", _passthrough(args.client_args))
+    return_code, _generation, receipt, _payload = run_claude(
+        args, env, _passthrough(args.client_args)
+    )
+    print(str(receipt))
+    return return_code
+
+
+# Clients whose launch goes through an in-process adapter rather than the
+# generic profile-engine subprocess. Anything absent falls through to that
+# path, which is still how codex and qoder run.
+EFFECTIVE_ADAPTERS = {
+    "omp": {"preview": _omp_effective_preview, "run": _run_omp},
+    "claude": {"preview": _claude_effective_preview, "run": _run_claude},
+}
+
 PROFILE_LABELS = {
     "general": "通用工程",
     "agent-assembler": "Agent 装配者",
@@ -295,6 +377,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_OMP_RUNTIME_ID,
         metavar="ID",
         help="用户级 OMP runtime id；默认 default",
+    )
+    parser.add_argument(
+        "--claude-runtime-id",
+        default="default",
+        metavar="ID",
+        help="用户级 Claude runtime id；默认 default",
     )
     parser.add_argument(
         "--omp-runtime-root",
@@ -798,47 +886,13 @@ def _render_preview(args: argparse.Namespace, env: dict[str, str]) -> dict[str, 
                 "files": files,
                 "tree_hash": tree_hash,
             }
-            if args.cli == "omp":
+            adapter = EFFECTIVE_ADAPTERS.get(args.cli)
+            if adapter is not None:
                 try:
-                    (
-                        generation,
-                        portable_hash,
-                        effective_hash,
-                        skill_names,
-                    ) = _materialize_profile_generation(args, env)
+                    preview.update(adapter["preview"](args, env))
                 except _MigrationError as error:
-                    print(
-                        f"effective render 失败：{error}",
-                        file=sys.stderr,
-                    )
+                    print(f"effective render 失败：{error}", file=sys.stderr)
                     return None
-                manifest = json.loads(
-                    (generation / ".cap-generation.json").read_text(
-                        encoding="utf-8"
-                    )
-                )
-                preview.update(
-                    {
-                        "runtime_id": _omp_runtime_id(args),
-                        "global_runtime_root": str(
-                            _agent_home_dir(args)
-                        ),
-                        "global_generation": str(generation),
-                        "portable_tree_hash": portable_hash,
-                        "effective_render_hash": effective_hash,
-                        "project_source_context": manifest[
-                            "source_context"
-                        ],
-                        "project_source_digest": manifest[
-                            "source_digest"
-                        ],
-                        "skills": skill_names,
-                        "fixed_flags": [
-                            "--no-extensions",
-                            "--no-rules",
-                        ],
-                    }
-                )
             return preview
     except OSError as error:
         print(f"目标文件枚举失败：{error}", file=sys.stderr)
@@ -879,8 +933,19 @@ def _show(args: argparse.Namespace, env: dict[str, str]) -> int:
     return 0
 
 def _run_selected(args: argparse.Namespace, env: dict[str, str]) -> int:
-    if args.profile_tool_command in {"launch", "run"} and args.cli == "omp" and not args.fresh:
-        return _run_omp_agent_home(args, env)
+    # Only launch and run carry a client; every other subcommand goes straight
+    # to the profile engine.
+    adapter = (
+        EFFECTIVE_ADAPTERS.get(getattr(args, "cli", None))
+        if args.profile_tool_command in {"launch", "run"}
+        else None
+    )
+    if adapter is not None and not args.fresh:
+        try:
+            return adapter["run"](args, env)
+        except _MigrationError as error:
+            print(f"{args.cli} 启动失败：{error}", file=sys.stderr)
+            return 2
     completed = subprocess.run(_profile_args(args), env=env, check=False)
     return completed.returncode
 

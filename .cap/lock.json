@@ -176,7 +176,7 @@
     },
     ".cap/runtime/claude.toml": {
       "mode": "0644",
-      "sha256": "56e00c8b97f4a4ece39940bd80a3227bafc39f254049a92a966e3044d820d213",
+      "sha256": "6daed2a9ed5893a8fc602878377b368aef27df133bff274d2116cf66d309ca7c",
       "type": "file"
     },
     ".cap/runtime/omp.toml": {

@@ -30,7 +30,7 @@ PERMISSION_MODES = frozenset(
 # be able to select it, and neither may a role override or a user preference.
 FORBIDDEN_PERMISSION_MODES = frozenset({"bypassPermissions"})
 
-AUTH_MODES = frozenset({"subscription", "bare"})
+LOGIN_MODES = frozenset({"subscription", "bare"})
 
 # Capability classes the adapter does not project yet. Declaring one for Claude
 # fails closed rather than rendering a tree that silently lacks it.
@@ -76,10 +76,10 @@ def read_claude_runtime_policy(args: argparse.Namespace) -> dict[str, object]:
     if not isinstance(policy, Mapping):
         raise ClaudeError("Claude runtime policy.policy must be a table")
 
-    auth_mode = policy.get("auth_mode", "subscription")
-    if auth_mode not in AUTH_MODES:
+    login_mode = policy.get("login_mode", "subscription")
+    if login_mode not in LOGIN_MODES:
         raise ClaudeError(
-            f"Claude policy auth_mode must be one of {sorted(AUTH_MODES)}"
+            f"Claude policy login_mode must be one of {sorted(LOGIN_MODES)}"
         )
 
     permission_mode = policy.get("permission_mode", "manual")
@@ -109,7 +109,7 @@ def read_claude_runtime_policy(args: argparse.Namespace) -> dict[str, object]:
 
     return {
         **policy,
-        "auth_mode": auth_mode,
+        "login_mode": login_mode,
         "permission_mode": permission_mode,
         "enable_project_mcp": bool(policy.get("enable_project_mcp", False)),
         "enable_user_assets": False,
@@ -177,7 +177,7 @@ def effective_claude_config(
     return {
         "version": 1,
         "client": CLIENT,
-        "auth_mode": policy["auth_mode"],
+        "login_mode": policy["login_mode"],
         "skills": {
             "include": list(skill_names),
             # CAP delivers its own skills as a session-only plugin directory.

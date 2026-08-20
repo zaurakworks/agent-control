@@ -173,7 +173,7 @@ def materialize_claude_generation(
                 "project": dict(policy),
                 "global_preference_digest": _digest_json(dict(global_preference)),
                 "effective": {
-                    "auth_mode": config["auth_mode"],
+                    "login_mode": config["login_mode"],
                     "permission_mode": config["permissions"]["default_mode"],
                     "enable_project_mcp": config["mcp"]["enable_project"],
                     "auto_memory": config["memory"]["auto_memory"],
@@ -214,7 +214,7 @@ def materialize_claude_generation(
             "source_digest": source_digest,
             "runtime_policy": launch["runtime_policy"],
             "native_projection": projection,
-            "auth_mode": config["auth_mode"],
+            "login_mode": config["login_mode"],
         }
 
         def verify(target: Path) -> object:

@@ -48,7 +48,7 @@ CONSUMED_CONFIG_KEYS = frozenset(
     {
         "version",
         "client",
-        "auth_mode",
+        "login_mode",
         "skills",
         "mcp",
         "memory",

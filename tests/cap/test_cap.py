@@ -358,6 +358,187 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class ClaudeLaunchEnvironmentTests(unittest.TestCase):
+    """The launch environment must isolate without touching the user's client."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.home = self.root / "home"
+        self.runtime = self.home / ".agent-system-state" / "runtimes" / "claude" / "default"
+        self.runtime.mkdir(parents=True)
+
+    def _env(self, login_mode: str = "subscription", **extra: str) -> dict:
+        from agent_system.claude import launch
+
+        ambient = {
+            "HOME": "/ambient",
+            "CLAUDE_CONFIG_DIR": "/ambient/.claude",
+            "ANTHROPIC_API_KEY": "ambient-key",
+            "ANTHROPIC_BASE_URL": "https://ambient.invalid",
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "PI_CONFIG_DIR": "/ambient-omp",
+            "PATH": "/usr/bin",
+            **extra,
+        }
+        return launch.claude_env(ambient, self.runtime, self.home, login_mode)
+
+    def test_config_dir_points_at_cap_runtime_not_the_user_client(self) -> None:
+        env = self._env()
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], str(self.runtime))
+        # The adapter never reads, writes or migrates the user's own directory.
+        self.assertNotEqual(env["CLAUDE_CONFIG_DIR"], str(self.home / ".claude"))
+        self.assertIn(".agent-system-state", env["CLAUDE_CONFIG_DIR"])
+
+    def test_host_context_is_preserved(self) -> None:
+        env = self._env()
+        # Git, SSH and language toolchains must keep working.
+        self.assertEqual(env["HOME"], str(self.home))
+        self.assertEqual(env["PATH"], "/usr/bin")
+
+    def test_subscription_blanks_provider_credentials(self) -> None:
+        env = self._env("subscription")
+        for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK"):
+            with self.subTest(name=name):
+                self.assertEqual(env[name], "")
+
+    def test_bare_mode_keeps_its_only_credential_source(self) -> None:
+        # --bare reads only ANTHROPIC_API_KEY or an apiKeyHelper; blanking it
+        # would leave no way to authenticate at all.
+        env = self._env("bare")
+        self.assertEqual(env["ANTHROPIC_API_KEY"], "ambient-key")
+        self.assertEqual(env["ANTHROPIC_BASE_URL"], "")
+
+    def test_other_client_pointers_are_dropped(self) -> None:
+        env = self._env()
+        self.assertNotIn("PI_CONFIG_DIR", env)
+
+
+class ClaudeLaunchCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.generation = Path(self.temporary.name) / "gen"
+        (self.generation / "native" / "plugin").mkdir(parents=True)
+        (self.generation / "system-prompt.md").write_text("p\n", encoding="utf-8")
+
+    def _argv(self, skills=("a",), login_mode="subscription", forwarded=()):
+        from agent_system.claude import launch
+
+        return launch.claude_command(
+            self.generation, tuple(skills), login_mode, list(forwarded)
+        )
+
+    def test_every_fixed_gate_is_on_the_command_line(self) -> None:
+        argv = self._argv()
+        for flag in (
+            "--settings",
+            "--setting-sources",
+            "--mcp-config",
+            "--strict-mcp-config",
+            "--plugin-dir",
+            "--append-system-prompt",
+        ):
+            with self.subTest(flag=flag):
+                self.assertIn(flag, argv)
+        # Empty on purpose: user, project and local setting sources are off.
+        self.assertEqual(argv[argv.index("--setting-sources") + 1], "")
+
+    def test_generation_is_referenced_read_only(self) -> None:
+        argv = self._argv()
+        for flag in ("--settings", "--mcp-config", "--plugin-dir"):
+            value = argv[argv.index(flag) + 1]
+            with self.subTest(flag=flag):
+                self.assertTrue(Path(value).is_relative_to(self.generation))
+
+    def test_bare_flag_only_in_bare_mode(self) -> None:
+        self.assertNotIn("--bare", self._argv(login_mode="subscription"))
+        self.assertIn("--bare", self._argv(login_mode="bare"))
+
+    def test_plugin_dir_is_omitted_without_skills(self) -> None:
+        self.assertNotIn("--plugin-dir", self._argv(skills=()))
+
+    def test_forwarded_arguments_come_last(self) -> None:
+        argv = self._argv(forwarded=["-p", "hi"])
+        self.assertEqual(argv[-2:], ["-p", "hi"])
+
+
+class ClaudeEffectiveObservationTests(unittest.TestCase):
+    def test_subscription_pins_mcps_to_client_limited(self) -> None:
+        from agent_system.claude import launch
+
+        # Reproduced twice against a real client: account-level connectors load
+        # regardless of --strict-mcp-config, so the closure is genuinely open.
+        self.assertEqual(
+            launch.effective_observations("subscription")["mcps"],
+            "reported_client_limited",
+        )
+
+    def test_no_dimension_is_ever_reported_as_observed(self) -> None:
+        from agent_system.claude import launch
+
+        for mode in ("subscription", "bare"):
+            with self.subTest(mode=mode):
+                self.assertNotIn(
+                    "observed", set(launch.effective_observations(mode).values())
+                )
+
+    def test_unverifiable_dimensions_stay_client_limited(self) -> None:
+        from agent_system.claude import launch
+
+        observations = launch.effective_observations("subscription")
+        for name in ("hooks", "plugins", "bundled_skills"):
+            with self.subTest(name=name):
+                self.assertEqual(observations[name], "reported_client_limited")
+
+
+class ClaudeCliDispatchTests(unittest.TestCase):
+    def test_claude_is_registered_as_an_effective_adapter(self) -> None:
+        self.assertIn("claude", cap.EFFECTIVE_ADAPTERS)
+        self.assertIn("omp", cap.EFFECTIVE_ADAPTERS)
+        # codex and qoder deliberately stay on the generic subprocess path.
+        self.assertNotIn("codex", cap.EFFECTIVE_ADAPTERS)
+        self.assertNotIn("qoder", cap.EFFECTIVE_ADAPTERS)
+
+    def test_subcommands_without_a_client_still_dispatch(self) -> None:
+        # `lock`, `verify` and friends carry no --cli; reading it unconditionally
+        # in the dispatcher broke every one of them.
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(command)
+            return SimpleNamespace(returncode=0)
+
+        args = cap.argparse.Namespace(profile_tool_command="lock", fresh=False)
+        with patch.object(cap.subprocess, "run", side_effect=fake_run):
+            with patch.object(cap, "_profile_args", return_value=["profile", "lock"]):
+                self.assertEqual(cap._run_selected(args, {}), 0)
+        self.assertEqual(calls, [["profile", "lock"]])
+
+    def test_fresh_bypasses_the_effective_adapter(self) -> None:
+        # --fresh is the explicit-auth one-shot path and must keep going through
+        # the profile engine, not the persistent-runtime adapter.
+        def fake_run(command, **kwargs):
+            return SimpleNamespace(returncode=0)
+
+        args = cap.argparse.Namespace(
+            profile_tool_command="run", cli="claude", fresh=True
+        )
+        with patch.object(cap.subprocess, "run", side_effect=fake_run):
+            with patch.object(cap, "_profile_args", return_value=["profile", "run"]):
+                self.assertEqual(cap._run_selected(args, {}), 0)
+
+    def test_forwarded_gate_reopening_flags_are_rejected(self) -> None:
+        from agent_system.profile.cli import ProfileError
+
+        args = cap.argparse.Namespace(
+            cli="claude", client_args=["--dangerously-skip-permissions"]
+        )
+        with self.assertRaises(ProfileError):
+            cap._run_claude(args, {})
+
+
 class ClaudeGenerationTest(unittest.TestCase):
     """The three hashes, the content-addressed store and its drift gates."""
 
@@ -389,7 +570,7 @@ class ClaudeGenerationTest(unittest.TestCase):
                     'client = "claude"',
                     "",
                     "[policy]",
-                    'auth_mode = "subscription"',
+                    'login_mode = "subscription"',
                     'permission_mode = "manual"',
                     "enable_project_mcp = false",
                     "enable_user_assets = false",
@@ -418,6 +599,8 @@ class ClaudeGenerationTest(unittest.TestCase):
             binding_dir=str(self.bindings),
             private_overlay=None,
             claude_runtime_id="default",
+            workdir=None,
+            receipt=None,
         )
 
     def _fake_render(self, command, **_):
@@ -538,7 +721,7 @@ class ClaudeGenerationTest(unittest.TestCase):
         gen, _, _, _ = self.materialize()
         manifest = gen / ".cap-generation.json"
         payload = json.loads(manifest.read_text(encoding="utf-8"))
-        payload["auth_mode"] = "bare"
+        payload["login_mode"] = "bare"
         manifest.write_text(
             json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -546,13 +729,75 @@ class ClaudeGenerationTest(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "metadata drifted"):
             self.materialize()
 
+    def test_receipt_records_evidence_without_secrets(self) -> None:
+        from agent_system.claude import launch
+        from agent_system.profile.cli import SECRET_KEY_PATTERN
+
+        gen, portable, effective, skills = self.materialize()
+        args = self.args()
+        args.receipt = str(self.root / "receipt.json")
+        receipt = Path(args.receipt)
+        payload = launch.write_claude_receipt(
+            args,
+            receipt,
+            return_code=0,
+            generation=gen,
+            runtime_dir=self.home / "runtime",
+            portable_hash=portable,
+            effective_hash=effective,
+            post_run_content_digest="sha256:post",
+            forwarded=["-p", "a-secret-looking-prompt"],
+        )
+
+        self.assertEqual(payload["client"], "claude")
+        self.assertEqual(payload["portable_tree_hash"], portable)
+        self.assertEqual(payload["effective_render_hash"], effective)
+        self.assertEqual(tuple(payload["skills"]), skills)
+        # A verified generation says nothing about what the client loaded.
+        self.assertEqual(payload["evidence"]["effective"], "unknown")
+        # Argument values never reach the receipt; only how many there were.
+        self.assertEqual(payload["forwarded_argument_count"], 2)
+
+        text = receipt.read_text(encoding="utf-8")
+        # The receipt is not a capability source, so the redactor does not run
+        # over it; what matters is that nothing sensitive is written in the
+        # first place.
+        self.assertNotIn("a-secret-looking-prompt", text)
+        for key in json.loads(text):
+            with self.subTest(key=key):
+                self.assertIsNone(
+                    SECRET_KEY_PATTERN.search(key),
+                    f"receipt key {key} names a credential-shaped field",
+                )
+
+    def test_receipt_cannot_claim_a_closed_mcp_surface(self) -> None:
+        from agent_system.claude import launch
+
+        gen, portable, effective, _ = self.materialize()
+        args = self.args()
+        args.receipt = str(self.root / "receipt2.json")
+        payload = launch.write_claude_receipt(
+            args,
+            Path(args.receipt),
+            return_code=0,
+            generation=gen,
+            runtime_dir=self.home / "runtime",
+            portable_hash=portable,
+            effective_hash=effective,
+            post_run_content_digest="sha256:post",
+            forwarded=[],
+        )
+        self.assertEqual(
+            payload["effective_observations"]["mcps"], "reported_client_limited"
+        )
+
     def test_manifest_records_the_uncontrollable_surface_decision(self) -> None:
         gen, _, _, _ = self.materialize()
         manifest = json.loads(
             (gen / ".cap-generation.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["client"], "claude")
-        self.assertEqual(manifest["auth_mode"], "subscription")
+        self.assertEqual(manifest["login_mode"], "subscription")
         self.assertEqual(
             manifest["native_projection"]["unsupported"], ["hooks", "plugins"]
         )
@@ -598,7 +843,7 @@ class ClaudeNativeProjectionTests(unittest.TestCase):
             ("alpha", "beta"),
             {"demo": {"type": "stdio", "command": "x", "args": [], "env": {}}},
             {
-                "auth_mode": "subscription",
+                "login_mode": "subscription",
                 "permission_mode": "manual",
                 "enable_project_mcp": False,
                 "enable_user_assets": False,
@@ -771,7 +1016,7 @@ class ClaudeRuntimePolicyTests(unittest.TestCase):
     def test_defaults_are_conservative(self) -> None:
         self._write("")
         policy = self._read()
-        self.assertEqual(policy["auth_mode"], "subscription")
+        self.assertEqual(policy["login_mode"], "subscription")
         self.assertEqual(policy["permission_mode"], "manual")
         self.assertFalse(policy["enable_project_mcp"])
         self.assertFalse(policy["enable_user_assets"])
@@ -811,11 +1056,11 @@ class ClaudeRuntimePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(claude_runtime.ClaudeError, "permission_mode"):
             self._read()
 
-    def test_auth_mode_is_restricted(self) -> None:
+    def test_login_mode_is_restricted(self) -> None:
         from agent_system.claude import runtime as claude_runtime
 
-        self._write('auth_mode = "whatever"')
-        with self.assertRaisesRegex(claude_runtime.ClaudeError, "auth_mode"):
+        self._write('login_mode = "whatever"')
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "login_mode"):
             self._read()
 
     def test_wrong_client_or_version_fails_closed(self) -> None:

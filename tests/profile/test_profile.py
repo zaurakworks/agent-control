@@ -2736,6 +2736,59 @@ class EphemeralRuntimeRootTests(ProfileTestCase):
             self.assertNotIn(marker, source)
 
 
+class RuntimePolicyFieldsSurviveRedactionTests(unittest.TestCase):
+    """No runtime-policy field name may collide with the secret redactor.
+
+    Lock inputs are hashed *after* redaction. A policy field whose name matches
+    the secret pattern is rewritten to a placeholder before hashing, so two
+    different values hash identically and `cap verify` stops detecting changes
+    to it. `effective_render_hash` still covers the value, but the lock -- whose
+    whole job is declaration drift -- silently would not.
+    """
+
+    def test_every_declared_policy_value_survives_redaction(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        policies = sorted((repository / ".cap" / "runtime").glob("*.toml"))
+        self.assertTrue(policies, "no runtime policy files found")
+
+        for path in policies:
+            with self.subTest(policy=path.name):
+                redacted = profile._redacted_file_bytes(path).decode("utf-8")
+                self.assertNotIn(
+                    "<external-secret>",
+                    redacted,
+                    f"{path.name} has a field name that trips the secret "
+                    "redactor; rename it so the lock keeps covering its value",
+                )
+
+    def test_two_policy_values_hash_differently(self) -> None:
+        # The property the previous test protects, demonstrated end to end.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "a.toml"
+            second = root / "b.toml"
+            first.write_text('login_mode = "subscription"\n', encoding="utf-8")
+            second.write_text('login_mode = "bare"\n', encoding="utf-8")
+            self.assertNotEqual(
+                profile._sha256(profile._redacted_file_bytes(first)),
+                profile._sha256(profile._redacted_file_bytes(second)),
+            )
+
+    def test_a_secret_named_field_would_collapse(self) -> None:
+        # Demonstrates the trap this guard exists for.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "a.toml"
+            second = root / "b.toml"
+            first.write_text('auth_mode = "subscription"\n', encoding="utf-8")
+            second.write_text('auth_mode = "bare"\n', encoding="utf-8")
+            self.assertEqual(
+                profile._sha256(profile._redacted_file_bytes(first)),
+                profile._sha256(profile._redacted_file_bytes(second)),
+                "expected the redactor to collapse an auth-named field",
+            )
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
