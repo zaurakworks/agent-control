@@ -1593,6 +1593,24 @@ def _prepare_execution(
     args = tuple(forwarded_args)
     _validate_forwarded_args(client, args)
     return project, profile, desired, args
+def _fresh_runtime_parent(home: Path | str | None = None) -> Path:
+    """Keep one-shot client roots under the launch HOME."""
+
+    home_path = Path(home or Path.home()).expanduser().resolve()
+    parent = home_path / ".agent-system-state" / "tmp"
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return parent
+
+
+def _omp_config_dir_name(runtime_root: Path, launch_home: Path) -> str:
+    """Return the home-relative OMP config directory name for a fresh runtime."""
+
+    try:
+        relative_runtime = runtime_root.resolve().relative_to(launch_home.resolve())
+    except ValueError as error:
+        raise ProfileError("OMP runtime root must be under the launch HOME") from error
+    return relative_runtime.as_posix() or "."
+
 def _prepare_workdir(value: Path | str | None, default: Path) -> Path:
     """Resolve the client working directory without using mutable profile state."""
 
@@ -1623,8 +1641,14 @@ def _execute_runtime(
     """Render, bind explicit auth, and invoke one client through the strict path."""
 
     output_hash = desired["profiles"][profile.name]["clients"][client]["tree_hash"]
+    launch_home = (
+        Path(_load_base_manifest(base_manifest)["home"])
+        if _profile_uses_real_home(profile)
+        else Path.home()
+    )
     with tempfile.TemporaryDirectory(
-        prefix=f"profile-{client}-{profile.name}-"
+        prefix=f"profile-{client}-{profile.name}-",
+        dir=str(_fresh_runtime_parent(launch_home)),
     ) as temporary:
         runtime_root = Path(temporary)
         tree = _render_tree(project, client, profile)
@@ -1664,8 +1688,14 @@ def _execute_runtime(
                         assert base_manifest is not None
                         environment["HOME"] = _load_base_manifest(base_manifest)["home"]
                     else:
-                        environment["HOME"] = str(runtime_directory.path)
+                        environment["HOME"] = str(Path.home().expanduser().resolve())
                     environment["PI_AUTH_NO_BORROW"] = "1"
+                    launch_environment = dict(spec.environment)
+                    launch_environment["PI_CONFIG_DIR"] = _omp_config_dir_name(
+                        runtime_directory.path,
+                        Path(environment["HOME"]),
+                    )
+                    spec = LaunchSpec(spec.command, launch_environment)
                 environment.update(spec.environment)
                 environment.update(auth_binding.environment)
                 run_options: dict[str, Any] = {
@@ -2204,8 +2234,14 @@ def probe_profile(
         expected_hash = desired["profiles"][profile.name]["clients"][client][
             "tree_hash"
         ]
+        probe_home = (
+            Path(_load_base_manifest(base_manifest)["home"])
+            if _profile_uses_real_home(profile)
+            else Path.home()
+        )
         with tempfile.TemporaryDirectory(
-            prefix=f"profile-probe-{client}-{profile.name}-"
+            prefix=f"profile-probe-{client}-{profile.name}-",
+            dir=str(_fresh_runtime_parent(probe_home)),
         ) as temporary:
             runtime_root = Path(temporary)
             tree = _render_tree(project, client, profile)
