@@ -61,7 +61,7 @@
 
 ### 0.3 CAP 在 Windows 上无法 render 或启动任何客户端
 
-- [ ] 0.3 解决 CAP 的执行环境边界（[#87](https://github.com/zaurakworks/agent-system/issues/87)）
+- [x] 0.3 解决 CAP 的执行环境边界（[#87](https://github.com/zaurakworks/agent-system/issues/87)）—— **核心已解决**：#95 用两端共用的分量校验取代 POSIX 目录句柄链，原生 Windows 上 `cap render` 已可用（实测 6 个 skill 全部产出）；#97 补齐门禁、边界测试与文档。残留的 Windows 测试套件未全绿属独立事项，不阻断本包。
 
 **描述**：`_open_stable_directory` 在 Windows 上无条件失败（`anchor` 恒为 `C:\`，永不等于 `os.sep`），而 `materialize_profile` 是所有 render 的唯一入口。`os.supports_dir_fd` 在 Windows 上是空集，`dir_fd` 在 `profile/cli.py` 中有 17 处使用，贯穿 render 物化、receipt 预约与认证 vault，原生移植是数周的安全关键工作。
 
@@ -130,7 +130,7 @@
 
 ### 1.2 客户端分支显式化（不新增客户端）
 
-- [ ] 1.2 把 `_render_tree` 与 `_staged_auth` 中 OMP 的 `else` 分支改为显式 `elif` + 未知客户端 `raise`
+- [x] 1.2 把 `_render_tree` 与 `_staged_auth` 中 OMP 的 `else` 分支改为显式 `elif` + 未知客户端 `raise` —— **已完成**（#99）
 
 **描述**：见 `delta-specs.md` I-2。`profile/cli.py:4335` 与 `:1236` 当前把 OMP 作为兜底分支；不先修掉，新客户端会静默继承 OMP 的渲染与认证布局。同时检查 `_configured_mcp_names`（`:1909`）等其他 `if/else` 分派点。
 
@@ -146,7 +146,7 @@
 
 ### 1.3 `CLIENT_ADAPTER_VERSION` 改为 per-client
 
-- [ ] 1.3 把全局 int 改为 `dict[str, int]`，OMP 保持 8，Claude 预留 1
+- [x] 1.3 把全局 int 改为 `dict[str, int]`，OMP 保持 8，Claude 预留 1 —— **已完成**（#100）
 
 **描述**：见 `delta-specs.md` I-3。该值经 `source_context` 进入 `effective_render_hash`，共用会导致跨客户端的 generation 连坐失效。需同步修改 `_desired_lock` 写入点与 `_generation_source_context` 读取点。
 
@@ -162,7 +162,7 @@
 
 ### 1.4 `manifest.runtime` / `profile.runtime` / policy client 校验放宽
 
-- [ ] 1.4 三处硬等值 `{"omp"}` 改为「已知客户端的非空子集」
+- [x] 1.4 三处硬等值 `{"omp"}` 改为「已知客户端的非空子集」 —— **已完成**（#102）
 
 **描述**：见 `delta-specs.md` I-4（`profile/cli.py:634`、`:720`、`:645`）。本任务只放宽校验，**不**新增 `.cap/runtime/claude.toml`。
 
@@ -178,7 +178,7 @@
 
 ### 1.5 共享 adapter 模块上提
 
-- [ ] 1.5 新建 `src/agent_system/adapter/common.py`，上提 OMP 中与客户端无关的原语
+- [x] 1.5 新建 `src/agent_system/adapter/common.py`，上提 OMP 中与客户端无关的原语 —— **已完成**（#106（骨架部分推迟至 3.4，见该任务说明））
 
 **描述**：见 `delta-specs.md` B 节。上提清单：`_digest_bytes`、`_digest_json`、`_tree_digest`、`_deep_overlay`、`_assert_managed_path`、`_validate_private_runtime`、`_reject_unsafe_tree`、`_safe_remove_tree`、`_replace_generation_placeholder`，以及泛化后的 `_generation_source_context(args, portable_hash, *, client)`、`materialize_generation(...)` 骨架、`verify_generation(...)` 骨架。`omp/runtime.py` 改为从共享模块 import，函数体不再重复。
 
@@ -197,7 +197,7 @@
 
 ### 2.1 注册 `claude` 客户端
 
-- [ ] 2.1 两处 `CLIENTS` 与 `CLIENT_EXECUTABLES` 加入 `claude`，并加一致性断言
+- [x] 2.1 两处 `CLIENTS` 与 `CLIENT_EXECUTABLES` 加入 `claude`，并加一致性断言 —— **已完成**（#105）
 
 **描述**：见 `delta-specs.md` I-1。`profile/cli.py:37` 与 `cap/config.py:47` 必须同步。
 
@@ -213,7 +213,7 @@
 
 ### 2.2 portable 渲染分支
 
-- [ ] 2.2 实现 `_render_tree` 的 `claude` 分支与 `_claude_mcp`
+- [x] 2.2 实现 `_render_tree` 的 `claude` 分支与 `_claude_mcp` —— **已完成**（#105）
 
 **描述**：见 `design-spec.md` 2.1 与 `delta-specs.md` C-5。输出 `claude-config.yaml`（字面量 `{}`）、`mcp.json`、`system-prompt.md`、`skills/`。同步实现 `build_launch`、`_configured_mcp_names` 的 `claude` 分支。
 
@@ -231,7 +231,7 @@
 
 ### 2.3 禁止参数与全局污染门
 
-- [ ] 2.3 实现 `FORBIDDEN_CLIENT_ARGUMENTS["claude"]` 与 `_claude_config_has_active_capability`
+- [x] 2.3 实现 `FORBIDDEN_CLIENT_ARGUMENTS["claude"]` 与 `_claude_config_has_active_capability` —— **已完成**（#105）
 
 **描述**：见 `delta-specs.md` C-5 与 `design-spec.md` 9。禁止参数列表按「宁可多列」处理。全局污染门需新增 Claude 分支，否则每次启动都会被 `_check_global_pollution` 拦下（`~/.claude` 已在 `GLOBAL_NATIVE_ROOTS`）。
 
@@ -249,7 +249,7 @@
 
 ### 3.1 Claude runtime policy
 
-- [ ] 3.1 新建 `.cap/runtime/claude.toml` 与 `_read_claude_runtime_policy` / `_read_global_claude_preference`
+- [x] 3.1 新建 `.cap/runtime/claude.toml` 与 `_read_claude_runtime_policy` / `_read_global_claude_preference` —— **已完成**（#110）
 
 **描述**：见 `design-spec.md` 8.1 与 `delta-specs.md` C-1。固定门禁 `enable_user_assets` 恒为 `false`；未知字段保留但不投影。
 
@@ -266,7 +266,7 @@
 
 ### 3.2 `claude-config.yaml` 合成
 
-- [ ] 3.2 实现 `_effective_claude_config(portable, skills, policy, preference)`
+- [x] 3.2 实现 `_effective_claude_config(portable, skills, policy, preference)` —— **已完成**（#110）
 
 **描述**：见 `design-spec.md` 8.2。按固定顺序合成：系统门禁 > 项目 policy > role override > 用户 preference。输出是 CAP 语义结构，不是 native 结构。
 
@@ -282,7 +282,7 @@
 
 ### 3.3 native 投影
 
-- [ ] 3.3 实现 `_project_claude_native(config, generation) -> dict[str, bytes]`
+- [x] 3.3 实现 `_project_claude_native(config, generation) -> dict[str, bytes]` —— **已完成**（#111）
 
 **描述**：见 `design-spec.md` 2.3 与 `delta-specs.md` C-2。这是唯一允许出现 Claude native 键名的函数；所有键名必须在 `evidence/claude-native-surface.json` 中留证。产出 `native/settings.json`、`native/.mcp.json`、`native/skills/**`、`native/agents/`、`native/CLAUDE.md`。
 
@@ -300,7 +300,7 @@
 
 ### 3.4 generation 物化与三 Hash
 
-- [ ] 3.4 实现 `_materialize_claude_generation` 与 `_verify_claude_generation`
+- [x] 3.4 实现 `_materialize_claude_generation` 与 `_verify_claude_generation` —— **已完成**（#114）
 
 **描述**：见 `design-spec.md` 2.2 / 2.4 / 2.5 与 `delta-specs.md` C-4。复用 1.5 的 `materialize_generation` / `verify_generation` 骨架。`effective_hash` payload 含 `"client": "claude"`；`content_digest` 显式 `exclude={".cap-generation.json"}`；manifest 含 `client` / `native_projection` / `auth_mode` 三个新字段段。
 

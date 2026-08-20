@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "captured_at": "2026-08-20",
+  "host": "Windows 11 Pro 10.0.26200",
+  "client": "omp",
+  "profile": "agent-assembler",
+  "purpose": "取得 --fresh 路径的实际生效态证据。该路径此前无法启动，因此 agent-assembler 的生效态按 portable-assembly-host 的既有需求只能记为 unknown。",
+  "setup": {
+    "broker": "omp auth-broker serve --bind=127.0.0.1:43171",
+    "vault": "<auth-root>/omp/{broker.json,token}",
+    "model": "显式指定 openai-codex/gpt-5.4-mini；CAP 渲染的 config.yml 为空，omp 默认解析会选到不支持 tools 的本机模型"
+  },
+  "command": "cap --auth-root <vault> run agent-assembler --fresh -- --model openai-codex/gpt-5.4-mini -p <自述提示>",
+  "observations": [
+    {
+      "id": "fresh-launch-succeeds",
+      "claim": "--fresh 能拉起 omp 并进入模型调用",
+      "status": "confirmed",
+      "evidence": "进程正常完成并返回模型输出，未出现此前的 ENOENT mkdir 双拼路径错误"
+    },
+    {
+      "id": "effective-skill-count-self-reported",
+      "claim": "客户端自述其可用 skill 数量与声明一致",
+      "status": "confirmed",
+      "evidence": "输出首行 SKILLS-AVAILABLE:14；agent-assembler 在 .cap/lock.json 中的 inventory.skills 为 14 项",
+      "notes": "这是自述证据，等级低于逐项 probe：它证明客户端确实加载了一个 14 项的 skill 面，但不逐项证明每一项的身份。"
+    },
+    {
+      "id": "fresh-marker-returned",
+      "claim": "端到端标记返回",
+      "status": "confirmed",
+      "evidence": "输出第二行 CAP-FRESH-OK"
+    },
+    {
+      "id": "ephemeral-root-leaves-nothing",
+      "claim": "一次性根在运行结束后不留残留",
+      "status": "confirmed",
+      "evidence": "$HOME/.agent-system-state/tmp 在运行后为空"
+    }
+  ],
+  "evidence_level": {
+    "declared": "ok",
+    "configured": "lock-verified",
+    "effective": "self-reported",
+    "notes": "生效态由客户端自述得到，不是逐项 probe。按 portable-assembly-host 的《宿主可运行结论必须分层并由自动门禁产生》，单机手工执行不足以确立宿主结论；本记录只解除 --fresh 不可启动这一事实，宿主级结论仍需两端自动门禁（本变更任务 3.3）。"
+  },
+  "not_verified": [
+    "macOS 侧的 --fresh 实跑（本机为 Windows；两端同一实现，但未实测）。",
+    "逐项 skill 身份（仅有数量自述）。",
+    "codex 与 qoder 在新一次性根下的凭据暂存（Windows 上需要 symlink 权限，属独立取舍，见提案的 Out of scope）。"
+  ]
+}

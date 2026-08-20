@@ -1546,8 +1546,10 @@ def build_launch(
             command,
             {
                 "OMP_PROFILE": "default",
+                # PI_CODING_AGENT_DIR is resolved by the client; PI_CONFIG_DIR
+                # is joined with the home, so it must be a relative name.
                 "PI_CODING_AGENT_DIR": str(root),
-                "PI_CONFIG_DIR": str(root),
+                "PI_CONFIG_DIR": _home_relative_name(root, "omp runtime root"),
                 "PI_CONFIG_FILES": str(root / "config.yml"),
                 "PI_PROFILE": "default",
             },
@@ -1623,10 +1625,7 @@ def _execute_runtime(
     """Render, bind explicit auth, and invoke one client through the strict path."""
 
     output_hash = desired["profiles"][profile.name]["clients"][client]["tree_hash"]
-    with tempfile.TemporaryDirectory(
-        prefix=f"profile-{client}-{profile.name}-"
-    ) as temporary:
-        runtime_root = Path(temporary)
+    with _ephemeral_runtime_root(client, profile.name) as runtime_root:
         tree = _render_tree(project, client, profile)
         if _tree_hash(tree) != output_hash:
             raise ProfileError("rendered output drifted after lock verification")
@@ -2067,6 +2066,49 @@ def _stable_directory_is_same(directory: StableDirectory, other: Path) -> bool:
     return _open_stable_directory(other, "restricted root").identity == directory.identity
 
 
+@contextmanager
+def _ephemeral_runtime_root(client: str, profile_name: str) -> Iterator[Path]:
+    """Yield a one-shot runtime root that both hosts can express to a client.
+
+    It lives under the real home rather than the system temporary directory.
+    Some clients define a configuration directory variable as a *name relative
+    to the home* and join it with the home themselves, so a root outside the
+    home cannot be expressed at all: the value would be joined twice and the run
+    would fail before it starts. Neither host's temporary directory is under the
+    home -- macOS uses /tmp, Windows uses the LOCALAPPDATA temp folder -- so
+    root under the home is what lets one implementation serve both instead of
+    special-casing a platform.
+
+    `_require_external_directory` already accepts locations under the home; it
+    rejects only the home itself, the project, and the native capability roots.
+    """
+
+    parent = Path.home().absolute() / ".agent-system-state" / "tmp"
+    parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=f"profile-{client}-{profile_name}-", dir=str(parent)
+    ) as temporary:
+        yield Path(temporary)
+
+
+def _home_relative_name(directory: Path, context: str) -> str:
+    """Express one managed directory as the home-relative name a client needs.
+
+    See can1357/oh-my-pi#9067: the split between a resolved variable and a
+    home-relative one is deliberate upstream, so cap converts rather than
+    hoping an absolute path is accepted.
+    """
+
+    home = Path.home().absolute()
+    try:
+        return directory.absolute().relative_to(home).as_posix()
+    except ValueError as error:
+        raise ProfileError(
+            f"{context} must live under the real home so it can be named "
+            f"relative to it: {directory}"
+        ) from error
+
+
 def _require_external_directory(
     project: Project, directory: StableDirectory, context: str
 ) -> None:
@@ -2204,10 +2246,7 @@ def probe_profile(
         expected_hash = desired["profiles"][profile.name]["clients"][client][
             "tree_hash"
         ]
-        with tempfile.TemporaryDirectory(
-            prefix=f"profile-probe-{client}-{profile.name}-"
-        ) as temporary:
-            runtime_root = Path(temporary)
+        with _ephemeral_runtime_root(f"probe-{client}", profile.name) as runtime_root:
             tree = _render_tree(project, client, profile)
             if _tree_hash(tree) != expected_hash:
                 raise ProfileError("rendered output drifted after lock verification")
