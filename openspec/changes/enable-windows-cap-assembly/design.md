@@ -132,15 +132,17 @@ receipt 采用"先 `O_EXCL` 预留占位、运行结束再提交"。旧实现持
 
 原文在此挂了一个待定问题：Windows 上的 omp 读 `HOME` 还是 `USERPROFILE`。2026-08-20 实测**否掉了这个问题的前提**，记录见 [`work/records/2026-08-20-omp-windows-agent-dir/finding.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/finding.md)。
 
-| 条件（omp v17.3.5，Windows 11） | 结果 |
+逐变量隔离（omp v17.3.8，Windows 11），每组只改一个变量：
+
+| 设置的变量 | 结果 |
 | --- | --- |
-| 绝对 `PI_CODING_AGENT_DIR`，**设** `HOME` | 路径翻倍，`ENOENT` |
-| 绝对 `PI_CODING_AGENT_DIR`，**不设** `HOME` | 路径翻倍，`ENOENT`（与上一行相同） |
-| 不设 `PI_CODING_AGENT_DIR` | 正常运行 |
-| 相对 `PI_CODING_AGENT_DIR` | 不翻倍，但相对 **cwd** 解析而非 home |
+| 仅 `PI_CODING_AGENT_DIR`（绝对） | 正常，进入模型调用 |
+| 仅 `PI_CONFIG_DIR`（绝对） | 路径翻倍为 `<home> + <绝对路径>`，`ENOENT` |
+| 两者 + `OMP_PROFILE`／`PI_PROFILE` | 翻倍 |
+| 两者，不设 profile 变量 | 翻倍（与上一行相同） |
 
-真正的原因是 omp 对 `PI_CODING_AGENT_DIR` 做拼接而不是解析，与主目录变量无关。这是上游行为，不在本仓代码内。
+真正的原因是 omp 对 **`PI_CONFIG_DIR`** 做拼接而不是解析，与主目录变量、profile 变量均无关。这是上游行为，不在本仓代码内。
 
-**不做绕过**：唯一可行的绕过是改传相对路径，但它相对 cwd 解析，而 cap 把 cwd 设为项目根——实测会把运行时状态写进项目。代价高于收益，已回退。
+**不做绕过**：`PI_CONFIG_DIR` 正是 cap 隔离客户端配置的手段——实测中不设它，omp 就会读取用户目录下的 `~/.omp` 配置并据此选模型，这恰是本仓"业务能力不得从用户目录隐式补齐"要防的事；`--config` 是叠加式覆盖，不提供隔离。改传相对路径可以避开翻倍，但相对 cwd 解析，而 cap 把 cwd 设为项目根，会把运行时状态写进项目，已实测并回退。
 
-**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。
+**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。待提交上游的报告见 [`upstream-issue.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/upstream-issue.md)。
