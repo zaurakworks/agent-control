@@ -1302,7 +1302,7 @@ class LaunchTests(ProfileTestCase):
             "ANTHROPIC_API_KEY": "ambient-anthropic-key",
             "FUTURE_PROVIDER_API_KEY": "ambient-future-key",
         }
-        for client in profile.CLIENTS:
+        for client in profile.LAUNCHABLE_CLIENTS:
             with (
                 self.subTest(client=client),
                 mock.patch.dict(os.environ, ambient, clear=False),
@@ -2399,13 +2399,31 @@ class RegisteredClientMustHaveAdapterTests(ProfileTestCase):
         ):
             profile._validate_forwarded_args(self.CLIENT, ())
 
+    def test_forwarded_args_prefix_policy_is_required(self) -> None:
+        forbidden = dict(profile.FORBIDDEN_CLIENT_ARGUMENTS)
+        forbidden[self.CLIENT] = frozenset()
+        with mock.patch.object(profile, "FORBIDDEN_CLIENT_ARGUMENTS", forbidden):
+            # The forbidden set alone is not enough: a client without declared
+            # compact prefixes must not silently accept every short flag.
+            with self.assertRaisesRegex(
+                profile.ProfileError, "has no forwarded-argument policy"
+            ):
+                profile._validate_forwarded_args(self.CLIENT, ())
+
     def test_build_launch_has_no_launch_adapter(self) -> None:
         project = profile.load_project(self.project)
         selected = profile._select_profile(project, sorted(project.profiles)[0])
         tree = profile._render_tree(project, "omp", selected)
         forbidden = dict(profile.FORBIDDEN_CLIENT_ARGUMENTS)
         forbidden[self.CLIENT] = frozenset()
-        with mock.patch.object(profile, "FORBIDDEN_CLIENT_ARGUMENTS", forbidden):
+        prefixes = dict(profile.FORBIDDEN_CLIENT_ARGUMENT_PREFIXES)
+        prefixes[self.CLIENT] = ()
+        with (
+            mock.patch.object(profile, "FORBIDDEN_CLIENT_ARGUMENTS", forbidden),
+            mock.patch.object(
+                profile, "FORBIDDEN_CLIENT_ARGUMENT_PREFIXES", prefixes
+            ),
+        ):
             with self.assertRaisesRegex(
                 profile.ProfileError, "has no launch adapter"
             ):
@@ -2552,6 +2570,84 @@ class MultiClientRuntimeTests(ProfileTestCase):
             )
         with self.assertRaisesRegex(profile.ProfileError, "unknown clients"):
             profile.load_project(self.project)
+
+
+class ClaudeClientRegistrationTests(ProfileTestCase):
+    """Claude is registered as a renderable client, but not yet launchable."""
+
+    def test_client_tuples_agree_across_modules(self) -> None:
+        from agent_system.cap import config as cap_config
+
+        self.assertEqual(tuple(cap_config.CLIENTS), tuple(profile.CLIENTS))
+
+    def test_claude_is_registered_and_renderable(self) -> None:
+        self.assertIn("claude", profile.CLIENTS)
+        self.assertEqual(profile.CLIENT_EXECUTABLES["claude"], "claude")
+        self.assertEqual(profile._client_adapter_version("claude"), 1)
+
+    def test_claude_render_tree_shape(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, "review")
+        tree = profile._render_tree(project, "claude", selected)
+
+        top_level = sorted(path for path in tree if "/" not in path)
+        self.assertEqual(
+            top_level, ["claude-config.yaml", "mcp.json", "system-prompt.md"]
+        )
+        # The CAP-side intermediate stays empty in the portable render.
+        self.assertEqual(tree["claude-config.yaml"].content, b"{}\n")
+        rendered_skills = {
+            path.split("/")[1] for path in tree if path.startswith("skills/")
+        }
+        self.assertEqual(rendered_skills, set(selected.skills))
+
+    def test_claude_render_is_deterministic(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, "review")
+        first = profile._tree_hash(profile._render_tree(project, "claude", selected))
+        second = profile._tree_hash(profile._render_tree(project, "claude", selected))
+        self.assertEqual(first, second)
+
+    def test_claude_mcp_names_are_readable(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, "review")
+        tree = profile._render_tree(project, "claude", selected)
+        self.assertEqual(
+            profile._configured_mcp_names(tree, "claude"),
+            sorted(selected.mcps),
+        )
+
+    def test_claude_forbids_arguments_that_reopen_closed_gates(self) -> None:
+        for argument in (
+            "--settings",
+            "--setting-sources",
+            "--mcp-config",
+            "--strict-mcp-config",
+            "--plugin-dir",
+            "--plugin-url",
+            "--agents",
+            "--add-dir",
+            "--permission-mode",
+            "--dangerously-skip-permissions",
+            "--system-prompt",
+            "--append-system-prompt",
+            "--bare",
+            "--safe-mode",
+        ):
+            with self.subTest(argument=argument):
+                with self.assertRaises(profile.ProfileError):
+                    profile._validate_forwarded_args("claude", (argument,))
+
+    def test_claude_allows_ordinary_arguments(self) -> None:
+        profile._validate_forwarded_args("claude", ("-p", "hello"))
+
+    def test_claude_is_not_launchable_yet(self) -> None:
+        self.assertNotIn("claude", profile.LAUNCHABLE_CLIENTS)
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, "review")
+        tree = profile._render_tree(project, "claude", selected)
+        with self.assertRaisesRegex(profile.ProfileError, "has no launch adapter"):
+            profile.build_launch("claude", self.root / "runtime", tree)
 
 
 class SingleEntryTests(unittest.TestCase):

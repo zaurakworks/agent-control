@@ -6,6 +6,10 @@
     "skills": "native-staging"
   },
   "clients": {
+    "claude": {
+      "adapter_version": 1,
+      "executable": "claude"
+    },
     "codex": {
       "adapter_version": 8,
       "executable": "codex"
@@ -209,6 +213,9 @@
         "agent-assembler"
       ],
       "clients": {
+        "claude": {
+          "tree_hash": "sha256:a28101f9beccf08064d534abbade63d6a0abdb1ac54ff0edc82880c54b12e5e7"
+        },
         "codex": {
           "tree_hash": "sha256:8a37dc3fcd7253b6a8419dcc813b0856bd099340cfb1130554b969188bf6f37f"
         },
@@ -241,7 +248,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:d1bfe9499a0f82b9b7ff9fa676c3ae7831dd69e9ac210cee5c2ff0fbb5a70cda",
+      "layer_digest": "sha256:2aaadc845ab03cfbad37ebaaa77e142e905d6e26e3a5a2f588397c62682ded65",
       "operations": {
         "hooks": {
           "allow": [],
@@ -283,6 +290,9 @@
         "general"
       ],
       "clients": {
+        "claude": {
+          "tree_hash": "sha256:532c6038376209902f00531f36a6c360e003d29a00442947843708161a1c1747"
+        },
         "codex": {
           "tree_hash": "sha256:ab91ee030512abcdaff9f220472818917881b8bf52c72629b3c6f2485b44b6c7"
         },
@@ -307,7 +317,7 @@
           "openspec-update-change"
         ]
       },
-      "layer_digest": "sha256:16cc58dd1ff20d70234309b42de528323e3c18bbeddb0d9422efd88373a9ce81",
+      "layer_digest": "sha256:c9eb670fd9b9fcc5ec77a2a38f104c1913c871f78922ea5c9217eef233a62693",
       "operations": {
         "hooks": {
           "allow": [],

@@ -6,6 +6,10 @@
     "skills": "native-staging"
   },
   "clients": {
+    "claude": {
+      "adapter_version": 1,
+      "executable": "claude"
+    },
     "codex": {
       "adapter_version": 8,
       "executable": "codex"
@@ -32,6 +36,17 @@
     },
     ".cap/capabilities/hooks/implementation-hook/targets": {
       "type": "directory"
+    },
+    ".cap/capabilities/hooks/implementation-hook/targets/claude": {
+      "type": "directory"
+    },
+    ".cap/capabilities/hooks/implementation-hook/targets/claude/hooks": {
+      "type": "directory"
+    },
+    ".cap/capabilities/hooks/implementation-hook/targets/claude/hooks/implementation-hook.sentinel": {
+      "mode": "0644",
+      "sha256": "e8dde3e8c9e1820d217049be481c39b6e2292b0ab82e6b91ee08328263f586a9",
+      "type": "file"
     },
     ".cap/capabilities/hooks/implementation-hook/targets/codex": {
       "type": "directory"
@@ -71,6 +86,17 @@
     },
     ".cap/capabilities/hooks/review-hook/targets": {
       "type": "directory"
+    },
+    ".cap/capabilities/hooks/review-hook/targets/claude": {
+      "type": "directory"
+    },
+    ".cap/capabilities/hooks/review-hook/targets/claude/hooks": {
+      "type": "directory"
+    },
+    ".cap/capabilities/hooks/review-hook/targets/claude/hooks/review-hook.sentinel": {
+      "mode": "0644",
+      "sha256": "b29e2230a23f65419547970938a9fefcd28436985d387dd20832ead7c318b679",
+      "type": "file"
     },
     ".cap/capabilities/hooks/review-hook/targets/codex": {
       "type": "directory"
@@ -127,6 +153,17 @@
     ".cap/capabilities/plugins/implementation-plugin/targets": {
       "type": "directory"
     },
+    ".cap/capabilities/plugins/implementation-plugin/targets/claude": {
+      "type": "directory"
+    },
+    ".cap/capabilities/plugins/implementation-plugin/targets/claude/plugins": {
+      "type": "directory"
+    },
+    ".cap/capabilities/plugins/implementation-plugin/targets/claude/plugins/implementation-plugin.sentinel": {
+      "mode": "0644",
+      "sha256": "b75a2e967ada1387503ef18237391dc5329b0cf9015a820c13e2b3012fad95eb",
+      "type": "file"
+    },
     ".cap/capabilities/plugins/implementation-plugin/targets/codex": {
       "type": "directory"
     },
@@ -165,6 +202,17 @@
     },
     ".cap/capabilities/plugins/review-plugin/targets": {
       "type": "directory"
+    },
+    ".cap/capabilities/plugins/review-plugin/targets/claude": {
+      "type": "directory"
+    },
+    ".cap/capabilities/plugins/review-plugin/targets/claude/plugins": {
+      "type": "directory"
+    },
+    ".cap/capabilities/plugins/review-plugin/targets/claude/plugins/review-plugin.sentinel": {
+      "mode": "0644",
+      "sha256": "89e77ff79cd0ade641d54fb1ddcb08695d1c7d8a86376875b23b1da3b7cb7662",
+      "type": "file"
     },
     ".cap/capabilities/plugins/review-plugin/targets/codex": {
       "type": "directory"
@@ -266,6 +314,9 @@
         "implementation"
       ],
       "clients": {
+        "claude": {
+          "tree_hash": "sha256:cb04c8695aecd8910caacf69b96624fdda92f5e677bdffe637b29a06c63ac713"
+        },
         "codex": {
           "tree_hash": "sha256:34d0d2d491540dd77de99f03ff66d180e87d2257e703fcb88b525c23d5414c16"
         },
@@ -291,7 +342,7 @@
           "implementation-skill"
         ]
       },
-      "layer_digest": "sha256:b1f1e469c22a0497eeabe07fc853503774d823caf585b52b026a2e5176ef2c97",
+      "layer_digest": "sha256:204389d74edc1c4ec569f2b742f722e880540463911b524cb404ed0e80b8eac7",
       "operations": {
         "hooks": {
           "allow": [
@@ -332,6 +383,9 @@
         "review"
       ],
       "clients": {
+        "claude": {
+          "tree_hash": "sha256:3fc54cba344c00ac66e0b6dda0ad66971a25585b8e3a07c727067f17344918f4"
+        },
         "codex": {
           "tree_hash": "sha256:a3184e9cf4bd3ee3b829b389cb63339df4c3f1171d5884ac22803ccdff8856fe"
         },
@@ -357,7 +411,7 @@
           "review-skill"
         ]
       },
-      "layer_digest": "sha256:5e0dd408de08a8846a733024b3bf1d080b68f79982ddf2b624b23f0eec5d230f",
+      "layer_digest": "sha256:670c64798a2c80c86c32e799958835ecccff2807899bb5c217d05361f8753e34",
       "operations": {
         "hooks": {
           "allow": [

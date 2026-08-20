@@ -37,8 +37,18 @@ EVIDENCE_VERSION = 2
 MACHINE_CONTEXT_NAME = "machine-context"
 REAL_HOME_PROFILE = "real-home"  # legacy migration format only
 PROJECT_DEFAULTS_NAME = "project-defaults"
-CLIENTS = ("codex", "qoder", "omp")
-CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
+CLIENTS = ("codex", "qoder", "omp", "claude")
+# Clients that additionally have a launch adapter. Registering a client
+# makes it renderable and lockable; launching it additionally requires auth
+# staging and a launch command, which land per client. Clients outside this
+# tuple fail closed in `_staged_auth` and `build_launch`.
+LAUNCHABLE_CLIENTS = ("codex", "qoder", "omp")
+CLIENT_EXECUTABLES = {
+    "codex": "codex",
+    "qoder": "qoder",
+    "omp": "omp",
+    "claude": "claude",
+}
 # Per-client adapter versions. This value reaches `effective_render_hash`
 # through the lock and each adapter's source context, so a single shared int
 # would make every OMP generation stale whenever another client's adapter
@@ -48,6 +58,7 @@ CLIENT_ADAPTER_VERSION: Mapping[str, int] = {
     "codex": 8,
     "omp": 8,
     "qoder": 8,
+    "claude": 1,
 }
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
 CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
@@ -394,6 +405,35 @@ def _is_ambient_credential_name(name: str) -> bool:
 
 
 FORBIDDEN_CLIENT_ARGUMENTS = {
+    # Every flag here can reopen a gate the adapter closed: a different
+    # settings source, capability source or system prompt. Verified to exist
+    # against Claude Code 2.1.236; see the Claude adapter change package.
+    "claude": frozenset(
+        {
+            "--add-dir",
+            "--agent",
+            "--agents",
+            "--allow-dangerously-skip-permissions",
+            "--allowedTools",
+            "--allowed-tools",
+            "--append-system-prompt",
+            "--bare",
+            "--dangerously-skip-permissions",
+            "--disallowedTools",
+            "--disallowed-tools",
+            "--mcp-config",
+            "--permission-mode",
+            "--plugin-dir",
+            "--plugin-url",
+            "--safe-mode",
+            "--setting-sources",
+            "--settings",
+            "--strict-mcp-config",
+            "--system-prompt",
+            "--system-prompt-file",
+            "--tools",
+        }
+    ),
     "codex": frozenset(
         {"-c", "-C", "-p", "--add-dir", "--cd", "--config", "--profile"}
     ),
@@ -432,6 +472,17 @@ FORBIDDEN_CLIENT_ARGUMENTS = {
             "--system-prompt",
         }
     ),
+}
+
+# Compact flags whose prefix alone can override a capability root, keyed by
+# client so that registering a client without declaring its prefixes fails
+# closed instead of raising KeyError. Claude has no such compact form: its
+# capability-root flags are all long options.
+FORBIDDEN_CLIENT_ARGUMENT_PREFIXES = {
+    "codex": ("-c", "-C", "-p"),
+    "qoder": ("-w",),
+    "omp": ("-e",),
+    "claude": (),
 }
 
 
@@ -2099,7 +2150,7 @@ def _configured_mcp_names(tree: Mapping[str, RenderedFile], client: str) -> list
                 f"rendered Codex configuration is invalid: {error}"
             ) from error
         servers = data.get("mcp_servers", {})
-    elif client in {"qoder", "omp"}:
+    elif client in {"qoder", "omp", "claude"}:
         relative = "mcp.json"
         data = _loads_strict_json(
             _rendered_text(tree, relative, "rendered MCP configuration"),
@@ -4615,6 +4666,18 @@ def _render_tree(
         put("settings.json", RenderedFile(b"{}\n"), "qoder renderer")
         put("mcp.json", RenderedFile(_qoder_mcp(mcp_definitions)), "qoder renderer")
         put("system-prompt.md", RenderedFile(prompt), "qoder renderer")
+    elif client == "claude":
+        # `claude-config.yaml` is the CAP-owned intermediate, not a Claude
+        # native file. It stays empty in the portable render for the same
+        # reason OMP's `config.yml` does: effective policy and machine
+        # binding belong to the adapter, not to the reproducible tree.
+        put("claude-config.yaml", RenderedFile(b"{}\n"), "claude renderer")
+        put(
+            "mcp.json",
+            RenderedFile(_claude_mcp(mcp_definitions)),
+            "claude renderer",
+        )
+        put("system-prompt.md", RenderedFile(prompt), "claude renderer")
     elif client == "omp":
         put("config.yml", RenderedFile(b"{}\n"), "omp renderer")
         put("mcp.json", RenderedFile(_omp_mcp(mcp_definitions)), "omp renderer")
@@ -4718,6 +4781,27 @@ def _codex_config(definitions: Sequence[McpDefinition]) -> bytes:
 def _qoder_mcp(definitions: Sequence[McpDefinition]) -> bytes:
     servers = {
         definition.name: {
+            "command": definition.command,
+            "args": list(definition.args),
+            "env": dict(definition.env),
+        }
+        for definition in definitions
+    }
+    return _canonical_json({"mcpServers": servers})
+
+
+def _claude_mcp(definitions: Sequence[McpDefinition]) -> bytes:
+    """Render the CAP-side MCP tree consumed by the Claude adapter.
+
+    Claude reads `mcpServers` with the same stdio shape as OMP, so the
+    portable bytes are identical today. It is kept separate anyway: the two
+    clients version their native schemas independently, and sharing one
+    renderer would silently couple them.
+    """
+
+    servers = {
+        definition.name: {
+            "type": "stdio",
             "command": definition.command,
             "args": list(definition.args),
             "env": dict(definition.env),
@@ -5046,6 +5130,7 @@ def _validate_client(client: str) -> None:
 def _validate_forwarded_args(client: str, args: Sequence[str]) -> None:
     try:
         forbidden = FORBIDDEN_CLIENT_ARGUMENTS[client]
+        compact_prefixes = FORBIDDEN_CLIENT_ARGUMENT_PREFIXES[client]
     except KeyError as error:
         # A registered client with no forbidden-argument policy would otherwise
         # raise KeyError here and accept every forwarded flag, including ones
@@ -5057,11 +5142,6 @@ def _validate_forwarded_args(client: str, args: Sequence[str]) -> None:
         if not isinstance(argument, str) or "\x00" in argument:
             raise ProfileError("forwarded arguments must be NUL-free strings")
         key = argument.split("=", 1)[0]
-        compact_prefixes = {
-            "codex": ("-c", "-C", "-p"),
-            "qoder": ("-w",),
-            "omp": ("-e",),
-        }[client]
         compact_override = any(
             argument.startswith(prefix) for prefix in compact_prefixes
         )
