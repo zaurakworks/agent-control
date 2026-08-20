@@ -30,6 +30,10 @@ from agent_system.cap.config import (
     _is_ambient_credential_name,
 )
 from agent_system.adapter.common import (
+    generation_source_context,
+    materialize_generation,
+    render_portable_tree,
+    verify_generation,
     AdapterError,
     _assert_managed_path,
     _deep_overlay,
@@ -1010,39 +1014,13 @@ def _read_portable_config(rendered: Path) -> dict[str, object]:
 def _generation_source_context(
     args: argparse.Namespace, portable_hash: str
 ) -> tuple[dict[str, object], str]:
-    binding_path = (
-        Path(args.binding_dir).expanduser()
-        / f"{args.profile}.binding.json"
+    return generation_source_context(
+        profile=args.profile,
+        client="omp",
+        project=Path(args.project),
+        binding_dir=Path(args.binding_dir),
+        portable_hash=portable_hash,
     )
-    lock_path = Path(args.project).expanduser() / ".cap" / "lock.json"
-    try:
-        binding = json.loads(binding_path.read_text(encoding="utf-8"))
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        adapter_version = lock["clients"]["omp"]["adapter_version"]
-    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
-        raise _MigrationError(
-            "current project binding/lock context is invalid"
-        ) from error
-    context = {
-        "profile": args.profile,
-        "layer_digest": binding.get("layer_digest"),
-        "effective_digest": binding.get("effective_digest"),
-        "portable_tree_hash": portable_hash,
-        "adapter_version": adapter_version,
-    }
-    if not all(
-        isinstance(context[key], (str, int))
-        for key in (
-            "layer_digest",
-            "effective_digest",
-            "portable_tree_hash",
-            "adapter_version",
-        )
-    ):
-        raise _MigrationError(
-            "current project binding/adapter context is incomplete"
-        )
-    return context, _digest_json(context)
 
 def _verify_profile_generation(
     generation: Path,
@@ -1053,35 +1031,18 @@ def _verify_profile_generation(
     source_digest: str,
     runtime_policy: Mapping[str, object],
 ) -> dict[str, object]:
-    manifest = generation / ".cap-generation.json"
-    try:
-        payload = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise _MigrationError(
-            "profile generation manifest is invalid"
-        ) from error
-    expected = {
-        "version": 2,
-        "profile": profile,
-        "portable_tree_hash": portable_hash,
-        "effective_render_hash": effective_hash,
-        "source_context": dict(source_context),
-        "runtime_policy": dict(runtime_policy),
-        "source_digest": source_digest,
-    }
-    for key, value in expected.items():
-        if payload.get(key) != value:
-            raise _MigrationError(
-                "profile generation metadata drifted"
-            )
-    content_digest = _tree_digest(
-        generation, exclude={".cap-generation.json"}
+    return verify_generation(
+        generation,
+        {
+            "version": 2,
+            "profile": profile,
+            "portable_tree_hash": portable_hash,
+            "effective_render_hash": effective_hash,
+            "source_context": dict(source_context),
+            "runtime_policy": dict(runtime_policy),
+            "source_digest": source_digest,
+        },
     )
-    if payload.get("content_digest") != content_digest:
-        raise _MigrationError(
-            "profile generation content drifted"
-        )
-    return payload
 
 def _materialize_profile_generation(
     args: argparse.Namespace,
@@ -1090,8 +1051,9 @@ def _materialize_profile_generation(
     with tempfile.TemporaryDirectory(
         prefix=f"cap-render-{args.profile}-omp-"
     ) as temporary:
-        completed = subprocess.run(
-            [
+        rendered = Path(temporary)
+        portable_hash, rendered_skills = render_portable_tree(
+            command=[
                 *_base_args(args),
                 "materialize",
                 "--client",
@@ -1102,38 +1064,11 @@ def _materialize_profile_generation(
                 temporary,
                 *_binding_args(args),
             ],
-            capture_output=True,
-            check=False,
             env=env,
-            text=True,
+            output=rendered,
+            client="OMP",
         )
-        if completed.returncode != 0:
-            print(
-                completed.stderr.strip() or completed.stdout.strip(),
-                file=sys.stderr,
-            )
-            raise SystemExit(completed.returncode)
-        try:
-            portable_hash = json.loads(completed.stdout)["tree_hash"]
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
-            raise _MigrationError(
-                "OMP materialize output has no tree_hash"
-            ) from error
-        if not isinstance(portable_hash, str):
-            raise _MigrationError(
-                "OMP materialize tree_hash must be a string"
-            )
-        rendered = Path(temporary)
-        skills_root = rendered / "skills"
-        skill_names = (
-            sorted(
-                path.name
-                for path in skills_root.iterdir()
-                if path.is_dir() and not path.is_symlink()
-            )
-            if skills_root.is_dir()
-            else []
-        )
+        skill_names = list(rendered_skills)
         policy = _read_omp_runtime_policy(args)
         global_preference = _read_global_omp_preference(args)
         config_template = _effective_config_template(
@@ -1172,9 +1107,10 @@ def _materialize_profile_generation(
             _profile_render_parent(args)
             / effective_hash.removeprefix("sha256:")
         )
-        if generation.exists():
-            _verify_profile_generation(
-                generation,
+
+        def verify(target: Path) -> object:
+            return _verify_profile_generation(
+                target,
                 args.profile,
                 portable_hash,
                 effective_hash,
@@ -1182,27 +1118,8 @@ def _materialize_profile_generation(
                 source_digest,
                 fixed_launch["runtime_policy"],
             )
-            return generation, portable_hash, effective_hash, skill_names
-        parent = generation.parent
-        for private in (
-            _runtime_real_home(args) / ".agent-system-state",
-            parent,
-        ):
-            private.mkdir(parents=True, exist_ok=True, mode=0o700)
-            private.chmod(0o700)
-            _validate_private_runtime(
-                private,
-                "global CAP render directory",
-                private_root=_runtime_real_home(args),
-            )
-        _assert_managed_path(
-            _runtime_real_home(args), parent, "global render CAS"
-        )
-        stage = parent / (
-            f".stage-{os.getpid()}-{time.time_ns()}"
-        )
-        try:
-            shutil.copytree(rendered, stage)
+
+        def write_payload(stage: Path) -> None:
             actual_config = _replace_generation_placeholder(
                 config_template, generation
             )
@@ -1220,49 +1137,27 @@ def _materialize_profile_generation(
             extension.mkdir(mode=0o700)
             mcp_source = stage / "mcp.json"
             if mcp_source.is_file():
-                shutil.copy2(
-                    mcp_source, extension / ".mcp.json"
-                )
-            content_digest = _tree_digest(stage)
-            manifest = {
+                shutil.copy2(mcp_source, extension / ".mcp.json")
+
+        materialize_generation(
+            parent=generation.parent,
+            generation=generation,
+            source_tree=rendered,
+            state_root=_runtime_real_home(args) / ".agent-system-state",
+            private_root=_runtime_real_home(args),
+            write_payload=write_payload,
+            manifest_base={
                 "version": 2,
                 "profile": args.profile,
                 "portable_tree_hash": portable_hash,
                 "effective_render_hash": effective_hash,
                 "source_context": source_context,
                 "source_digest": source_digest,
-                "content_digest": content_digest,
                 "skills": skill_names,
                 "runtime_policy": fixed_launch["runtime_policy"],
-            }
-            (stage / ".cap-generation.json").write_text(
-                json.dumps(
-                    manifest,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            try:
-                os.rename(stage, generation)
-            except OSError:
-                if not generation.exists():
-                    raise
-                shutil.rmtree(stage)
-                _verify_profile_generation(
-                    generation,
-                    args.profile,
-                    portable_hash,
-                    effective_hash,
-                    source_context,
-                    source_digest,
-                    fixed_launch["runtime_policy"],
-                )
-        except BaseException:
-            if stage.exists():
-                shutil.rmtree(stage)
-            raise
+            },
+            verify=verify,
+        )
         return generation, portable_hash, effective_hash, skill_names
 
 def _omp_command(
