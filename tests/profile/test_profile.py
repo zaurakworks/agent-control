@@ -2102,6 +2102,56 @@ class ObserverContractTests(ProfileTestCase):
         self.assertFalse((moved / "receipt.json").exists())
 
 
+class AssetModeTests(ProfileTestCase):
+    """Lock inputs and rendered trees must not carry host-reported permission bits."""
+
+    def desired_lock(self, reported: object) -> dict[str, object]:
+        with mock.patch.object(profile, "_reported_permissions", reported):
+            return profile._desired_lock(profile.load_project(self.project))
+
+    def test_lock_records_only_the_canonical_asset_mode(self) -> None:
+        lock = profile._desired_lock(profile.load_project(self.project))
+        files = [
+            record for record in lock["inputs"].values() if record["type"] == "file"
+        ]
+        self.assertTrue(files)
+        self.assertEqual({record["mode"] for record in files}, {"0644"})
+
+    def test_lock_and_render_are_identical_across_hosts(self) -> None:
+        posix_host = self.desired_lock(lambda path: 0o644)
+        windows_host = self.desired_lock(lambda path: None)
+        self.assertEqual(posix_host, windows_host)
+        self.assertTrue(posix_host["profiles"]["review"]["clients"]["omp"]["tree_hash"])
+
+    def test_executable_lock_input_is_rejected_where_reported(self) -> None:
+        target = self.project / ".cap" / "manifest.toml"
+        with self.assertRaisesRegex(profile.ProfileError, "must not be executable"):
+            self.desired_lock(lambda path: 0o755 if path == target else 0o644)
+
+    def test_group_writable_lock_input_is_rejected_where_reported(self) -> None:
+        target = self.project / ".cap" / "project-defaults.toml"
+        with self.assertRaisesRegex(
+            profile.ProfileError, "must not grant group or other write"
+        ):
+            self.desired_lock(lambda path: 0o664 if path == target else 0o644)
+
+    def test_rejected_render_source_names_the_asset(self) -> None:
+        target = (
+            self.project
+            / ".cap"
+            / "capabilities"
+            / "skills"
+            / "review-skill"
+            / "SKILL.md"
+        )
+        with self.assertRaisesRegex(profile.ProfileError, "SKILL.md"):
+            self.desired_lock(lambda path: 0o755 if path == target else 0o644)
+
+    def test_unreported_permissions_never_reject(self) -> None:
+        lock = self.desired_lock(lambda path: None)
+        self.assertEqual(lock["renderer_version"], profile.RENDERER_VERSION)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent

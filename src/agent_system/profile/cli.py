@@ -38,6 +38,7 @@ PROJECT_DEFAULTS_NAME = "project-defaults"
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
 CLIENT_ADAPTER_VERSION = 8
+CANONICAL_ASSET_MODE = 0o644
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
 CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
 PROJECT_BYPASS_DIRS = frozenset(
@@ -4353,6 +4354,26 @@ def _profile_inventory(profile: Profile) -> dict[str, list[str]]:
     }
 
 
+def _reported_permissions(path: Path) -> int | None:
+    """Return POSIX permission bits when this host expresses them, otherwise None."""
+
+    if os.name == "nt":
+        return None
+    return stat.S_IMODE(path.stat().st_mode)
+
+
+def _asset_mode(path: Path, context: str) -> int:
+    """Return the canonical asset mode, rejecting unsafe bits where the host reports them."""
+
+    reported = _reported_permissions(path)
+    if reported is not None:
+        if reported & 0o111:
+            raise ProfileError(f"{context} must not be executable")
+        if reported & 0o022:
+            raise ProfileError(f"{context} must not grant group or other write")
+    return CANONICAL_ASSET_MODE
+
+
 def _input_records(project: Project) -> dict[str, Any]:
     if project.overlay is None:
         paths: set[Path] = {
@@ -4383,7 +4404,7 @@ def _input_records(project: Project) -> dict[str, Any]:
             elif path.is_file():
                 records[relative] = {
                     "type": "file",
-                    "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                    "mode": f"{_asset_mode(path, f'lock input {relative}'):04o}",
                     "sha256": _sha256(path.read_bytes()),
                 }
             else:
@@ -4463,7 +4484,7 @@ def _input_records(project: Project) -> dict[str, Any]:
         elif path.is_file():
             records[relative] = {
                 "type": "file",
-                "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                "mode": f"{_asset_mode(path, f'lock input {relative}'):04o}",
                 "sha256": _sha256(_redacted_file_bytes(path)),
             }
         else:
@@ -4533,7 +4554,8 @@ def _render_tree(
                 put(
                     f"skills/{skill}/{relative}",
                     RenderedFile(
-                        _redacted_file_bytes(source), stat.S_IMODE(source.stat().st_mode)
+                        _redacted_file_bytes(source),
+                        _asset_mode(source, f"skill {skill} source {relative}"),
                     ),
                     f"skill {skill}",
                 )
@@ -4555,7 +4577,9 @@ def _render_tree(
                         relative,
                         RenderedFile(
                             _redacted_file_bytes(source),
-                            stat.S_IMODE(source.stat().st_mode),
+                            _asset_mode(
+                                source, f"{kind[:-1]} {name} target {relative}"
+                            ),
                         ),
                         f"{kind[:-1]} {name}",
                     )
@@ -4707,7 +4731,7 @@ def _materialize_evidence(project: Project, desired: Mapping[str, Any]) -> None:
         source = _evidence_source_path(project, relative)
         content = _redacted_file_bytes(source)
         target = source_root / "tree" / relative
-        _atomic_write(target, content, mode=stat.S_IMODE(source.stat().st_mode))
+        _atomic_write(target, content, mode=int(record["mode"], 8))
         source_entries.append(
             {
                 "path": relative,

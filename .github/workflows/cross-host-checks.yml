@@ -1,0 +1,80 @@
+name: Cross-host assembly checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  # 已提交的 .cap/lock.json 必须在每个受支持宿主上原样复现。两个 job 跑同一条
+  # 检查，"同一提交在两端产出相同 digest"因此由两侧门禁共同证明，而不是靠单机
+  # 手工核对。现有三个 ubuntu-latest job 不受影响。
+  windows-assembly:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync locked Python project
+        run: uv sync --locked
+
+      # 这些用例把"宿主报告了什么权限位"当作可替换的输入，因此在 Windows 与
+      # POSIX 上断言同一组结论。
+      - name: Test platform-neutral asset modes
+        run: uv run python -m unittest tests.profile.test_profile.AssetModeTests -v
+
+      - name: Lock reproduces the committed digest
+        run: uv run cap lock
+
+      - name: Committed lock is unchanged
+        run: git diff --exit-code .cap/lock.json
+
+      - name: Show declared closure for general
+        run: uv run cap show general
+
+      - name: Show declared closure for agent-assembler
+        run: uv run cap show agent-assembler
+
+  posix-assembly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Sync locked Python project
+        run: uv sync --locked
+
+      - name: Test platform-neutral asset modes
+        run: uv run python -m unittest tests.profile.test_profile.AssetModeTests -v
+
+      - name: Lock reproduces the committed digest
+        run: uv run cap lock
+
+      - name: Committed lock is unchanged
+        run: git diff --exit-code .cap/lock.json
