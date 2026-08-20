@@ -27,8 +27,8 @@
 - [x] 3.5a 用例：渲染中途把目标目录改名并替换为指向他处的符号链接，断言该次渲染失败**且替换后的对象保持为空**（当前实现会在检出前把子目录写进去，这是必须修掉的回归）
 - [x] 3.6 F 簇：`_reserve_receipt`、`_validate_receipt_reservation`、`_commit_receipt`、`_unlink_reserved_receipt`、`_release_receipt` 改为按路径操作，`O_EXCL` 独占创建语义与预留身份复核原样保留
 - [x] 3.6a 按 design D8 更新 `test_reserved_receipt_parent_cannot_be_redirected` 与 `test_observed_state_swap_cannot_redirect_evidence`：保留全部安全断言（错误抛出、替换后的目录保持为空），把"占位文件已被回收"改写为"占位文件保持为空"，并在用例名或注释中标明这是已知边界而非疏漏
-- [ ] 3.7 固定临时根位于用户主目录之下仍被接受的行为（`%LOCALAPPDATA%\Temp`），并补一条测试防止日后收紧规则时静默破坏 Windows
-- [ ] 3.8 覆盖长路径场景，按 `knowledge/windows-agent-ops.md` 处理
+- [x] 3.7 固定临时根位于用户主目录之下仍被接受的行为（`%LOCALAPPDATA%\Temp`），并补一条测试防止日后收紧规则时静默破坏 Windows；同时固定"用户主目录本身仍被拒绝"
+- [x] 3.8 覆盖长路径场景，按 `knowledge/windows-agent-ops.md` 处理：该知识的口径是"按最弱消费者守门、不自动开启机器长路径策略"，因此不追求长路径可用，只固定"超限以 `could not materialize tree` 报错而非裸 OSError"，并在使用指南写明约束
 - [x] 3.9 每簇完成后在 POSIX 宿主跑完整 `tests/profile` 与 `tests/cap`，确认保持全绿；任一簇掉绿按移植回归处理，不以平台差异解释
 
 ## 4. 提交二：C／D 簇——认证检查按可表达性分类
@@ -46,12 +46,12 @@
 - [x] 5.2 在 Windows 宿主运行 `uv run cap show agent-assembler --cli omp`，确认返回该客户端的目标装配与渲染 hash
 - [ ] 5.3 在 Windows 宿主运行 `uv run cap run agent-assembler -- -p "<一次性只读探测>"`，取得真实客户端运行证据与 receipt，并据此回答 design 的 Open Question（`HOME` 与 `USERPROFILE`）
 - [ ] 5.4 按三层证据记录结论：声明态、配置态给出通过依据；实际生效态仅在有真实客户端证据时给出，否则保持 `unknown`
-- [ ] 5.5 扩展 `windows-latest` CI job 覆盖 render smoke，使 Windows 结论不依赖单机手工执行
+- [x] 5.5 扩展 `windows-latest` CI job 覆盖 render smoke，使 Windows 结论不依赖单机手工执行
 
 ## 6. 文档与合同同步
 
-- [ ] 6.1 更新 `docs/cap-guide.zh-CN.md`：补充 Windows 宿主的可用命令范围、渲染输出目录的 Windows 示例（当前只给了 POSIX 路径）、认证私有性结论为未知的含义与故障排查条目
-- [ ] 6.2 更新 `docs/profile.md` 与 `docs/maintenance.zh-CN.md` 中与权限位、目录校验保证边界相关的表述，明确写出 TOCTOU 时间窗这一保证边界
-- [ ] 6.3 复核 `.cap/capabilities/skills/*` 与 `.cap/skill-imports.toml` 是否需要变更（预期无变更，需明确记录复核结论）
-- [ ] 6.4 运行 `npx openspec validate enable-windows-cap-assembly --strict` 并通过
+- [x] 6.1 更新 `docs/cap-guide.zh-CN.md`：补充 Windows 宿主的可用命令范围、渲染输出目录的 Windows 示例（当前只给了 POSIX 路径）、认证私有性结论为未知的含义与故障排查条目
+- [x] 6.2 复核 `docs/profile.md` 与 `docs/maintenance.zh-CN.md`：两份文档均未描述权限位记录方式或目录句柄保证，没有因本变更失真的表述，因此不改；保证边界写入使用指南的《宿主之间的差异》
+- [x] 6.3 复核 `.cap/capabilities/skills/*` 与 `.cap/skill-imports.toml`：无变更；`.cap/lock.json` 全程未产生差异，`cap verify` 通过，可证闭包未动
+- [x] 6.4 运行 `npx openspec validate enable-windows-cap-assembly --strict` 并通过
 - [ ] 6.5 归档前确认 OpenSpec 校验与 `cap verify` 在 Windows 与 macOS 两端均通过

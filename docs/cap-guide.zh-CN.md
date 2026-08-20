@@ -145,9 +145,20 @@ uv run cap verify
 输出目录必须是项目外的既有空目录：
 
 ```bash
+# macOS
 mkdir -p /private/tmp/cap-render
 uv run cap render agent-assembler --cli omp --output /private/tmp/cap-render
 ```
+
+```powershell
+# Windows
+New-Item -ItemType Directory -Force "$env:TEMP\cap-render"
+uv run cap render agent-assembler --cli omp --output "$env:TEMP\cap-render"
+```
+
+输出目录必须在项目根之外、不是用户主目录本身、也不在客户端原生能力根之内；主目录**之下**的位置（例如 `%LOCALAPPDATA%\Temp`）是允许的。
+
+路径长度按 [`knowledge/windows-agent-ops.md`](../knowledge/windows-agent-ops.md) 的口径守门：本机 `LongPathsEnabled=0`，请保持渲染根短、不要依赖超过 `MAX_PATH` 的目标路径；超限时 `cap` 会以 `could not materialize tree` 报错，不会静默写出半棵树。
 
 OMP 的 `config.yml`、`mcp.json` 等文件名只属于 adapter 输出；它们不能成为项目能力或跨客户端配置源。
 
@@ -179,6 +190,28 @@ profile: warning: out-of-scope MCP is observed but not in project closure
 6. 只有 verify 通过后再启动客户端。
 
 “被用户目录发现”不能自动变成“被 profile 允许”；Hook、Plugin、MCP 和客户端生效结果不足时必须保持 `unknown`。
+
+## 5.1 宿主之间的差异
+
+`cap` 的目标宿主是 Windows 与 macOS，能力闭包、命令名与输出结构两端一致。有两处结论会随宿主变化，且都是显式的：
+
+| 结论 | macOS | Windows |
+| --- | --- | --- |
+| 锁定与渲染 digest | 与宿主无关，两端逐位相同 | 同左 |
+| 目录安全校验 | 逐分量拒绝符号链接、绑定对象身份、前后复核 | 同左，另外拒绝 junction 等重解析点 |
+| 认证目录私有性（属主、是否仅当前用户可访问） | `checked` | `unknown` |
+
+Windows 上 `st_uid` 恒为 0、`st_mode` 只反映只读属性，这两项判定没有可移植表达，因此 `cap verify` 与 `cap show` 会显式输出：
+
+```json
+{"status": "ok", "credential_privacy": "unknown", "lock_hash": "..."}
+```
+
+`unknown` 表示**没有判定**，不等于通过。它防的是同一台机器上的另一个本地账户读取凭据；它不防任何以当前用户身份运行的代码。把认证根放在仅自己可访问的位置仍然是使用者的责任。
+
+另有一项已知边界：一次运行中止时，如果占位回执的父目录被并发改名，`cap` 无法再回收那个**空**占位文件。它不含装配内容或凭据，也不会被后续运行当作有效产物。
+
+codex 与 qoder 的凭据暂存依赖符号链接，在 Windows 上需要额外权限，目前会明确报"该客户端在本宿主暂不支持"。omp 通过环境变量传递 broker 凭据，不受影响。
 
 ## 6. 常见失败的含义
 
