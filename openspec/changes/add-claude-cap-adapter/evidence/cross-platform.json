@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "captured_at": "2026-08-20",
+  "purpose": "记录 Claude adapter 的跨平台结论与其边界。",
+  "hosts": [
+    {
+      "host": "Windows 11 Pro 10.0.26200 (win32-x64)",
+      "render": "confirmed",
+      "generation": "confirmed",
+      "launch": "confirmed",
+      "evidence": "cap render/show/run --cli claude 全部可用；generation 物化、CAS 命中、内容与元数据漂移门禁均实测；真实 Claude 2.1.236 从 CAS 加载 6 个 skill。"
+    },
+    {
+      "host": "Linux (WSL2 Ubuntu, ext4 与 DrvFs)",
+      "render": "confirmed",
+      "generation": "not-exercised",
+      "launch": "not-exercised",
+      "evidence": "portable tree_hash 与 Windows 逐字节一致（sha256:532c6038...）。generation 与 launch 未在该宿主执行：CI 已覆盖单元测试，但未跑真实客户端。"
+    },
+    {
+      "host": "macOS",
+      "render": "not-verified",
+      "generation": "not-verified",
+      "launch": "not-verified",
+      "evidence": "本机无 macOS。实现不含平台分支，且 portable hash 已在两个宿主上一致，但这不等于 macOS 已验证。"
+    }
+  ],
+  "portable_hash_agreement": {
+    "profile": "general",
+    "client": "claude",
+    "windows": "sha256:532c6038376209902f00531f36a6c360e003d29a00442947843708161a1c1747",
+    "linux": "sha256:532c6038376209902f00531f36a6c360e003d29a00442947843708161a1c1747",
+    "identical": true,
+    "notes": "这是声明态可复现性的直接证据：同一份声明在两个宿主上渲染出逐字节相同的树。"
+  },
+  "path_budget": {
+    "limit": 260,
+    "observed_deepest": 168,
+    "notes": "预检在物化前对将要创建的真实路径求值，超限即失败关闭并给出可操作提示，而不是在复制中途抛 OSError。有测试用 12 层嵌套的 skill 触发该门禁，并断言失败后不留 stage 残留。"
+  },
+  "not_verified": [
+    "macOS 侧的任何环节。",
+    "Linux 上的真实客户端启动（该宿主未安装 claude）。",
+    "并发物化同一 generation 的实机竞态（有单元测试覆盖 rename 冲突路径，无实机并发实验）。"
+  ]
+}

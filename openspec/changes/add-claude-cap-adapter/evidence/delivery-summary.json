@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "captured_at": "2026-08-20",
+  "change": "add-claude-cap-adapter",
+  "purpose": "交付自足证据：Claude 作为 CAP 一等客户端的实现范围、真实客户端证据与明确的能力天花板。",
+  "delivered": {
+    "commands": [
+      "cap show <role> --cli claude",
+      "cap render <role> --cli claude --output <dir>",
+      "cap run <role> --cli claude -- <args>",
+      "cap use <role> --cli claude"
+    ],
+    "modules": [
+      "src/agent_system/adapter/common.py  客户端无关原语与 CAS 骨架",
+      "src/agent_system/claude/runtime.py  runtime policy 与 CAP 侧 effective 配置",
+      "src/agent_system/claude/native.py   唯一允许出现 Claude 原生键名的投影层",
+      "src/agent_system/claude/generation.py 三 Hash 与内容寻址存储",
+      "src/agent_system/claude/launch.py   启动、env 隔离与 receipt"
+    ],
+    "declarations": [
+      ".cap/runtime/claude.toml",
+      ".cap/manifest.toml 的 runtime 表",
+      ".cap/profiles/*.toml 的 runtime 表"
+    ]
+  },
+  "real_client_evidence": {
+    "client_version": "2.1.236",
+    "confirmed": [
+      "投影产物可被真实客户端消费：Loaded inline plugin from path: cap-general",
+      "CAS generation 被直接加载：Loaded 6 skills from plugin cap-general default directory",
+      "ambient 三路径均未贡献：Loaded 0 unique skills (managed: 0, user: 0, project: 0)",
+      "generation 在运行期间保持只读：运行后 content_digest 校验仍通过",
+      "CLAUDE_CONFIG_DIR 指向 CAP runtime，不是用户的 ~/.claude",
+      "CAP 启动未写入用户 Claude 配置面：19 个条目 mtime 快照跨启动前后 diff 为空",
+      "CAP 启动未读取用户凭据：[Bootstrap] Skipped: no usable OAuth, WIF, or API key，而用户自身 OAuth 可用"
+    ],
+    "not_exercised": [
+      "模型调用：CAP runtime 内尚未登录，本次未代负责人登录。"
+    ]
+  },
+  "evidence_ceiling": {
+    "statement": "CAP 控制了 Claude 的用户级与项目级声明能力面；自带 Skill、企业 managed 层，以及订阅模式下的 claude.ai 账号级 connector 不在 CAP 控制范围内。",
+    "uncontrollable": {
+      "managed_settings": "始终加载；--safe-mode 亦声明 policy settings 仍生效",
+      "bundled_skills": "客户端自带 42 个，不受任何本地配置控制",
+      "claudeai_connectors": "仅 subscription 模式；--strict-mcp-config 压不住，已两次独立复现"
+    },
+    "receipt_pinning": "subscription 模式下 effective_observations.mcps 恒为 reported_client_limited；hooks/plugins/bundled_skills 同样恒为 reported_client_limited；evidence.effective 保持 unknown。实现中不存在把任一维度提升为 observed 的路径，并有测试断言这一点。"
+  },
+  "deliberately_excluded": [
+    "hooks 与 plugins 的 native 投影：当前闭包为空、无真实用例；为 Claude 声明这两类能力会失败关闭，而不是渲染出静默缺少该能力的树。",
+    "Claude Web 的自动化装配：Web 不消费本地 generation，任何 Web 使用都不产生 receipt。",
+    "逐项能力 probe：没有实现，因此生效态不由启动期观察升级。"
+  ],
+  "outstanding": [
+    "macOS 侧未验证（本机无该宿主；实现不含平台分支，portable hash 已在两宿主一致，但这不等于已验证）。",
+    "Linux 上的真实客户端启动（该宿主未安装 claude）。",
+    "CAP runtime 内的首次登录需由负责人自行完成一次，之后跨项目共享。"
+  ]
+}

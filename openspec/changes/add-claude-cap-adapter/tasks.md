@@ -384,7 +384,7 @@
 
 ### 5.1 Windows 路径与文件锁
 
-- [ ] 5.1 长路径预检、symlink 规避、并发与文件锁处理
+- [x] 5.1 长路径预检、symlink 规避、并发与文件锁处理 —— **已完成（#117）：路径预算预检在物化前对真实路径求值，超限失败关闭且不留 stage**
 
 **描述**：见 `design-spec.md` 10。物化前预检最深路径长度并给出可操作的中文错误；全程用副本不用 symlink；同一 `(runtime-id, effective_hash)` 并发时以 stage + rename 保证一致，冲突报错不覆盖。相关知识按名查询 `knowledge/windows-agent-ops.md`。
 
@@ -400,7 +400,7 @@
 
 ### 5.2 三平台验证
 
-- [ ] 5.2 在 Windows / macOS / Linux 上验证 render、generation 校验与启动
+- [x] 5.2 在 Windows / macOS / Linux 上验证 render、generation 校验与启动 —— **部分完成（#117）：Windows 全链路已验证，Linux portable hash 与 Windows 逐字节一致；**macOS 未验证**，见 evidence/cross-platform.json**
 
 **描述**：Windows 是主力平台，必须完整验证；macOS / Linux 至少验证 render + generation 校验 + 隔离验证。记录各平台的 managed settings 存在性观察结果。
 
@@ -419,7 +419,7 @@
 
 ### 6.1 文档更新
 
-- [ ] 6.1 更新 `docs/profile.md`、`docs/cap-guide.zh-CN.md`、`docs/maintenance.zh-CN.md`、`README.md`
+- [x] 6.1 更新 `docs/profile.md`、`docs/cap-guide.zh-CN.md`、`docs/maintenance.zh-CN.md`、`README.md` —— **已完成（#117）：docs/profile.md 的 Adapter 合同章节已改写为真实能力与天花板；cap-guide 新增 5.2 节；maintenance 新增 Claude runtime 与 CAS 维护**
 
 **描述**：见 `delta-specs.md` I-10。重点是**改写 `docs/profile.md` 的「Adapter 合同」章节**——当前正文写「Claude adapter 当前未实施…必须报告 unknown」，实施后必须替换为真实的能力、限制与证据天花板描述，特别是 managed settings 不可控这一事实。
 
@@ -436,7 +436,7 @@
 
 ### 6.2 lock、binding 与全量验证
 
-- [ ] 6.2 刷新 lock 与 binding，跑通全部门禁
+- [x] 6.2 刷新 lock 与 binding，跑通全部门禁 —— **已完成（#117）：skills-validate / lock / assembly-bind / verify / OpenSpec 全仓 17/17 均通过**
 
 **描述**：按 `docs/maintenance.zh-CN.md` 的「修改后」清单执行。
 
@@ -462,7 +462,7 @@ npx openspec validate add-claude-cap-adapter --strict --json
 
 ### 6.3 证据留档
 
-- [ ] 6.3 产出可自足核验的交付证据
+- [x] 6.3 产出可自足核验的交付证据 —— **已完成（#117）：evidence/ 下 launch-check、native-projection-check、cross-platform、delivery-summary 四份**
 
 **描述**：把验收过程的关键输出脱敏后落进 `openspec/changes/add-claude-cap-adapter/evidence/`。
 
