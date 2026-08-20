@@ -39,7 +39,16 @@ REAL_HOME_PROFILE = "real-home"  # legacy migration format only
 PROJECT_DEFAULTS_NAME = "project-defaults"
 CLIENTS = ("codex", "qoder", "omp")
 CLIENT_EXECUTABLES = {"codex": "codex", "qoder": "qoder", "omp": "omp"}
-CLIENT_ADAPTER_VERSION = 8
+# Per-client adapter versions. This value reaches `effective_render_hash`
+# through the lock and each adapter's source context, so a single shared int
+# would make every OMP generation stale whenever another client's adapter
+# changed, and vice versa. OMP must stay at 8: existing generations under
+# `$HOME/.agent-system-state/renders/omp/` were computed with that value.
+CLIENT_ADAPTER_VERSION: Mapping[str, int] = {
+    "codex": 8,
+    "omp": 8,
+    "qoder": 8,
+}
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
 CAPABILITY_KINDS = ("skills", "mcp", "hooks", "plugins")
 PROJECT_BYPASS_DIRS = frozenset(
@@ -1659,7 +1668,7 @@ def _receipt_payload(
         "output_tree_hash": desired["profiles"][profile.name]["clients"][client][
             "tree_hash"
         ],
-        "adapter_version": CLIENT_ADAPTER_VERSION,
+        "adapter_version": _client_adapter_version(client),
         "temporary_root_removed": True,
     }
 
@@ -2024,7 +2033,7 @@ def _declared_snapshot(
         "client": client,
         "profile": profile.name,
         "renderer_version": RENDERER_VERSION,
-        "adapter_version": CLIENT_ADAPTER_VERSION,
+        "adapter_version": _client_adapter_version(client),
         "lock_hash": f"sha256:{_sha256(_canonical_json(desired))}",
         "output_tree_hash": desired["profiles"][profile.name]["clients"][client][
             "tree_hash"
@@ -4365,7 +4374,7 @@ def _desired_lock(project: Project) -> dict[str, Any]:
         "renderer_version": RENDERER_VERSION,
         "clients": {
             client: {
-                "adapter_version": CLIENT_ADAPTER_VERSION,
+                "adapter_version": _client_adapter_version(client),
                 "executable": CLIENT_EXECUTABLES[client],
             }
             for client in CLIENTS
@@ -4990,6 +4999,13 @@ def _select_profile(project: Project, profile_name: str) -> Profile:
         return project.profiles[profile_name]
     except KeyError as error:
         raise ProfileError(f"unknown profile: {profile_name}") from error
+
+
+def _client_adapter_version(client: str) -> int:
+    try:
+        return CLIENT_ADAPTER_VERSION[client]
+    except KeyError as error:
+        raise ProfileError(f"client {client} has no adapter version") from error
 
 
 def _validate_client(client: str) -> None:

@@ -2419,6 +2419,39 @@ class RegisteredClientMustHaveAdapterTests(ProfileTestCase):
             profile._configured_mcp_names(tree, self.CLIENT)
 
 
+class PerClientAdapterVersionTests(ProfileTestCase):
+    """Adapter versions must be per client, and OMP's must stay pinned.
+
+    The value reaches `effective_render_hash` through the lock and each
+    adapter's source context. A single shared int meant that bumping any one
+    client's adapter invalidated every other client's cached generations.
+    """
+
+    def test_omp_adapter_version_is_pinned(self) -> None:
+        # Existing generations under renders/omp/ were computed with 8.
+        self.assertEqual(profile.CLIENT_ADAPTER_VERSION["omp"], 8)
+
+    def test_bumping_one_client_does_not_change_another(self) -> None:
+        project = profile.load_project(self.project)
+        before = profile._desired_lock(project)["clients"]["omp"]
+
+        bumped = dict(profile.CLIENT_ADAPTER_VERSION)
+        bumped["codex"] = bumped["codex"] + 1
+        with mock.patch.object(profile, "CLIENT_ADAPTER_VERSION", bumped):
+            after = profile._desired_lock(project)
+        self.assertEqual(after["clients"]["omp"], before)
+        self.assertNotEqual(
+            after["clients"]["codex"]["adapter_version"],
+            before["adapter_version"],
+        )
+
+    def test_unregistered_client_has_no_adapter_version(self) -> None:
+        with self.assertRaisesRegex(
+            profile.ProfileError, "has no adapter version"
+        ):
+            profile._client_adapter_version("unimplemented")
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
