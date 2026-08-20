@@ -153,7 +153,7 @@ cap use <role> --cli claude
 
 ## 需要负责人决定的事项
 
-### 决定 1：认证模式默认值 —— ⏳ 待确认
+### 决定 1：认证模式默认值 —— ✅ 已确认：订阅 OAuth（2026-08-19，[决定记录](https://github.com/zaurakworks/agent-system/issues/81#issuecomment-5349961040)）
 
 T-1 证明 CAP 管理下的 Claude 必须在两种模式间取舍，二者的 MCP 闭包可控性不同：
 
@@ -165,19 +165,19 @@ T-1 证明 CAP 管理下的 Claude 必须在两种模式间取舍，二者的 MC
 | MCP 闭包生效态 | 只能记 `reported_client_limited` | 可接近 `observed` |
 | 成本 | 用现有订阅 | 单独 API 计费 |
 
-**建议 A（订阅 OAuth），待负责人选定**。若选 A，`.cap/runtime/claude.toml` 的 `auth_mode` 默认 `"subscription"`；`"bare"` 保留为可选值（成本只是一个 flag，且它是唯一能真正闭合 MCP 的路径）。该字段纳入 `effective_render_hash` 与 receipt。
+**负责人已选定 A（订阅 OAuth）**。`.cap/runtime/claude.toml` 的 `auth_mode` 默认 `"subscription"`；`"bare"` 保留为可选值（成本只是一个 flag，且它是唯一能真正闭合 MCP 的路径）。该字段纳入 `effective_render_hash` 与 receipt。
 
-**若选 A，其直接后果**：`subscription` 模式下 `effective_observations.mcps` **强制**为 `reported_client_limited`，`ambient_floor.claudeai_connector_count` 只记数量。CAP 在文档与 receipt 中**不得**声称已闭合 Claude 的 MCP 面。
+**该决定的直接后果**：`subscription` 模式下 `effective_observations.mcps` **强制**为 `reported_client_limited`，`ambient_floor.claudeai_connector_count` 只记数量。CAP 在文档与 receipt 中**不得**声称已闭合 Claude 的 MCP 面。
 
-### 决定 2：是否先修 lock 的跨平台缺陷 —— ⏳ 待确认（代码已合入，但该顺序未获确认）
+### 决定 2：是否先修 lock 的跨平台缺陷 —— ✅ 已确认：先修（2026-08-19，[决定记录](https://github.com/zaurakworks/agent-system/issues/81#issuecomment-5349961040)），且已实施
 
 实施本变更时发现一个**与 Claude 无关的既有缺陷**：`.cap/lock.json` 的 `inputs.*.mode` 用平台相关的 `S_IMODE` 记录（Linux `0644` / Windows `0666`），导致 lock 在两平台间翻转。**在 Windows 上，66 个 profile 测试有 65 个因此失败**（在干净 `git HEAD` 上同样失败）。CI 全部 `runs-on: ubuntu-latest`，其 smoke 步骤执行 `cap show general` / `cap show agent-assembler`，而 `cap show` 会校验 lock —— 因此 Windows 生成的 lock 若被提交，Linux CI 会直接失败。
 
-它阻断本变更「lock 中其他客户端 hash 不变」这一验收标准的判读。修复已实施并验证（Windows 上 `cap lock` 现在产出与 Linux 提交版逐字节一致的 lock），但**「先修」这一顺序当时并未获得负责人确认**。详见 `tasks.md` 任务 0.1 与 [#82](https://github.com/zaurakworks/agent-system/issues/82)。
+它阻断本变更「lock 中其他客户端 hash 不变」这一验收标准的判读。**已按负责人决定先行修复并验证**：Windows 上 `cap lock` 现在产出与 Linux 提交版逐字节一致的 lock。详见 `tasks.md` 任务 0.1 与 [#82](https://github.com/zaurakworks/agent-system/issues/82)。
 
-### 决定 3：证据天花板的表述 —— ⏳ 待确认
+### 决定 3：证据天花板的表述 —— ✅ 已确认：照写不弱化（2026-08-19，[决定记录](https://github.com/zaurakworks/agent-system/issues/81#issuecomment-5349961040)）
 
-Claude 存在三层 CAP 无法接管的能力底座（managed policy、42 个 bundled skills、订阅模式下的 claude.ai connector），而 OMP 一层都没有。**建议**把这一事实**原样**写进 `docs/profile.md` 的 Adapter 合同章节，不作弱化表述，待负责人确认。对应 `design-spec.md` 5.2 结尾的句子与任务 6.1。
+Claude 存在三层 CAP 无法接管的能力底座（managed policy、42 个 bundled skills、订阅模式下的 claude.ai connector），而 OMP 一层都没有。负责人已确认把这一事实**原样**写进 `docs/profile.md` 的 Adapter 合同章节，不作弱化表述。对应 `design-spec.md` 5.2 结尾的定稿句子与任务 6.1。
 
 ## Success Criteria
 
