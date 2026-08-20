@@ -4556,6 +4556,7 @@ def _render_tree(
         source_root = profile.origins["skills"].get(skill)
         if source_root is None:
             raise ProfileError(f"skill {skill} has no verified source")
+        rendered = 0
         for source in sorted(
             source_root.rglob("*"),
             key=lambda path: path.relative_to(source_root).as_posix(),
@@ -4569,6 +4570,15 @@ def _render_tree(
                     ),
                     f"skill {skill}",
                 )
+                rendered += 1
+        if not rendered:
+            # rglob() yields nothing for a missing or empty directory, so a
+            # declared skill whose origin resolves to the wrong place would
+            # otherwise be dropped without any error: lock, verify and render
+            # all keep passing while the client receives no skill at all.
+            raise ProfileError(
+                f"skill {skill} rendered no files from {source_root}"
+            )
 
     for kind, names in (("hooks", profile.hooks), ("plugins", profile.plugins)):
         for name in names:

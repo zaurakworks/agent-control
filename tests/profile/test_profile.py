@@ -2155,6 +2155,43 @@ class CanonicalModeTests(ProfileTestCase):
         self.assertEqual(after, before)
 
 
+class DeclaredSkillsAreRenderedTests(ProfileTestCase):
+    """A declared skill must actually contribute files to every client render."""
+
+    def test_every_declared_skill_is_rendered_for_every_client(self) -> None:
+        project = profile.load_project(self.project)
+        for name in sorted(project.profiles):
+            selected = profile._select_profile(project, name)
+            for client in profile.CLIENTS:
+                tree = profile._render_tree(project, client, selected)
+                rendered = {
+                    path.split("/")[1]
+                    for path in tree
+                    if path.startswith("skills/")
+                }
+                self.assertEqual(
+                    rendered,
+                    set(selected.skills),
+                    f"{name}/{client} rendered {sorted(rendered)}",
+                )
+
+    def test_declared_skill_with_no_files_fails_closed(self) -> None:
+        project = profile.load_project(self.project)
+        name = sorted(project.profiles)[0]
+        selected = profile._select_profile(project, name)
+        if not selected.skills:
+            self.skipTest("fixture profile declares no skills")
+
+        skill = selected.skills[0]
+        source_root = selected.origins["skills"][skill]
+        for path in sorted(source_root.rglob("*"), reverse=True):
+            if path.is_file():
+                path.unlink()
+
+        with self.assertRaisesRegex(profile.ProfileError, "rendered no files"):
+            profile._render_tree(project, "omp", selected)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
