@@ -1374,7 +1374,7 @@ def _staged_auth(
                     yield AuthBinding({}, (str(root.path), str(qoder_auth.path)))
                     _validate_stable_directory(qoder_auth)
                     _validate_private_tree(qoder_auth.path, "Qoder .auth")
-            else:
+            elif client == "omp":
                 broker = _read_stable_private_value(
                     client_root,
                     "broker.json",
@@ -1396,6 +1396,8 @@ def _staged_auth(
                     },
                     (str(root.path), str(client_root.path), token_text),
                 )
+            else:
+                raise ProfileError(f"client {client} has no auth adapter")
             _validate_stable_directory(client_root)
         _validate_stable_directory(root)
 
@@ -1431,31 +1433,33 @@ def build_launch(
             *args,
         )
         return LaunchSpec(command, {"QODER_CONFIG_DIR": str(root)})
-    skill_names = _rendered_skill_names(rendered_tree)
-    skill_arguments = (
-        ("--skills", ",".join(skill_names)) if skill_names else ("--no-skills",)
-    )
-    command = (
-        executable,
-        "--config",
-        str(root / "config.yml"),
-        "--append-system-prompt",
-        prompt + "\n",
-        *skill_arguments,
-        "--no-extensions",
-        "--no-rules",
-        *args,
-    )
-    return LaunchSpec(
-        command,
-        {
-            "OMP_PROFILE": "default",
-            "PI_CODING_AGENT_DIR": str(root),
-            "PI_CONFIG_DIR": str(root),
-            "PI_CONFIG_FILES": str(root / "config.yml"),
-            "PI_PROFILE": "default",
-        },
-    )
+    if client == "omp":
+        skill_names = _rendered_skill_names(rendered_tree)
+        skill_arguments = (
+            ("--skills", ",".join(skill_names)) if skill_names else ("--no-skills",)
+        )
+        command = (
+            executable,
+            "--config",
+            str(root / "config.yml"),
+            "--append-system-prompt",
+            prompt + "\n",
+            *skill_arguments,
+            "--no-extensions",
+            "--no-rules",
+            *args,
+        )
+        return LaunchSpec(
+            command,
+            {
+                "OMP_PROFILE": "default",
+                "PI_CODING_AGENT_DIR": str(root),
+                "PI_CONFIG_DIR": str(root),
+                "PI_CONFIG_FILES": str(root / "config.yml"),
+                "PI_PROFILE": "default",
+            },
+        )
+    raise ProfileError(f"client {client} has no launch adapter")
 
 
 def _prepare_execution(
@@ -2056,13 +2060,15 @@ def _configured_mcp_names(tree: Mapping[str, RenderedFile], client: str) -> list
                 f"rendered Codex configuration is invalid: {error}"
             ) from error
         servers = data.get("mcp_servers", {})
-    else:
+    elif client in {"qoder", "omp"}:
         relative = "mcp.json"
         data = _loads_strict_json(
             _rendered_text(tree, relative, "rendered MCP configuration"),
             f"<rendered-tree>/{relative}",
         )
         servers = data.get("mcpServers", {}) if isinstance(data, dict) else None
+    else:
+        raise ProfileError(f"client {client} has no MCP reader")
     if not isinstance(servers, dict):
         raise ProfileError("rendered MCP configuration has an invalid server table")
     return sorted(servers)
@@ -4570,10 +4576,12 @@ def _render_tree(
         put("settings.json", RenderedFile(b"{}\n"), "qoder renderer")
         put("mcp.json", RenderedFile(_qoder_mcp(mcp_definitions)), "qoder renderer")
         put("system-prompt.md", RenderedFile(prompt), "qoder renderer")
-    else:
+    elif client == "omp":
         put("config.yml", RenderedFile(b"{}\n"), "omp renderer")
         put("mcp.json", RenderedFile(_omp_mcp(mcp_definitions)), "omp renderer")
         put("system-prompt.md", RenderedFile(prompt), "omp renderer")
+    else:
+        raise ProfileError(f"client {client} has no renderer")
 
     for skill in profile.skills:
         source_root = profile.origins["skills"].get(skill)
@@ -4990,7 +4998,15 @@ def _validate_client(client: str) -> None:
 
 
 def _validate_forwarded_args(client: str, args: Sequence[str]) -> None:
-    forbidden = FORBIDDEN_CLIENT_ARGUMENTS[client]
+    try:
+        forbidden = FORBIDDEN_CLIENT_ARGUMENTS[client]
+    except KeyError as error:
+        # A registered client with no forbidden-argument policy would otherwise
+        # raise KeyError here and accept every forwarded flag, including ones
+        # that reopen gates the adapter closed.
+        raise ProfileError(
+            f"client {client} has no forwarded-argument policy"
+        ) from error
     for argument in args:
         if not isinstance(argument, str) or "\x00" in argument:
             raise ProfileError("forwarded arguments must be NUL-free strings")

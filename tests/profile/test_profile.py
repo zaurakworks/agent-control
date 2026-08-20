@@ -2362,6 +2362,63 @@ class PortableDirectoryTests(ProfileTestCase):
         self.assertEqual(list(target.iterdir()), [])
 
 
+class RegisteredClientMustHaveAdapterTests(ProfileTestCase):
+    """A client in CLIENTS but without an adapter must fail closed, not fall back.
+
+    Every client dispatch used to end in a bare `else` that handled OMP. Adding a
+    new client to CLIENTS would therefore silently give it OMP's renderer, launch
+    command, MCP reader and auth staging, and the whole suite would still pass.
+    """
+
+    CLIENT = "unimplemented"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.registered = mock.patch.object(
+            profile, "CLIENTS", (*profile.CLIENTS, self.CLIENT)
+        )
+        self.registered.start()
+        self.addCleanup(self.registered.stop)
+        executables = dict(profile.CLIENT_EXECUTABLES)
+        executables[self.CLIENT] = self.CLIENT
+        self.executables = mock.patch.object(
+            profile, "CLIENT_EXECUTABLES", executables
+        )
+        self.executables.start()
+        self.addCleanup(self.executables.stop)
+
+    def test_render_tree_has_no_renderer(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, sorted(project.profiles)[0])
+        with self.assertRaisesRegex(profile.ProfileError, "has no renderer"):
+            profile._render_tree(project, self.CLIENT, selected)
+
+    def test_forwarded_args_policy_is_required(self) -> None:
+        with self.assertRaisesRegex(
+            profile.ProfileError, "has no forwarded-argument policy"
+        ):
+            profile._validate_forwarded_args(self.CLIENT, ())
+
+    def test_build_launch_has_no_launch_adapter(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, sorted(project.profiles)[0])
+        tree = profile._render_tree(project, "omp", selected)
+        forbidden = dict(profile.FORBIDDEN_CLIENT_ARGUMENTS)
+        forbidden[self.CLIENT] = frozenset()
+        with mock.patch.object(profile, "FORBIDDEN_CLIENT_ARGUMENTS", forbidden):
+            with self.assertRaisesRegex(
+                profile.ProfileError, "has no launch adapter"
+            ):
+                profile.build_launch(self.CLIENT, self.root / "runtime", tree)
+
+    def test_configured_mcp_names_has_no_reader(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, sorted(project.profiles)[0])
+        tree = profile._render_tree(project, "omp", selected)
+        with self.assertRaisesRegex(profile.ProfileError, "has no MCP reader"):
+            profile._configured_mcp_names(tree, self.CLIENT)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
