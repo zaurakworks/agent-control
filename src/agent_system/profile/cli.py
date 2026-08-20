@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -528,7 +530,6 @@ class ReceiptReservation:
     """Hold a no-clobber receipt inode and its stable parent directory."""
 
     path: Path
-    parent_descriptor: int
     descriptor: int
     parent_device: int
     parent_inode: int
@@ -538,17 +539,17 @@ class ReceiptReservation:
 
 @dataclass(frozen=True)
 class StableDirectory:
-    """Hold a directory and every no-follow descriptor from the filesystem root to it."""
+    """Hold a directory and the object identity of every component from the root to it."""
 
     path: Path
     parts: tuple[str, ...]
-    descriptors: tuple[int, ...]
+    identities: tuple[tuple[int, int], ...]
 
     @property
-    def descriptor(self) -> int:
-        """Return the descriptor for the final directory."""
+    def identity(self) -> tuple[int, int]:
+        """Return the device and inode identity of the final directory."""
 
-        return self.descriptors[-1]
+        return self.identities[-1]
 
 
 def _load_layer_operations(value: Any, context: str) -> CapabilityOperations:
@@ -1013,7 +1014,7 @@ def materialize_profile(
     output = Path(output_root).expanduser().absolute()
     with _stable_directory(output, "render output") as output_directory:
         _require_external_directory(project, output_directory, "render output")
-        if os.listdir(output_directory.descriptor):
+        if os.listdir(output_directory.path):
             raise ProfileError("render output directory must be empty")
         tree = _render_tree(project, client, profile)
         tree_hash = _tree_hash(tree)
@@ -1059,10 +1060,26 @@ def _rendered_skill_names(tree: Mapping[str, RenderedFile]) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
-def _validate_private_directory(directory: StableDirectory, context: str) -> None:
-    """Require one held credential directory to be private, writable, and user-owned."""
+def _private_checks_are_expressible() -> bool:
+    """Return whether this host expresses POSIX ownership and permission bits."""
 
-    info = os.fstat(directory.descriptor)
+    return hasattr(os, "geteuid")
+
+
+def _credential_privacy_evidence() -> str:
+    """Report whether credential privacy was judged or is unknown on this host."""
+
+    return "checked" if _private_checks_are_expressible() else "unknown"
+
+
+def _validate_private_directory(directory: StableDirectory, context: str) -> None:
+    """Require one credential directory to be private, writable, and user-owned."""
+
+    info = os.lstat(directory.path)
+    if not stat.S_ISDIR(info.st_mode) or _is_link_component(info):
+        raise ProfileError(f"{context} must be a directory")
+    if not _private_checks_are_expressible():
+        return
     if info.st_uid != os.geteuid():
         raise ProfileError(f"{context} must be owned by the current user")
     mode = stat.S_IMODE(info.st_mode)
@@ -1083,27 +1100,35 @@ def _read_private_file(
     """Read one bounded private file, retrying concurrent in-place refreshes."""
 
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    target = directory.path / name
+    expressible = _private_checks_are_expressible()
     for attempt in range(3):
         try:
-            descriptor = os.open(name, flags, dir_fd=directory.descriptor)
+            if _is_link_component(os.lstat(target)):
+                raise ProfileError(f"{context} must not be a link")
+            descriptor = os.open(target, flags)
+        except ProfileError:
+            raise
         except OSError as error:
             raise ProfileError(
                 f"{context} is not a readable regular file: {error}"
             ) from error
         try:
             before = os.fstat(descriptor)
-            if (
-                not stat.S_ISREG(before.st_mode)
-                or before.st_uid != os.geteuid()
-                or before.st_nlink != 1
-            ):
+            if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
                 raise ProfileError(
-                    f"{context} must be a current-user regular file with one hard link"
+                    f"{context} must be a regular file with one hard link"
                 )
+            if expressible and before.st_uid != os.geteuid():
+                raise ProfileError(f"{context} must be owned by the current user")
             mode = stat.S_IMODE(before.st_mode)
-            if mode & 0o077:
+            if expressible and mode & 0o077:
                 raise ProfileError(f"{context} must not grant group or other access")
-            if mode & 0o400 != 0o400 or (require_owner_write and mode & 0o200 != 0o200):
+            if expressible and (
+                mode & 0o400 != 0o400
+                or (require_owner_write and mode & 0o200 != 0o200)
+            ):
                 requirement = "read and write" if require_owner_write else "read"
                 raise ProfileError(f"{context} must grant its owner {requirement}")
             content = bytearray()
@@ -1115,7 +1140,7 @@ def _read_private_file(
             if len(content) > max_bytes:
                 raise ProfileError(f"{context} exceeds {max_bytes} bytes")
             after = os.fstat(descriptor)
-            live = os.stat(name, dir_fd=directory.descriptor, follow_symlinks=False)
+            live = os.lstat(target)
             stable_identity = _same_file_identity(
                 after, before.st_dev, before.st_ino
             ) and _same_file_identity(live, before.st_dev, before.st_ino)
@@ -1180,6 +1205,7 @@ def _validate_private_tree(root: Path, context: str) -> None:
 
     entry_count = 0
     total_bytes = 0
+    expressible = _private_checks_are_expressible()
     pending = [(root, 0)]
     while pending:
         directory, depth = pending.pop()
@@ -1190,14 +1216,16 @@ def _validate_private_tree(root: Path, context: str) -> None:
                     raise ProfileError(f"{context} exceeds 256 directory entries")
                 info = entry.stat(follow_symlinks=False)
                 label = f"{context}/{entry.name}"
-                if info.st_uid != os.geteuid():
+                if _is_link_component(info):
+                    raise ProfileError(f"{label} must not be a link")
+                if expressible and info.st_uid != os.geteuid():
                     raise ProfileError(f"{label} must be owned by the current user")
                 if stat.S_ISDIR(info.st_mode):
-                    if stat.S_IMODE(info.st_mode) & 0o077:
+                    if expressible and stat.S_IMODE(info.st_mode) & 0o077:
                         raise ProfileError(
                             f"{label} must not grant group or other access"
                         )
-                    if stat.S_IMODE(info.st_mode) & 0o700 != 0o700:
+                    if expressible and stat.S_IMODE(info.st_mode) & 0o700 != 0o700:
                         raise ProfileError(
                             f"{label} must grant its owner read, write, and search"
                         )
@@ -1209,7 +1237,7 @@ def _validate_private_tree(root: Path, context: str) -> None:
                     raise ProfileError(
                         f"{label} must be a regular file with one hard link"
                     )
-                if stat.S_IMODE(info.st_mode) & 0o022:
+                if expressible and stat.S_IMODE(info.st_mode) & 0o022:
                     raise ProfileError(f"{label} must not grant group or other write")
                 total_bytes += info.st_size
                 if total_bytes > 16 * 1024 * 1024:
@@ -1221,8 +1249,13 @@ def _create_auth_symlink(
 ) -> None:
     """Expose one validated persistent credential object inside the temporary root."""
 
+    if os.name == "nt":
+        raise ProfileError(
+            f"{context} staging is not supported on this host; "
+            "only omp launches without credential staging"
+        )
     try:
-        os.symlink(str(target), name, dir_fd=runtime.descriptor)
+        os.symlink(str(target), runtime.path / name)
     except OSError as error:
         raise ProfileError(f"could not stage {context}: {error}") from error
 
@@ -1772,6 +1805,7 @@ def explain_profile(
             "declared": "ok",
             "configured": "lock-verified",
             "effective": "unknown",
+            "credential_privacy": _credential_privacy_evidence(),
         },
         "layer_digest": locked["layer_digest"],
         "clients": locked["clients"],
@@ -1811,39 +1845,38 @@ def parse_reported(text: str, marker: str) -> list[str] | None:
     return None
 
 
-def _directory_open_flags() -> int:
-    """Return fail-closed flags for opening one directory component."""
-
-    flags = os.O_RDONLY
-    for name in ("O_CLOEXEC", "O_DIRECTORY", "O_NOFOLLOW"):
-        flags |= getattr(os, name, 0)
-    return flags
-
-
 def _same_file_identity(info: os.stat_result, device: int, inode: int) -> bool:
     """Return whether one stat result names the expected filesystem object."""
 
     return info.st_dev == device and info.st_ino == inode
 
 
+def _is_link_component(info: os.stat_result) -> bool:
+    """Return whether one lstat result names a symlink, junction or other reparse point."""
+
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    attributes = getattr(info, "st_file_attributes", 0)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
+
 def _validate_stable_directory(directory: StableDirectory) -> None:
-    """Verify that every held directory still occupies its original parent entry."""
+    """Verify that every component still names the object it named when opened."""
 
     try:
-        root_info = os.fstat(directory.descriptors[0])
-        if not stat.S_ISDIR(root_info.st_mode):
-            raise ProfileError("stable directory filesystem root is not a directory")
-        for index, name in enumerate(directory.parts):
-            parent_descriptor = directory.descriptors[index]
-            descriptor = directory.descriptors[index + 1]
-            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
-            held = os.fstat(descriptor)
-            if (
-                not stat.S_ISDIR(live.st_mode)
-                or not stat.S_ISDIR(held.st_mode)
-                or not _same_file_identity(live, held.st_dev, held.st_ino)
+        current = Path(directory.path.anchor)
+        for index, identity in enumerate(directory.identities):
+            if index:
+                current = current / directory.parts[index - 1]
+            live = os.lstat(current)
+            if not stat.S_ISDIR(live.st_mode) or (
+                index and _is_link_component(live)
             ):
                 raise ProfileError(f"stable directory changed: {directory.path}")
+            if not _same_file_identity(live, identity[0], identity[1]):
+                raise ProfileError(f"stable directory changed: {directory.path}")
+    except ProfileError:
+        raise
     except (OSError, NotImplementedError) as error:
         raise ProfileError(
             f"stable directory is no longer accessible: {error}"
@@ -1855,7 +1888,7 @@ def _normalize_root_alias(path: Path, context: str) -> Path:
 
     absolute = path.expanduser().absolute()
     if absolute.anchor != os.sep:
-        raise ProfileError(f"{context} requires POSIX component-safe directory handles")
+        return absolute
     if len(absolute.parts) < 2:
         return absolute
     first = Path(os.sep) / absolute.parts[1]
@@ -1874,45 +1907,45 @@ def _normalize_root_alias(path: Path, context: str) -> Path:
 
 
 def _open_stable_directory(path: Path, context: str) -> StableDirectory:
-    """Open a lexical path one no-follow component at a time."""
+    """Bind a lexical path to one component-verified chain of directory identities."""
 
     absolute = _normalize_root_alias(path, context)
-    descriptors: list[int] = []
     parts = tuple(absolute.parts[1:])
+    identities: list[tuple[int, int]] = []
     try:
-        descriptors.append(os.open(os.sep, _directory_open_flags()))
+        current = Path(absolute.anchor)
+        info = os.lstat(current)
+        if not stat.S_ISDIR(info.st_mode):
+            raise ProfileError(f"{context} filesystem root is not a directory")
+        identities.append((info.st_dev, info.st_ino))
         for part in parts:
-            descriptors.append(
-                os.open(part, _directory_open_flags(), dir_fd=descriptors[-1])
-            )
-        directory = StableDirectory(absolute, parts, tuple(descriptors))
-        _validate_stable_directory(directory)
-        return directory
+            current = current / part
+            info = os.lstat(current)
+            if not stat.S_ISDIR(info.st_mode) or _is_link_component(info):
+                raise ProfileError(
+                    f"{context} must be an existing non-symlink directory: {current}"
+                )
+            identities.append((info.st_dev, info.st_ino))
+    except ProfileError:
+        raise
     except (OSError, NotImplementedError) as error:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
         raise ProfileError(
             f"{context} must be an existing non-symlink directory: {error}"
         ) from error
-    except BaseException:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
-        raise
+    directory = StableDirectory(absolute, parts, tuple(identities))
+    _validate_stable_directory(directory)
+    return directory
 
 
 def _close_stable_directory(directory: StableDirectory) -> None:
-    """Close every descriptor held for one stable directory chain."""
+    """Release one directory binding; identities hold no operating-system resource."""
 
-    for descriptor in reversed(directory.descriptors):
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
+    return None
 
 
 @contextmanager
 def _stable_directory(path: Path, context: str) -> Iterator[StableDirectory]:
-    """Yield one component-safe directory handle and verify its path before closing."""
+    """Yield one component-verified directory and re-verify its path before releasing."""
 
     directory = _open_stable_directory(path, context)
     try:
@@ -1926,31 +1959,16 @@ def _stable_directory(path: Path, context: str) -> Iterator[StableDirectory]:
 
 
 def _stable_directory_is_within(directory: StableDirectory, root: Path) -> bool:
-    """Return whether a held directory is the same as or below one physical root."""
+    """Return whether a verified directory is the same as or below one physical root."""
 
     root_directory = _open_stable_directory(root, "restricted root")
-    try:
-        root_info = os.fstat(root_directory.descriptor)
-        return any(
-            _same_file_identity(
-                os.fstat(descriptor), root_info.st_dev, root_info.st_ino
-            )
-            for descriptor in directory.descriptors
-        )
-    finally:
-        _close_stable_directory(root_directory)
+    return root_directory.identity in directory.identities
 
 
 def _stable_directory_is_same(directory: StableDirectory, other: Path) -> bool:
-    """Return whether a held directory is the same physical directory as one path."""
+    """Return whether a verified directory is the same physical directory as one path."""
 
-    other_directory = _open_stable_directory(other, "restricted root")
-    try:
-        other_info = os.fstat(other_directory.descriptor)
-        current_info = os.fstat(directory.descriptor)
-        return _same_file_identity(current_info, other_info.st_dev, other_info.st_ino)
-    finally:
-        _close_stable_directory(other_directory)
+    return _open_stable_directory(other, "restricted root").identity == directory.identity
 
 
 def _require_external_directory(
@@ -1978,7 +1996,7 @@ def _state_root(
     directory = _open_stable_directory(candidate, "state directory")
     try:
         _require_external_directory(project, directory, "state directory")
-        if require_empty and os.listdir(directory.descriptor):
+        if require_empty and os.listdir(directory.path):
             raise ProfileError("state directory must be empty")
         _validate_stable_directory(directory)
         return directory
@@ -2014,6 +2032,7 @@ def _declared_snapshot(
             "declared": "ok",
             "configured": "rendered",
             "effective": "unknown",
+            "credential_privacy": _credential_privacy_evidence(),
         },
         "context": context,
         "capability_semantics": desired["capability_semantics"],
@@ -2449,6 +2468,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "status": "ok",
                     "lock_hash": f"sha256:{_sha256(_canonical_json(payload))}",
+                    "credential_privacy": _credential_privacy_evidence(),
                 }
             )
             return 0
@@ -2678,10 +2698,13 @@ def _strict_json_from_directory(directory: StableDirectory, name: str) -> Any:
     flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
     for flag_name in ("O_CLOEXEC", "O_NOFOLLOW"):
         flags |= getattr(os, flag_name, 0)
+    target = directory.path / name
     try:
         _validate_stable_directory(directory)
         try:
-            descriptor = os.open(name, flags, dir_fd=directory.descriptor)
+            if _is_link_component(os.lstat(target)):
+                raise ProfileError(f"state file must not be a link: {name}")
+            descriptor = os.open(target, flags)
         except FileNotFoundError as error:
             raise ProfileError(f"state file missing: {name}") from error
         try:
@@ -2694,7 +2717,7 @@ def _strict_json_from_directory(directory: StableDirectory, name: str) -> Any:
         finally:
             if descriptor >= 0:
                 os.close(descriptor)
-        live = os.stat(name, dir_fd=directory.descriptor, follow_symlinks=False)
+        live = os.stat(target, follow_symlinks=False)
         if (
             not stat.S_ISREG(live.st_mode)
             or live.st_nlink != 1
@@ -4834,119 +4857,104 @@ def _write_all(descriptor: int, content: bytes) -> None:
         remaining = remaining[written:]
 
 
+def _fsync_directory(path: Path) -> None:
+    """Flush one directory entry where the host can open a directory for reading."""
+
+    if not hasattr(os, "O_DIRECTORY"):
+        return
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _stage_tree(staging: Path, tree: Mapping[str, RenderedFile]) -> list[str]:
+    """Write one complete rendered tree into a private staging directory."""
+
+    published: list[str] = []
+    for relative, rendered in sorted(tree.items()):
+        relative_path = PurePosixPath(relative)
+        if (
+            relative_path.is_absolute()
+            or not relative_path.parts
+            or any(part in {"", ".", ".."} for part in relative_path.parts)
+        ):
+            raise ProfileError(
+                f"render path must be normalized and relative: {relative}"
+            )
+        if relative_path.parts[0] not in published:
+            published.append(relative_path.parts[0])
+        parent = staging
+        for part in relative_path.parts[:-1]:
+            parent = parent / part
+            if not parent.is_dir():
+                os.mkdir(parent, 0o700)
+        target = parent / relative_path.parts[-1]
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        for name in ("O_CLOEXEC", "O_NOFOLLOW", "O_BINARY"):
+            flags |= getattr(os, name, 0)
+        descriptor = os.open(target, flags, rendered.mode)
+        try:
+            if hasattr(os, "fchmod"):
+                os.fchmod(descriptor, rendered.mode)
+            _write_all(descriptor, rendered.content)
+            os.fsync(descriptor)
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ProfileError(f"staged file is not private: {relative}")
+        finally:
+            os.close(descriptor)
+    return published
+
+
+def _publish_staged_entry(source: Path, target: Path) -> None:
+    """Move one staged top-level entry into the target directory."""
+
+    if target.exists() or target.is_symlink():
+        raise ProfileError(f"materialize target already exists: {target.name}")
+    try:
+        os.replace(source, target)
+    except OSError as error:
+        if getattr(error, "errno", None) != errno.EXDEV:
+            raise
+        shutil.move(str(source), str(target))
+
+
 def _materialize_tree(
     directory: StableDirectory, tree: Mapping[str, RenderedFile]
 ) -> None:
-    """Materialize files relative to held no-follow directory descriptors."""
+    """Stage the whole tree outside the target, then publish it entry by entry.
 
-    directories: dict[tuple[str, ...], int] = {(): directory.descriptor}
-    created_descriptors: list[int] = []
-    directory_records: list[tuple[int, str, int, int, int]] = []
-    file_records: list[tuple[int, str, int, int]] = []
+    Writing straight into the target would let a directory swap capture every
+    intermediate ``mkdir`` and ``open``. Staging first confines the tree to a
+    directory only this process can name, so the target is touched once per
+    top-level entry, each time immediately after re-verifying its identity.
+    """
+
     try:
         _validate_stable_directory(directory)
-        for relative, rendered in sorted(tree.items()):
-            relative_path = PurePosixPath(relative)
-            if (
-                relative_path.is_absolute()
-                or not relative_path.parts
-                or any(part in {"", ".", ".."} for part in relative_path.parts)
-            ):
-                raise ProfileError(
-                    f"render path must be normalized and relative: {relative}"
-                )
-            parent_key: tuple[str, ...] = ()
-            parent_descriptor = directory.descriptor
-            for part in relative_path.parts[:-1]:
-                child_key = (*parent_key, part)
-                child_descriptor = directories.get(child_key)
-                if child_descriptor is None:
-                    try:
-                        os.mkdir(part, 0o700, dir_fd=parent_descriptor)
-                    except FileExistsError as error:
-                        raise ProfileError(
-                            f"materialize directory appeared concurrently: {'/'.join(child_key)}"
-                        ) from error
-                    child_descriptor = os.open(
-                        part,
-                        _directory_open_flags(),
-                        dir_fd=parent_descriptor,
-                    )
-                    child_info = os.fstat(child_descriptor)
-                    live_info = os.stat(
-                        part, dir_fd=parent_descriptor, follow_symlinks=False
-                    )
-                    if not stat.S_ISDIR(child_info.st_mode) or not _same_file_identity(
-                        live_info, child_info.st_dev, child_info.st_ino
-                    ):
-                        os.close(child_descriptor)
-                        raise ProfileError(
-                            f"materialize directory changed: {'/'.join(child_key)}"
-                        )
-                    directories[child_key] = child_descriptor
-                    created_descriptors.append(child_descriptor)
-                    directory_records.append(
-                        (
-                            parent_descriptor,
-                            part,
-                            child_descriptor,
-                            child_info.st_dev,
-                            child_info.st_ino,
-                        )
-                    )
-                parent_key = child_key
-                parent_descriptor = child_descriptor
-            file_name = relative_path.parts[-1]
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-            for name in ("O_CLOEXEC", "O_NOFOLLOW"):
-                flags |= getattr(os, name, 0)
-            descriptor = os.open(
-                file_name,
-                flags,
-                rendered.mode,
-                dir_fd=parent_descriptor,
-            )
-            try:
-                os.fchmod(descriptor, rendered.mode)
-                _write_all(descriptor, rendered.content)
-                os.fsync(descriptor)
-                info = os.fstat(descriptor)
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-                    raise ProfileError(f"materialized file is not private: {relative}")
-                file_records.append(
-                    (parent_descriptor, file_name, info.st_dev, info.st_ino)
-                )
-            finally:
-                os.close(descriptor)
-        for parent_descriptor, name, descriptor, device, inode in directory_records:
-            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
-            held = os.fstat(descriptor)
-            if not _same_file_identity(live, device, inode) or not _same_file_identity(
-                held, device, inode
-            ):
-                raise ProfileError(f"materialized directory changed: {name}")
-        for parent_descriptor, name, device, inode in file_records:
-            live = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        with tempfile.TemporaryDirectory(prefix="cap-staged-tree-") as staging_root:
+            staging = Path(staging_root)
+            published = _stage_tree(staging, tree)
+            for name in published:
+                _validate_stable_directory(directory)
+                _publish_staged_entry(staging / name, directory.path / name)
+        _validate_stable_directory(directory)
+        for relative in sorted(tree):
+            live = os.lstat(directory.path / PurePosixPath(relative))
             if (
                 not stat.S_ISREG(live.st_mode)
                 or live.st_nlink != 1
-                or not _same_file_identity(live, device, inode)
+                or _is_link_component(live)
             ):
-                raise ProfileError(f"materialized file changed: {name}")
-        for descriptor in created_descriptors:
-            os.fsync(descriptor)
-        os.fsync(directory.descriptor)
+                raise ProfileError(f"materialized file changed: {relative}")
+        _fsync_directory(directory.path)
         _validate_stable_directory(directory)
     except ProfileError:
         raise
     except (OSError, NotImplementedError) as error:
         raise ProfileError(f"could not materialize tree: {error}") from error
-    finally:
-        for descriptor in reversed(created_descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
 
 
 def _select_profile(project: Project, profile_name: str) -> Profile:
@@ -5064,51 +5072,46 @@ def _reserve_receipt(
     *,
     parent_directory: StableDirectory | None = None,
 ) -> ReceiptReservation:
-    """Exclusively create an external receipt through a stable parent descriptor."""
+    """Exclusively create an external receipt under one verified parent directory."""
 
     if parent_directory is not None:
         if path.parent != parent_directory.path:
             raise ProfileError("receipt parent handle does not match the target path")
         _validate_stable_directory(parent_directory)
         _require_external_directory(project, parent_directory, "receipt")
-        parent_descriptor = os.dup(parent_directory.descriptor)
-        os.set_inheritable(parent_descriptor, False)
-        parent_info = os.fstat(parent_descriptor)
+        parent_info = os.lstat(parent_directory.path)
     else:
         with _stable_directory(path.parent, "receipt parent") as stable_parent:
             _require_external_directory(project, stable_parent, "receipt")
-            parent_descriptor = os.dup(stable_parent.descriptor)
-            os.set_inheritable(parent_descriptor, False)
-            parent_info = os.fstat(parent_descriptor)
+            parent_info = os.lstat(stable_parent.path)
     descriptor: int | None = None
     try:
-        live_parent = os.stat(path.parent, follow_symlinks=False)
-        if not stat.S_ISDIR(live_parent.st_mode) or not _same_file_identity(
-            live_parent, parent_info.st_dev, parent_info.st_ino
+        live_parent = os.lstat(path.parent)
+        if (
+            not stat.S_ISDIR(live_parent.st_mode)
+            or _is_link_component(live_parent)
+            or not _same_file_identity(
+                live_parent, parent_info.st_dev, parent_info.st_ino
+            )
         ):
             raise ProfileError("receipt parent changed before reservation")
 
         target_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        for name in ("O_CLOEXEC", "O_NOFOLLOW"):
+        for name in ("O_CLOEXEC", "O_NOFOLLOW", "O_BINARY"):
             target_flags |= getattr(os, name, 0)
         try:
-            descriptor = os.open(
-                path.name,
-                target_flags,
-                0o600,
-                dir_fd=parent_descriptor,
-            )
+            descriptor = os.open(path, target_flags, 0o600)
         except FileExistsError as error:
             raise ProfileError(f"receipt target already exists: {path}") from error
         except (OSError, NotImplementedError) as error:
             raise ProfileError(f"could not reserve receipt target: {error}") from error
-        os.fchmod(descriptor, 0o600)
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
             raise ProfileError("reserved receipt must be a private regular file")
         return ReceiptReservation(
             path=path,
-            parent_descriptor=parent_descriptor,
             descriptor=descriptor,
             parent_device=parent_info.st_dev,
             parent_inode=parent_info.st_ino,
@@ -5118,33 +5121,22 @@ def _reserve_receipt(
     except BaseException:
         try:
             if descriptor is not None:
-                _unlink_reserved_receipt(
-                    parent_descriptor,
-                    descriptor,
-                    path.name,
-                )
+                _unlink_reserved_receipt(path, descriptor)
         finally:
-            try:
-                if descriptor is not None:
-                    os.close(descriptor)
-            finally:
-                os.close(parent_descriptor)
+            if descriptor is not None:
+                os.close(descriptor)
         raise
 
 
 def _validate_receipt_reservation(reservation: ReceiptReservation) -> None:
     try:
         if any(
-            candidate.is_symlink()
+            _is_link_component(os.lstat(candidate))
             for candidate in (reservation.path.parent, *reservation.path.parent.parents)
         ):
             raise ProfileError("receipt parent changed to a symlink")
-        parent_info = os.stat(reservation.path.parent, follow_symlinks=False)
-        target_info = os.stat(
-            reservation.path.name,
-            dir_fd=reservation.parent_descriptor,
-            follow_symlinks=False,
-        )
+        parent_info = os.lstat(reservation.path.parent)
+        target_info = os.lstat(reservation.path)
         descriptor_info = os.fstat(reservation.descriptor)
     except (OSError, NotImplementedError) as error:
         raise ProfileError(
@@ -5189,23 +5181,15 @@ def _commit_receipt(reservation: ReceiptReservation, content: bytes) -> None:
     _validate_receipt_reservation(reservation)
 
 
-def _unlink_reserved_receipt(
-    parent_descriptor: int,
-    descriptor: int,
-    name: str,
-) -> None:
+def _unlink_reserved_receipt(path: Path, descriptor: int) -> None:
     try:
-        target_info = os.stat(
-            name,
-            dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
+        target_info = os.lstat(path)
         descriptor_info = os.fstat(descriptor)
         if (target_info.st_dev, target_info.st_ino) == (
             descriptor_info.st_dev,
             descriptor_info.st_ino,
         ):
-            os.unlink(name, dir_fd=parent_descriptor)
+            os.unlink(path)
     except (FileNotFoundError, NotImplementedError):
         return
 
@@ -5213,16 +5197,9 @@ def _unlink_reserved_receipt(
 def _release_receipt(reservation: ReceiptReservation, *, remove: bool) -> None:
     try:
         if remove:
-            _unlink_reserved_receipt(
-                reservation.parent_descriptor,
-                reservation.descriptor,
-                reservation.path.name,
-            )
+            _unlink_reserved_receipt(reservation.path, reservation.descriptor)
     finally:
-        try:
-            os.close(reservation.descriptor)
-        finally:
-            os.close(reservation.parent_descriptor)
+        os.close(reservation.descriptor)
 
 
 def _atomic_write(path: Path, content: bytes, *, mode: int) -> None:

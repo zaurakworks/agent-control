@@ -150,9 +150,22 @@ def _assert_managed_path(
             raise _MigrationError(f"{label} contains a symlink")
     return candidate
 
+def _private_checks_are_expressible() -> bool:
+    """Return whether this host expresses POSIX ownership and permission bits."""
+
+    return hasattr(os, "geteuid")
+
 def _validate_private_runtime(root: Path, label: str) -> None:
     info = root.stat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid():
+    if not stat.S_ISDIR(info.st_mode):
+        raise _MigrationError(
+            f"{label} must be a current-user directory"
+        )
+    # Hosts that do not express POSIX ownership or permission bits leave this
+    # conclusion unknown; they never report it as checked.
+    if not _private_checks_are_expressible():
+        return
+    if info.st_uid != os.geteuid():
         raise _MigrationError(
             f"{label} must be a current-user directory"
         )

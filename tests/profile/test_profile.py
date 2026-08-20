@@ -418,8 +418,10 @@ class MaterializationTests(ProfileTestCase):
             *,
             dir_fd: int | None = None,
         ) -> None:
+            # The tree is written while the target is swapped underneath us. The
+            # staged tree never touches the target, so nothing reaches redirect.
             nonlocal swapped
-            if dir_fd is not None and not swapped:
+            if not swapped:
                 output.rename(moved)
                 output.symlink_to(redirect, target_is_directory=True)
                 swapped = True
@@ -1806,7 +1808,12 @@ class LaunchTests(ProfileTestCase):
             runner=replacing_runner,
             auth_root=self.auth_root,)
         self.assertFalse((redirect / "receipt.json").exists())
-        self.assertFalse((moved_parent / "receipt.json").exists())
+        # Known boundary (design D8): once the parent is renamed away, the empty
+        # reservation can no longer be named, so it is left behind. It must stay
+        # empty - a reservation that never received content is not a receipt.
+        orphan = moved_parent / "receipt.json"
+        if orphan.exists():
+            self.assertEqual(orphan.read_bytes(), b"")
 
     def test_reserved_receipt_hard_link_alias_is_rejected(self) -> None:
         receipt = self.root / "hard-link-receipt.json"
@@ -2099,7 +2106,10 @@ class ObserverContractTests(ProfileTestCase):
             runner=replacing_runner,
             auth_root=self.auth_root,)
         self.assertEqual(list(redirect.iterdir()), [])
-        self.assertFalse((moved / "receipt.json").exists())
+        # Known boundary (design D8): see the receipt reservation test above.
+        orphan = moved / "receipt.json"
+        if orphan.exists():
+            self.assertEqual(orphan.read_bytes(), b"")
 
 
 class AssetModeTests(ProfileTestCase):
@@ -2150,6 +2160,129 @@ class AssetModeTests(ProfileTestCase):
     def test_unreported_permissions_never_reject(self) -> None:
         lock = self.desired_lock(lambda path: None)
         self.assertEqual(lock["renderer_version"], profile.RENDERER_VERSION)
+
+
+class PortableDirectoryTests(ProfileTestCase):
+    """Component verification and the credential-privacy conclusion on any host."""
+
+    def test_plain_directory_is_accepted(self) -> None:
+        target = self.root / "plain"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "test directory")
+        self.assertEqual(directory.path, target)
+        self.assertEqual(len(directory.identities), len(target.parts))
+
+    def test_missing_directory_is_rejected(self) -> None:
+        with self.assertRaisesRegex(
+            profile.ProfileError, "existing non-symlink directory"
+        ):
+            profile._open_stable_directory(self.root / "absent", "test directory")
+
+    def test_replaced_directory_is_detected(self) -> None:
+        target = self.root / "swapped"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "test directory")
+        target.rename(self.root / "moved-away")
+        (self.root / "swapped").mkdir()
+        with self.assertRaisesRegex(profile.ProfileError, "stable directory changed"):
+            profile._validate_stable_directory(directory)
+
+    def test_removed_directory_is_detected(self) -> None:
+        target = self.root / "removed"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "test directory")
+        target.rmdir()
+        with self.assertRaisesRegex(
+            profile.ProfileError, "stable directory is no longer accessible"
+        ):
+            profile._validate_stable_directory(directory)
+
+    def test_link_component_is_rejected(self) -> None:
+        real = self.root / "real-target"
+        real.mkdir()
+        link = self.root / "link-to-real"
+        try:
+            link.symlink_to(real, target_is_directory=True)
+        except (OSError, NotImplementedError) as error:
+            self.skipTest(f"this host cannot create directory links: {error}")
+        with self.assertRaisesRegex(
+            profile.ProfileError, "existing non-symlink directory"
+        ):
+            profile._open_stable_directory(link, "test directory")
+
+    def test_link_component_predicate_matches_lstat(self) -> None:
+        real = self.root / "predicate-target"
+        real.mkdir()
+        self.assertFalse(profile._is_link_component(os.lstat(real)))
+        link = self.root / "predicate-link"
+        try:
+            link.symlink_to(real, target_is_directory=True)
+        except (OSError, NotImplementedError) as error:
+            self.skipTest(f"this host cannot create directory links: {error}")
+        self.assertTrue(profile._is_link_component(os.lstat(link)))
+
+    @unittest.skipUnless(os.name == "nt", "junctions only exist on Windows")
+    def test_junction_component_is_rejected(self) -> None:
+        real = self.root / "junction-target"
+        real.mkdir()
+        link = self.root / "junction-link"
+        completed = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(real)],
+            capture_output=True,
+        )
+        if completed.returncode != 0:
+            self.skipTest("this host cannot create junctions")
+        self.assertTrue(profile._is_link_component(os.lstat(link)))
+        with self.assertRaisesRegex(
+            profile.ProfileError, "existing non-symlink directory"
+        ):
+            profile._open_stable_directory(link, "test directory")
+
+    def test_credential_privacy_conclusion_follows_host_expressiveness(self) -> None:
+        with mock.patch.object(
+            profile, "_private_checks_are_expressible", return_value=True
+        ):
+            self.assertEqual(profile._credential_privacy_evidence(), "checked")
+        with mock.patch.object(
+            profile, "_private_checks_are_expressible", return_value=False
+        ):
+            self.assertEqual(profile._credential_privacy_evidence(), "unknown")
+
+    def test_unexpressible_privacy_never_blocks_a_private_directory(self) -> None:
+        directory = profile._open_stable_directory(self.auth_root, "auth root")
+        with mock.patch.object(
+            profile, "_private_checks_are_expressible", return_value=False
+        ):
+            profile._validate_private_directory(directory, "auth root")
+
+    def test_staged_tree_reaches_the_target(self) -> None:
+        target = self.root / "staged-output"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "render output")
+        tree = {
+            "config.yml": profile.RenderedFile(b"{}\n"),
+            "skills/demo/SKILL.md": profile.RenderedFile(b"demo\n"),
+        }
+        profile._materialize_tree(directory, tree)
+        self.assertEqual((target / "config.yml").read_bytes(), b"{}\n")
+        self.assertEqual(
+            (target / "skills" / "demo" / "SKILL.md").read_bytes(), b"demo\n"
+        )
+
+    def test_staging_never_leaves_a_partial_tree_in_the_target(self) -> None:
+        target = self.root / "failing-output"
+        target.mkdir()
+        directory = profile._open_stable_directory(target, "render output")
+        tree = {
+            "config.yml": profile.RenderedFile(b"{}\n"),
+            "skills/demo/SKILL.md": profile.RenderedFile(b"demo\n"),
+        }
+        with mock.patch.object(
+            profile, "_publish_staged_entry", side_effect=OSError("publish failed")
+        ):
+            with self.assertRaisesRegex(profile.ProfileError, "materialize"):
+                profile._materialize_tree(directory, tree)
+        self.assertEqual(list(target.iterdir()), [])
 
 
 class SingleEntryTests(unittest.TestCase):

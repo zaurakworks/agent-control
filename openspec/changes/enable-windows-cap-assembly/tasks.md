@@ -17,31 +17,31 @@
 
 簇的划分与函数清单见 `design.md` 的 D2。每完成一簇都要求 POSIX 回归全绿再进入下一簇。
 
-- [ ] 3.1 A 簇：把 `_open_stable_directory` 改为逐分量 `os.lstat` 校验（macOS 用 `stat.S_ISLNK`，Windows 用 `st_file_attributes` 判 `FILE_ATTRIBUTE_REPARSE_POINT`，检查集合两端相同），`StableDirectory` 改为承载路径与 `st_dev`／`st_ino` 身份而不再持有描述符，`_validate_stable_directory`／`_close_stable_directory`／`_stable_directory_is_within`／`_stable_directory_is_same` 随之改写
-- [ ] 3.2 调整 `_normalize_root_alias`：保留 macOS 根别名归一化，去掉对非 `/` anchor 的一律拒绝
-- [ ] 3.3 A 簇测试：普通目录通过；路径分量为符号链接、junction 或其他重解析点被拒；取得引用后目录被替换时操作失败；跨卷路径行为明确
-- [ ] 3.4 B 簇：`materialize_profile` 的空目录判定、`_state_root` 的空目录判定、`_strict_json_from_directory` 的私有读取改为按路径操作，保留原有拒绝条件
-- [ ] 3.5 E 簇：按 design D7 把 `_materialize_tree` 改为先在 cap 独占创建的私有暂存目录中写完整棵树，校验通过后紧邻一次身份复核再一次性移入目标；`fsync` 时序与目录创建顺序原样保留，不得因移植而放宽
-- [ ] 3.5a 用例：渲染中途把目标目录改名并替换为指向他处的符号链接，断言该次渲染失败**且替换后的对象保持为空**（当前实现会在检出前把子目录写进去，这是必须修掉的回归）
-- [ ] 3.6 F 簇：`_reserve_receipt`、`_validate_receipt_reservation`、`_commit_receipt`、`_unlink_reserved_receipt`、`_release_receipt` 改为按路径操作，`O_EXCL` 独占创建语义与预留身份复核原样保留
-- [ ] 3.6a 按 design D8 更新 `test_reserved_receipt_parent_cannot_be_redirected` 与 `test_observed_state_swap_cannot_redirect_evidence`：保留全部安全断言（错误抛出、替换后的目录保持为空），把"占位文件已被回收"改写为"占位文件保持为空"，并在用例名或注释中标明这是已知边界而非疏漏
+- [x] 3.1 A 簇：把 `_open_stable_directory` 改为逐分量 `os.lstat` 校验（macOS 用 `stat.S_ISLNK`，Windows 用 `st_file_attributes` 判 `FILE_ATTRIBUTE_REPARSE_POINT`，检查集合两端相同），`StableDirectory` 改为承载路径与 `st_dev`／`st_ino` 身份而不再持有描述符，`_validate_stable_directory`／`_close_stable_directory`／`_stable_directory_is_within`／`_stable_directory_is_same` 随之改写
+- [x] 3.2 调整 `_normalize_root_alias`：保留 macOS 根别名归一化，去掉对非 `/` anchor 的一律拒绝
+- [x] 3.3 A 簇测试：普通目录通过；路径分量为符号链接、junction 或其他重解析点被拒；取得引用后目录被替换时操作失败；跨卷路径行为明确
+- [x] 3.4 B 簇：`materialize_profile` 的空目录判定、`_state_root` 的空目录判定、`_strict_json_from_directory` 的私有读取改为按路径操作，保留原有拒绝条件
+- [x] 3.5 E 簇：按 design D7 把 `_materialize_tree` 改为先在 cap 独占创建的私有暂存目录中写完整棵树，校验通过后紧邻一次身份复核再一次性移入目标；`fsync` 时序与目录创建顺序原样保留，不得因移植而放宽
+- [x] 3.5a 用例：渲染中途把目标目录改名并替换为指向他处的符号链接，断言该次渲染失败**且替换后的对象保持为空**（当前实现会在检出前把子目录写进去，这是必须修掉的回归）
+- [x] 3.6 F 簇：`_reserve_receipt`、`_validate_receipt_reservation`、`_commit_receipt`、`_unlink_reserved_receipt`、`_release_receipt` 改为按路径操作，`O_EXCL` 独占创建语义与预留身份复核原样保留
+- [x] 3.6a 按 design D8 更新 `test_reserved_receipt_parent_cannot_be_redirected` 与 `test_observed_state_swap_cannot_redirect_evidence`：保留全部安全断言（错误抛出、替换后的目录保持为空），把"占位文件已被回收"改写为"占位文件保持为空"，并在用例名或注释中标明这是已知边界而非疏漏
 - [ ] 3.7 固定临时根位于用户主目录之下仍被接受的行为（`%LOCALAPPDATA%\Temp`），并补一条测试防止日后收紧规则时静默破坏 Windows
 - [ ] 3.8 覆盖长路径场景，按 `knowledge/windows-agent-ops.md` 处理
-- [ ] 3.9 每簇完成后在 POSIX 宿主跑完整 `tests/profile` 与 `tests/cap`，确认保持全绿；任一簇掉绿按移植回归处理，不以平台差异解释
+- [x] 3.9 每簇完成后在 POSIX 宿主跑完整 `tests/profile` 与 `tests/cap`，确认保持全绿；任一簇掉绿按移植回归处理，不以平台差异解释
 
 ## 4. 提交二：C／D 簇——认证检查按可表达性分类
 
-- [ ] 4.1 C 簇：把 `_validate_private_directory`、`_read_private_file` 与 `_validate_private_tree` 中的属主判定与 `0o077` 私有性判定改为条件检查：能表达的宿主保持为门，不能表达的宿主产出显式的未知结论
-- [ ] 4.2 保持 `st_nlink` 硬链接数检查在两端均为门（实测 Windows 原生可用）
-- [ ] 4.3 把未知结论接入三层证据报告与 `cap verify` 输出，确保它不会被读成通过
-- [ ] 4.4 补单元测试：POSIX 上对 group／other 开放的认证目录被拒；无法表达的宿主上产出未知而非通过、且不阻断启动；两端硬链接数大于一均被拒
-- [ ] 4.6 第 7 簇：按 D4 同一条规则处理 `src/agent_system/omp/runtime.py` 的 `_validate_private_runtime`（`os.geteuid()`），使 `cap show <profile> --cli omp` 在 Windows 上不再崩溃
-- [ ] 4.5 D 簇：确认 codex 与 qoder 的 `_create_auth_symlink` 路径在 Windows 上给出明确的"该客户端在本宿主暂不支持"错误，而不是含糊的失败
+- [x] 4.1 C 簇：把 `_validate_private_directory`、`_read_private_file` 与 `_validate_private_tree` 中的属主判定与 `0o077` 私有性判定改为条件检查：能表达的宿主保持为门，不能表达的宿主产出显式的未知结论
+- [x] 4.2 保持 `st_nlink` 硬链接数检查在两端均为门（实测 Windows 原生可用）
+- [x] 4.3 把未知结论接入三层证据报告与 `cap verify` 输出，确保它不会被读成通过
+- [x] 4.4 补单元测试：POSIX 上对 group／other 开放的认证目录被拒；无法表达的宿主上产出未知而非通过、且不阻断启动；两端硬链接数大于一均被拒
+- [x] 4.6 第 7 簇：按 D4 同一条规则处理 `src/agent_system/omp/runtime.py` 的 `_validate_private_runtime`（`os.geteuid()`），使 `cap show <profile> --cli omp` 在 Windows 上不再崩溃
+- [x] 4.5 D 簇：确认 codex 与 qoder 的 `_create_auth_symlink` 路径在 Windows 上给出明确的"该客户端在本宿主暂不支持"错误，而不是含糊的失败
 
 ## 5. 提交二的验证与 smoke check
 
-- [ ] 5.1 在 Windows 宿主运行 `uv run cap render agent-assembler --cli omp --output <项目外空目录>`，确认产出完整装配树
-- [ ] 5.2 在 Windows 宿主运行 `uv run cap show agent-assembler --cli omp`，确认返回该客户端的目标装配与渲染 hash
+- [x] 5.1 在 Windows 宿主运行 `uv run cap render agent-assembler --cli omp --output <项目外空目录>`，确认产出完整装配树
+- [x] 5.2 在 Windows 宿主运行 `uv run cap show agent-assembler --cli omp`，确认返回该客户端的目标装配与渲染 hash
 - [ ] 5.3 在 Windows 宿主运行 `uv run cap run agent-assembler -- -p "<一次性只读探测>"`，取得真实客户端运行证据与 receipt，并据此回答 design 的 Open Question（`HOME` 与 `USERPROFILE`）
 - [ ] 5.4 按三层证据记录结论：声明态、配置态给出通过依据；实际生效态仅在有真实客户端证据时给出，否则保持 `unknown`
 - [ ] 5.5 扩展 `windows-latest` CI job 覆盖 render smoke，使 Windows 结论不依赖单机手工执行
