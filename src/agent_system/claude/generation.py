@@ -112,6 +112,43 @@ def _portable_mcp_servers(rendered: Path) -> dict[str, object]:
     return servers
 
 
+# Windows refuses paths longer than this unless long-path support is enabled.
+# The generation prefix is already long -- a content-addressed directory name is
+# 64 characters -- and skills nest another few levels under it, so the limit is
+# reachable in practice rather than theoretical.
+MAX_PORTABLE_PATH = 260
+
+
+def _check_generation_path_budget(
+    rendered: Path, generation: Path, skill_names: tuple[str, ...]
+) -> None:
+    """Fail with an actionable message rather than a bare OSError mid-copy.
+
+    The check runs on every platform against the real paths that are about to be
+    created, so a machine whose home directory is deep is caught the same way a
+    deeply nested skill is. Aborting here also avoids leaving a partial stage
+    behind.
+    """
+
+    prefix = generation / native.PLUGIN_SKILLS_ROOT
+    worst = ""
+    for name in skill_names:
+        source = rendered / "skills" / name
+        if not source.is_dir():
+            continue
+        for path in source.rglob("*"):
+            candidate = str(prefix / name / path.relative_to(source))
+            if len(candidate) > len(worst):
+                worst = candidate
+    if len(worst) > MAX_PORTABLE_PATH:
+        raise ClaudeError(
+            "Claude generation would exceed the portable path budget "
+            f"({len(worst)} > {MAX_PORTABLE_PATH}): {worst}. "
+            "Shorten the skill's inner paths, or enable long-path support on "
+            "this host."
+        )
+
+
 def materialize_claude_generation(
     args: argparse.Namespace, env: dict[str, str]
 ) -> tuple[Path, str, str, tuple[str, ...]]:
@@ -203,6 +240,7 @@ def materialize_claude_generation(
             }
         )
         generation = claude_render_root(args) / effective_hash.removeprefix("sha256:")
+        _check_generation_path_budget(rendered, generation, skill_names)
 
         expected = {
             "version": MANIFEST_VERSION,

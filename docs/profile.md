@@ -89,7 +89,7 @@ uv run cap migrate-omp-runtime --cleanup
 
 - 声明态：manifest、project-defaults、role、prompt、capabilities、runtime policy。
 - 配置态：lock、machine-context pin、binding、generation、render hash。
-- 生效态：真实 OMP run、generation manifest、receipt 和 probe。
+- 生效态：真实客户端 run、generation manifest、receipt 和 probe。OMP 与 Claude 各有独立的 generation 与 receipt；Claude 的天花板见下方 Adapter 合同。
 
 receipt 关联 `runtime_id`、policy/effective digest、source context、generation、portable tree hash、effective render hash、exit code 和 runtime policy evidence；不记录 token、cookie、endpoint secret、Session/history 正文或命令参数值。文件存在或 lock 通过不能冒充客户端生效。
 
@@ -97,4 +97,28 @@ receipt 关联 `runtime_id`、policy/effective digest、source context、generat
 
 Codex adapter 后续必须从 v3 role、project-defaults、runtime policy、pin、binding 和 external import closure 独立投影自己的 native 文件，声明支持字段、adapter version 和 evidence ceiling；不得读取 OMP `config.yml`。
 
-Claude adapter 当前未实施、未安装或未观察到时必须报告 `unknown`，不得生成虚假的生效证据，也不得复用 OMP native config。只有真实 CLI、隔离 render、运行 probe 和 receipt 全部可核验后，才能提升 evidence level。
+Claude adapter 已实施，与 OMP 同构：portable render → runtime policy 合成 → native 投影 → effective render hash → 内容寻址 generation → 启动 → receipt。它自行投影 `native/settings.json`、`native/mcp.json` 与 `native/plugin/`，不读取 OMP `config.yml`。
+
+`.cap/runtime/claude.toml` 的 `login_mode` 选择认证方式，默认 `subscription`。该字段的名字刻意避开 secret 遮蔽正则：`.cap/runtime/*.toml` 是 lock 输入且在哈希前会被遮蔽，取一个含 `auth`／`token`／`secret` 的名字会让两个不同取值哈希相同，从而使 `cap verify` 对它失效。
+
+### Claude 的证据天花板
+
+**Claude 存在三层 CAP 无法接管的能力底座，而 OMP 一层都没有：**
+
+- **管理层配置**（`C:\Program Files\ClaudeCode\managed-settings.json` 等）始终加载，`--safe-mode` 亦声明 policy settings 仍生效；
+- **42 个 bundled skills** 由客户端自带，不受任何本地配置控制；
+- **claude.ai 账号级远程 MCP connector**（仅 `subscription` 模式）从 `api.anthropic.com/v1/mcp_servers` 拉取，不来自任何本地文件，`--strict-mcp-config` 压不住——已两次独立复现。
+
+因此 CAP 对 Claude 的隔离声明上限是：**CAP 控制了用户级与项目级的声明能力面；自带 Skill、企业 managed 层，以及订阅模式下的账号级 connector 不在 CAP 控制范围内。**
+
+`subscription` 模式下 receipt 的 `effective_observations.mcps` 恒为 `reported_client_limited`，实现中不存在把该维度提升为 `observed` 的路径。`hooks`、`plugins`、`bundled_skills` 同样恒为 `reported_client_limited`；本 adapter 没有逐项 probe，因此 `evidence.effective` 保持 `unknown`，不由启动期观察升级。
+
+### 认证与用户目录边界
+
+Claude 的认证随 `CLAUDE_CONFIG_DIR` 迁移。CAP 把该变量指向自己的 `runtimes/claude/<runtime-id>/`，因此**首次在 CAP 下使用需要单独登录一次**；此后凭据留在 CAP 的 runtime 内，跨项目共享。
+
+CAP 对用户自己的 `~/.claude`、`~/.claude.json` 与 `~/.claude-plugin` **既不读、也不写、也不迁移**。
+
+### 未支持的能力类别
+
+hooks 与 plugins 尚未投影。为 Claude 声明这两类能力会**失败关闭**，而不是渲染出一棵静默缺少该能力的树。

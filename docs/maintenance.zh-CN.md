@@ -71,6 +71,7 @@ uv run cap verify
 uv run cap show agent-assembler
 uv run cap show general
 uv run cap show general --cli omp
+uv run cap show general --cli claude
 
 # 6. 验证活动 OpenSpec change
 npx openspec validate <change-id> --strict --json
@@ -226,3 +227,24 @@ git diff --stat
 - 新方案会把本仓变成 Plugin Marketplace、调度器、secret broker 或全局能力安装器。
 
 此时保留已验证的局部结果，报告缺口和下一步所有者。
+
+## Claude runtime 与 CAS 维护
+
+Claude 的持久状态与 OMP 平行：
+
+```text
+$HOME/.agent-system-state/runtimes/claude/<runtime-id>/   认证与会话，跨项目共享
+$HOME/.agent-system-state/renders/claude/<effective-hash>/ 只读 generation（内容寻址）
+```
+
+generation 在运行期间保持只读：Skill 经 `--plugin-dir` 只读交付，MCP 与 settings 经命令行 flag 指向同一目录，因此运行前后 `content_digest` 必须一致。手工改动 generation 会在下次启动被拒绝——正确处理是删掉该目录让它重新物化，而不是修补。
+
+`renders/claude/` 是可重建的派生物，可以直接删除；`runtimes/claude/` 含真实凭据，**不要删**。
+
+CAP 对用户自己的 `~/.claude`、`~/.claude.json` 与 `~/.claude-plugin` 既不读、也不写、也不迁移。
+
+### 新增 runtime policy 字段时的陷阱
+
+`.cap/runtime/*.toml` 是 lock 输入，而 lock 在哈希前会先经 secret 遮蔽。字段名若含 `auth`、`token`、`secret`、`credential` 等词，其取值会被替换成占位符，导致两个不同取值哈希相同、`cap verify` 对该字段失效。
+
+`tests/profile/test_profile.py::RuntimePolicyFieldsSurviveRedactionTests` 会在这种命名出现时立即失败。

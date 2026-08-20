@@ -213,6 +213,53 @@ Windows 上 `st_uid` 恒为 0、`st_mode` 只反映只读属性，这两项判�
 
 codex 与 qoder 的凭据暂存依赖符号链接，在 Windows 上需要额外权限，目前会明确报"该客户端在本宿主暂不支持"。omp 通过环境变量传递 broker 凭据，不受影响。
 
+## 5.2 用 Claude 启动
+
+Claude 与 OMP 走同一套流程，命令形状一致：
+
+```bash
+uv run cap show general --cli claude
+uv run cap render general --cli claude --output <已存在的空目录>
+uv run cap run general --cli claude -- -p "你的提示"
+```
+
+### 首次使用需要单独登录一次
+
+Claude 的认证跟随 `CLAUDE_CONFIG_DIR`。CAP 把它指向自己的 runtime 目录：
+
+```text
+$HOME/.agent-system-state/runtimes/claude/<runtime-id>/
+```
+
+因此第一次在 CAP 下启动时会提示 `Not logged in`。在该 runtime 内登录一次即可，之后凭据留在那里并跨项目共享。
+
+CAP 对你自己的 `~/.claude`、`~/.claude.json` 与 `~/.claude-plugin` **既不读、也不写、也不迁移**——在 CAP 下登录不会影响你平时直接使用的 Claude，反之亦然。
+
+### CAP 控制得了什么，控制不了什么
+
+| 面 | CAP 能否控制 |
+| --- | --- |
+| 项目声明的 Skill | ✅ 只有声明过的会进入 |
+| 用户级 / 项目级 Skill、subagent、command | ✅ 已关闭 |
+| 用户级 / 项目级 settings | ✅ 已关闭 |
+| 本地 MCP 配置 | ✅ 只用 CAP 渲染的那份 |
+| **claude.ai 账号级远程 MCP connector** | ❌ 订阅模式下压不住 |
+| **客户端自带的 42 个 bundled skills** | ❌ |
+| **企业 managed 配置层** | ❌ |
+
+最后三项在 receipt 中恒记为 `reported_client_limited`。这不是保守，是事实：账号级 connector 无视 `--strict-mcp-config` 已被两次独立复现。
+
+需要真正闭合 MCP 时，把 `.cap/runtime/claude.toml` 的 `login_mode` 改为 `bare`——代价是放弃订阅登录，改用 `ANTHROPIC_API_KEY`。
+
+### Claude 特有的失败
+
+| 现象 | 含义 | 处理 |
+| --- | --- | --- |
+| `Not logged in` | CAP 的 Claude runtime 还没登录过 | 在该 runtime 内登录一次 |
+| `profile generation content drifted` | generation 目录被手工改过 | 不要修补，删掉该目录让它重新物化 |
+| `Claude adapter does not project hooks/plugins yet` | 为 Claude 声明了尚未支持的能力类别 | 移除该声明，或改用其他客户端 |
+| `would exceed the portable path budget` | Skill 内层路径太深，在 Windows 上会超长 | 缩短 Skill 内的目录层级 |
+
 ## 6. 常见失败的含义
 
 | 现象 | 含义 | 处理 |
@@ -230,7 +277,7 @@ codex 与 qoder 的凭据暂存依赖符号链接，在 Windows 上需要额外�
 绑定机器基座：     cap bind <profile>
 确认可运行：       cap verify
 只看渲染结果：     cap render <profile> --cli <client> --output <empty-dir>
-实际启动：         cap run <profile> ...
+实际启动：         cap run <profile> --cli <client> -- <客户端参数>
 ```
 
 CAP 的目标不是让配置文件更多，而是让每次 Agent 运行都能回答：

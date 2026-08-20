@@ -729,6 +729,73 @@ class ClaudeGenerationTest(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "metadata drifted"):
             self.materialize()
 
+    def _nesting_that_exceeds_the_budget(self) -> str:
+        from agent_system.claude import generation, native
+
+        prefix = len(
+            str(
+                generation.claude_render_root(self.args())
+                / ("0" * 64)
+                / native.PLUGIN_SKILLS_ROOT
+                / self.SKILLS[0]
+            )
+        )
+        component = "level00"
+        needed = generation.MAX_PORTABLE_PATH - prefix - len("/reference.md")
+        levels = max(needed // (len(component) + 1) + 2, 2)
+        return "/".join(f"level{index:02d}" for index in range(levels))
+
+    def test_path_budget_rejects_a_deeply_nested_skill(self) -> None:
+        from agent_system.adapter import common
+        from agent_system.claude import generation
+        from agent_system.claude.runtime import ClaudeError
+
+        # Derive the depth from the real prefix so the test means the same
+        # thing on a short Linux temp path and a long Windows one.
+        deep = self._nesting_that_exceeds_the_budget()
+
+        def deep_render(command, **_):
+            result = self._fake_render(command, **_)
+            output = Path(command[command.index("--output") + 1])
+            target = output / "skills" / self.SKILLS[0] / deep
+            target.mkdir(parents=True)
+            (target / "reference.md").write_text("x", encoding="utf-8")
+            return result
+
+        with patch.object(common.subprocess, "run", side_effect=deep_render):
+            with self.assertRaisesRegex(ClaudeError, "portable path budget"):
+                generation.materialize_claude_generation(self.args(), {})
+
+    def test_path_budget_failure_leaves_no_stage_behind(self) -> None:
+        from agent_system.adapter import common
+        from agent_system.claude import generation
+        from agent_system.claude.runtime import ClaudeError
+
+        # Derive the depth from the real prefix so the test means the same
+        # thing on a short Linux temp path and a long Windows one.
+        deep = self._nesting_that_exceeds_the_budget()
+
+        def deep_render(command, **_):
+            result = self._fake_render(command, **_)
+            output = Path(command[command.index("--output") + 1])
+            target = output / "skills" / self.SKILLS[0] / deep
+            target.mkdir(parents=True)
+            (target / "reference.md").write_text("x", encoding="utf-8")
+            return result
+
+        with patch.object(common.subprocess, "run", side_effect=deep_render):
+            with self.assertRaises(ClaudeError):
+                generation.materialize_claude_generation(self.args(), {})
+        render_root = generation.claude_render_root(self.args())
+        stages = (
+            [path.name for path in render_root.iterdir() if path.name.startswith(".stage-")]
+            if render_root.is_dir()
+            else []
+        )
+        # Aborting before the copy is what keeps a half-built directory from
+        # ever appearing in the store.
+        self.assertEqual(stages, [])
+
     def test_receipt_records_evidence_without_secrets(self) -> None:
         from agent_system.claude import launch
         from agent_system.profile.cli import SECRET_KEY_PATTERN
