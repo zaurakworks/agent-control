@@ -119,7 +119,7 @@ cap use <role> --cli claude
 
 ## Affected Profiles and Clients
 
-- 受影响 role：`general`、`assembly-helper`（两者都将获得 `--cli claude` 路径；能力闭包不变）。
+- 受影响 role：`general`、`agent-assembler`（两者都将获得 `--cli claude` 路径；能力闭包不变）。
 - 新增客户端：`claude`。
 - 不受影响客户端：`omp`（主力，行为不变）、`codex`、`qoder`（仍只有 portable render）。
 

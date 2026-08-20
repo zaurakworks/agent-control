@@ -448,7 +448,7 @@
 uv run cap skills-validate
 uv run cap lock
 uv run cap assembly-bind general
-uv run cap assembly-bind assembly-helper
+uv run cap assembly-bind agent-assembler
 uv run cap verify
 uv run cap show general --cli claude
 uv run cap show general --cli omp

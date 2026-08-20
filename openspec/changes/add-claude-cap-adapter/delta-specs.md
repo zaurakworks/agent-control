@@ -278,7 +278,7 @@ EFFECTIVE_ADAPTERS = {
 | `.cap/manifest.toml` | `runtime` 表加 `claude = ".cap/runtime/claude.toml"` |
 | `.cap/runtime/claude.toml` | 新建，见 design-spec 8.1 |
 | `.cap/profiles/general.toml` | `runtime = { omp = "default", claude = "default" }` |
-| `.cap/profiles/assembly-helper.toml` | 同上 |
+| `.cap/profiles/agent-assembler.toml` | 同上 |
 | `.cap/lock.json` | 由 `cap lock` 重新生成，不手工编辑 |
 
 ### I-9 测试
