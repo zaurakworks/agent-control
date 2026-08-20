@@ -128,6 +128,19 @@ receipt 采用"先 `O_EXCL` 预留占位、运行结束再提交"。旧实现持
 3. 提交二：按 A→B→E→F→C／D 的簇序把 `StableDirectory` 换成 `os.lstat` 分量校验实现，调整 `_normalize_root_alias`，按 D4 分类处理认证检查，扩展 Windows CI 覆盖 render smoke。每簇完成后都要求 POSIX 回归全绿再进入下一簇。
 4. 回滚：两个提交各自可单独 revert；POSIX 侧回到当前 `main` 行为。本机 `$HOME/.agent-system-state/` 不由本变更迁移；binding 失配时按既有 `cap assembly-bind` 重建。
 
-## Open Questions
+## 已解答的问题
 
-- Windows 上的 `omp` 读取哪个主目录变量：现有代码为一次性根设置 `HOME`，Windows 客户端通常读 `USERPROFILE`。这一点只能由 render smoke 阶段的真实客户端证据确定，且无论结论如何都只影响启动环境的一个键，不改变本 change 的 spec、路线或任务划分，因此延后到实测时回答。
+原文在此挂了一个待定问题：Windows 上的 omp 读 `HOME` 还是 `USERPROFILE`。2026-08-20 实测**否掉了这个问题的前提**，记录见 [`work/records/2026-08-20-omp-windows-agent-dir/finding.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/finding.md)。
+
+| 条件（omp v17.3.5，Windows 11） | 结果 |
+| --- | --- |
+| 绝对 `PI_CODING_AGENT_DIR`，**设** `HOME` | 路径翻倍，`ENOENT` |
+| 绝对 `PI_CODING_AGENT_DIR`，**不设** `HOME` | 路径翻倍，`ENOENT`（与上一行相同） |
+| 不设 `PI_CODING_AGENT_DIR` | 正常运行 |
+| 相对 `PI_CODING_AGENT_DIR` | 不翻倍，但相对 **cwd** 解析而非 home |
+
+真正的原因是 omp 对 `PI_CODING_AGENT_DIR` 做拼接而不是解析，与主目录变量无关。这是上游行为，不在本仓代码内。
+
+**不做绕过**：唯一可行的绕过是改传相对路径，但它相对 cwd 解析，而 cap 把 cwd 设为项目根——实测会把运行时状态写进项目。代价高于收益，已回退。
+
+**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。

@@ -5,13 +5,34 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
 from agent_system.cap import cli as cap
+from agent_system.omp import runtime as omp_runtime
+
+
+
+class ClientStdinTest(unittest.TestCase):
+    """`run` is batch and must not inherit an open stdin pipe; `use` is interactive."""
+
+    def stdin_for(self, command: str | None) -> int | None:
+        return omp_runtime._client_stdin(SimpleNamespace(profile_tool_command=command))
+
+    def test_batch_run_closes_stdin(self) -> None:
+        self.assertEqual(self.stdin_for("run"), subprocess.DEVNULL)
+
+    def test_interactive_launch_keeps_stdin(self) -> None:
+        self.assertIsNone(self.stdin_for("launch"))
+
+    def test_unknown_command_keeps_stdin(self) -> None:
+        self.assertIsNone(self.stdin_for(None))
+        self.assertIsNone(omp_runtime._client_stdin(SimpleNamespace()))
 
 
 class NonTTY(io.StringIO):
