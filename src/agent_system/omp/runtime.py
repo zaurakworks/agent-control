@@ -150,16 +150,51 @@ def _assert_managed_path(
             raise _MigrationError(f"{label} contains a symlink")
     return candidate
 
-def _validate_private_runtime(root: Path, label: str) -> None:
+def _validate_private_runtime(
+    root: Path, label: str, *, private_root: Path
+) -> None:
     info = root.stat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid():
+    if not stat.S_ISDIR(info.st_mode):
         raise _MigrationError(
-            f"{label} must be a current-user directory"
+            f"{label} must be a directory"
         )
-    if stat.S_IMODE(info.st_mode) & 0o077:
+    if hasattr(os, "geteuid"):
+        if info.st_uid != os.geteuid():
+            raise _MigrationError(
+                f"{label} must be a current-user directory"
+            )
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            raise _MigrationError(
+                f"{label} must not grant group or other access"
+            )
+        return
+
+    # Windows has no geteuid, and POSIX mode bits are a no-op there, so the
+    # two checks above cannot run. Substitute the constraints that are
+    # enforceable: the directory must stay inside the CAP-managed root, and
+    # no component may be a symlink or junction pointing elsewhere.
+    # This is a weaker guarantee than the POSIX branch -- it does not read
+    # ACLs, so a managed root that grants other principals write access
+    # still passes. Tracked in zaurakworks/agent-system#83.
+    managed = private_root.expanduser().absolute()
+    candidate = root.expanduser().absolute()
+    try:
+        relative = candidate.relative_to(managed)
+    except ValueError as error:
         raise _MigrationError(
-            f"{label} must not grant group or other access"
+            f"{label} must stay inside the CAP-managed root"
+        ) from error
+    current = managed
+    for part in relative.parts:
+        current = current / part
+        entry = current.lstat()
+        reparse = getattr(entry, "st_file_attributes", 0) & (
+            stat.FILE_ATTRIBUTE_REPARSE_POINT
         )
+        if stat.S_ISLNK(entry.st_mode) or reparse:
+            raise _MigrationError(
+                f"{label} contains a symlink or junction"
+            )
 
 def _reject_unsafe_tree(root: Path, label: str) -> None:
     for path in [root, *root.rglob("*")]:
@@ -334,7 +369,9 @@ def _session_inventory(root: Path, label: str) -> dict[str, str]:
         inventory[relative] = _digest_bytes(path.read_bytes())
     return inventory
 
-def _runtime_summary(label: str, root: Path) -> _RuntimeSummary:
+def _runtime_summary(
+    label: str, root: Path, *, private_root: Path
+) -> _RuntimeSummary:
     if not root.exists():
         return _RuntimeSummary(
             label,
@@ -347,7 +384,7 @@ def _runtime_summary(label: str, root: Path) -> _RuntimeSummary:
             {"memory": {"backend": "off"}},
             {},
         )
-    _validate_private_runtime(root, label)
+    _validate_private_runtime(root, label, private_root=private_root)
     _reject_unsafe_tree(root, label)
     auth_count, auth_digest, db_settings, schema_digest = (
         _database_summary(root / "agent.db", label)
@@ -447,10 +484,14 @@ def _migration_plan(
             project_root.parent, project_root, "agent home root"
         )
     source = _runtime_summary(
-        "project-shared", _project_shared_omp_home(args)
+        "project-shared",
+        _project_shared_omp_home(args),
+        private_root=_agent_home_root(args),
     )
     target_root = _agent_home_dir(args)
-    target = _runtime_summary("global", target_root)
+    target = _runtime_summary(
+        "global", target_root, private_root=_runtime_real_home(args)
+    )
     marker_payload: dict[str, object] | None = None
     if target.exists:
         marker = _shared_runtime_marker(args)
@@ -697,7 +738,11 @@ def _apply_omp_runtime_migration(
     ):
         private.mkdir(parents=True, exist_ok=True, mode=0o700)
         private.chmod(0o700)
-        _validate_private_runtime(private, "global CAP state directory")
+        _validate_private_runtime(
+            private,
+            "global CAP state directory",
+            private_root=_runtime_real_home(args),
+        )
     stage = target_parent / f".omp-stage-{os.getpid()}-{time.time_ns()}"
     old_target = target_parent / f".omp-old-{os.getpid()}-{time.time_ns()}"
     target_was_moved = False
@@ -733,7 +778,11 @@ def _apply_omp_runtime_migration(
             json.dumps(marker, ensure_ascii=False, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        _runtime_summary("staged global runtime", stage)
+        _runtime_summary(
+            "staged global runtime",
+            stage,
+            private_root=_runtime_real_home(args),
+        )
         if target.exists():
             os.rename(target, old_target)
             target_was_moved = True
@@ -929,7 +978,9 @@ def _require_shared_runtime_ready(args: argparse.Namespace) -> None:
     _assert_managed_path(
         _runtime_real_home(args), shared, "global OMP runtime"
     )
-    _validate_private_runtime(shared, "global OMP runtime")
+    _validate_private_runtime(
+        shared, "global OMP runtime", private_root=_runtime_real_home(args)
+    )
     try:
         payload = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -1279,7 +1330,11 @@ def _materialize_profile_generation(
         ):
             private.mkdir(parents=True, exist_ok=True, mode=0o700)
             private.chmod(0o700)
-            _validate_private_runtime(private, "global CAP render directory")
+            _validate_private_runtime(
+                private,
+                "global CAP render directory",
+                private_root=_runtime_real_home(args),
+            )
         _assert_managed_path(
             _runtime_real_home(args), parent, "global render CAS"
         )
