@@ -146,17 +146,17 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "92975ee87763d87523b133cdc34914a85c85d64a40edce6c161b5086938ac559",
+      "sha256": "2df3263eb7475140b6a392f39fe56ed008b555ec2bc849cfe8d394f931572b54",
       "type": "file"
     },
     ".cap/profiles/agent-assembler.toml": {
       "mode": "0644",
-      "sha256": "42476a262404b25cf7f661843aa32bf5bcfb7978c2269eb4a024dff7b7125e9a",
+      "sha256": "3c6d3d752ef7f7a886a2d9558a27b191abedb9ac00af13e7b6cb4799f09778d8",
       "type": "file"
     },
     ".cap/profiles/general.toml": {
       "mode": "0644",
-      "sha256": "8c71adf10e40b577df882936774569931413af45c7ac2036d244d6f3a6c18dbe",
+      "sha256": "4ecaafccda385b64be606d85ce64647ae47fc0da0de4c5e9db3679471352c982",
       "type": "file"
     },
     ".cap/project-defaults.toml": {
