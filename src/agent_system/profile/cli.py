@@ -502,7 +502,7 @@ class Project:
     root: Path
     manifest: Path
     defaults: Path
-    runtime_policy: Path
+    runtime_policies: Mapping[str, Path]
     skill_imports_manifest: Path | None
     skill_imports: Mapping[str, ProjectSkillImport]
     profiles: Mapping[str, Profile]
@@ -704,19 +704,36 @@ def load_project(
     raw_runtime = manifest["runtime"]
     if not isinstance(raw_runtime, Mapping):
         raise ProfileError("manifest.runtime must be a table")
-    if set(raw_runtime) != {"omp"}:
-        raise ProfileError("manifest.runtime must contain only omp")
-    runtime_source = raw_runtime["omp"]
-    if not isinstance(runtime_source, str):
-        raise ProfileError("manifest.runtime.omp must be a path string")
-    runtime_path = _resolve_file(root, runtime_source, "OMP runtime policy")
-    _require_under_cap(root, runtime_path, "OMP runtime policy")
-    runtime_data = _read_toml(runtime_path)
-    _expect_keys(runtime_data, {"version", "client", "policy"}, "OMP runtime policy")
-    if type(runtime_data["version"]) is not int or runtime_data["version"] != 1:
-        raise ProfileError("OMP runtime policy.version must be 1")
-    if runtime_data["client"] != "omp" or not isinstance(runtime_data["policy"], Mapping):
-        raise ProfileError("OMP runtime policy must target omp and contain a table")
+    declared_runtimes = set(raw_runtime)
+    if not declared_runtimes:
+        raise ProfileError("manifest.runtime must declare at least one client")
+    unknown_runtimes = sorted(declared_runtimes - set(CLIENTS))
+    if unknown_runtimes:
+        raise ProfileError(
+            "manifest.runtime declares unknown clients "
+            f"{unknown_runtimes}; known clients are {sorted(CLIENTS)}"
+        )
+    runtime_policies: dict[str, Path] = {}
+    for runtime_client in sorted(declared_runtimes):
+        label = f"{runtime_client} runtime policy"
+        runtime_source = raw_runtime[runtime_client]
+        if not isinstance(runtime_source, str):
+            raise ProfileError(
+                f"manifest.runtime.{runtime_client} must be a path string"
+            )
+        runtime_path = _resolve_file(root, runtime_source, label)
+        _require_under_cap(root, runtime_path, label)
+        runtime_data = _read_toml(runtime_path)
+        _expect_keys(runtime_data, {"version", "client", "policy"}, label)
+        if type(runtime_data["version"]) is not int or runtime_data["version"] != 1:
+            raise ProfileError(f"{label}.version must be 1")
+        if runtime_data["client"] != runtime_client or not isinstance(
+            runtime_data["policy"], Mapping
+        ):
+            raise ProfileError(
+                f"{label} must target {runtime_client} and contain a table"
+            )
+        runtime_policies[runtime_client] = runtime_path
 
     skill_imports_manifest: Path | None = None
     skill_imports: dict[str, ProjectSkillImport] = {}
@@ -807,10 +824,23 @@ def load_project(
             prompt = _resolve_file(source_root, raw_prompt, f"profile {name} prompt")
             _require_under_cap(source_root, prompt, f"profile {name} prompt")
             raw_profile_runtime = profile_data["runtime"]
-            if not isinstance(raw_profile_runtime, Mapping) or set(raw_profile_runtime) != {"omp"}:
-                raise ProfileError(f"profile {name}.runtime must contain only omp")
-            if not isinstance(raw_profile_runtime["omp"], str):
-                raise ProfileError(f"profile {name}.runtime.omp must be a string")
+            if not isinstance(raw_profile_runtime, Mapping) or not raw_profile_runtime:
+                raise ProfileError(
+                    f"profile {name}.runtime must declare at least one client"
+                )
+            unknown_profile_runtimes = sorted(
+                set(raw_profile_runtime) - set(CLIENTS)
+            )
+            if unknown_profile_runtimes:
+                raise ProfileError(
+                    f"profile {name}.runtime declares unknown clients "
+                    f"{unknown_profile_runtimes}; known clients are {sorted(CLIENTS)}"
+                )
+            for runtime_client, runtime_id in raw_profile_runtime.items():
+                if not isinstance(runtime_id, str):
+                    raise ProfileError(
+                        f"profile {name}.runtime.{runtime_client} must be a string"
+                    )
             operations = {
                 field: _load_layer_operations(
                     profile_data[field], f"profile {name}.{field}"
@@ -829,7 +859,7 @@ def load_project(
                 "source": source,
                 "source_root": source_root,
                 "prompt": prompt,
-                "runtime": {"omp": raw_profile_runtime["omp"]},
+                "runtime": dict(sorted(raw_profile_runtime.items())),
                 "operations": operations,
             }
 
@@ -923,7 +953,7 @@ def load_project(
         root=root,
         manifest=manifest_path,
         defaults=defaults_path,
-        runtime_policy=runtime_path,
+        runtime_policies=runtime_policies,
         skill_imports_manifest=skill_imports_manifest,
         skill_imports=dict(sorted(skill_imports.items())),
         profiles=dict(sorted(profiles.items())),
@@ -4428,7 +4458,7 @@ def _input_records(project: Project) -> dict[str, Any]:
         paths: set[Path] = {
             project.manifest,
             project.defaults,
-            project.runtime_policy,
+            *project.runtime_policies.values(),
             project.root / "AGENTS.md",
         }
         if project.skill_imports_manifest is not None:
@@ -4471,7 +4501,7 @@ def _input_records(project: Project) -> dict[str, Any]:
             "public/" + path.relative_to(project.root).as_posix(),
             path,
         )
-        for path in (project.defaults, project.runtime_policy)
+        for path in (project.defaults, *project.runtime_policies.values())
     )
     if project.skill_imports_manifest is not None:
         entries.append(

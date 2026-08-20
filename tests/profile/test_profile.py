@@ -2452,6 +2452,108 @@ class PerClientAdapterVersionTests(ProfileTestCase):
             profile._client_adapter_version("unimplemented")
 
 
+class MultiClientRuntimeTests(ProfileTestCase):
+    """manifest.runtime and profile.runtime must accept more than one client.
+
+    v3 pinned both to exactly {"omp"}, which blocks declaring a runtime policy
+    for any second client and therefore blocks every future adapter.
+    """
+
+    def _write_policy(self, client: str, declared: str | None = None) -> str:
+        relative = f".cap/runtime/{client}.toml"
+        path = self.project / relative
+        lines = [
+            "version = 1",
+            f'client = "{declared or client}"',
+            "",
+            "[policy]",
+            "",
+        ]
+        path.write_text("\n".join(lines), encoding="utf-8")
+        return relative
+
+    def _set_manifest_runtime(self, entries: dict[str, str]) -> None:
+        path = self.project / ".cap" / "manifest.toml"
+        text = path.read_text(encoding="utf-8")
+        rows = [f'{name} = "{value}"' for name, value in sorted(entries.items())]
+        block = "\n".join(["[runtime]", *rows, "", ""])
+        start = text.index("[runtime]")
+        end = text.index("[profiles]", start)
+        path.write_text(text[:start] + block + text[end:], encoding="utf-8")
+
+    def _add_profile_runtime(self, client: str) -> None:
+        for name in ("implementation", "review"):
+            path = self.project / ".cap" / "profiles" / f"{name}.toml"
+            text = path.read_text(encoding="utf-8")
+            replaced = text.replace(
+                'runtime = { omp = "default" }',
+                'runtime = { omp = "default", ' + client + ' = "default" }',
+            )
+            self.assertNotEqual(replaced, text, f"{name} runtime not rewritten")
+            path.write_text(replaced, encoding="utf-8")
+
+    def test_single_client_manifest_still_loads(self) -> None:
+        project = profile.load_project(self.project)
+        self.assertEqual(sorted(project.runtime_policies), ["omp"])
+
+    def test_two_clients_are_accepted(self) -> None:
+        relative = self._write_policy("codex")
+        self._set_manifest_runtime(
+            {"omp": ".cap/runtime/omp.toml", "codex": relative}
+        )
+        self._add_profile_runtime("codex")
+
+        project = profile.load_project(self.project)
+        self.assertEqual(sorted(project.runtime_policies), ["codex", "omp"])
+        selected = profile._select_profile(project, "review")
+        self.assertEqual(sorted(selected.runtime), ["codex", "omp"])
+
+    def test_every_declared_policy_enters_the_lock_inputs(self) -> None:
+        relative = self._write_policy("codex")
+        self._set_manifest_runtime(
+            {"omp": ".cap/runtime/omp.toml", "codex": relative}
+        )
+        self._add_profile_runtime("codex")
+
+        project = profile.load_project(self.project)
+        inputs = profile._desired_lock(project)["inputs"]
+        self.assertIn(relative, inputs)
+        self.assertIn(".cap/runtime/omp.toml", inputs)
+
+    def test_unknown_client_is_rejected(self) -> None:
+        self._set_manifest_runtime({"nonesuch": ".cap/runtime/omp.toml"})
+        with self.assertRaisesRegex(profile.ProfileError, "unknown clients"):
+            profile.load_project(self.project)
+
+    def test_empty_runtime_table_is_rejected(self) -> None:
+        self._set_manifest_runtime({})
+        with self.assertRaisesRegex(profile.ProfileError, "at least one client"):
+            profile.load_project(self.project)
+
+    def test_policy_client_must_match_its_key(self) -> None:
+        relative = self._write_policy("codex", declared="omp")
+        self._set_manifest_runtime(
+            {"omp": ".cap/runtime/omp.toml", "codex": relative}
+        )
+        self._add_profile_runtime("codex")
+        with self.assertRaisesRegex(profile.ProfileError, "must target codex"):
+            profile.load_project(self.project)
+
+    def test_profile_runtime_rejects_unknown_client(self) -> None:
+        for name in ("implementation", "review"):
+            path = self.project / ".cap" / "profiles" / f"{name}.toml"
+            text = path.read_text(encoding="utf-8")
+            path.write_text(
+                text.replace(
+                    'runtime = { omp = "default" }',
+                    'runtime = { omp = "default", nonesuch = "default" }',
+                ),
+                encoding="utf-8",
+            )
+        with self.assertRaisesRegex(profile.ProfileError, "unknown clients"):
+            profile.load_project(self.project)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
