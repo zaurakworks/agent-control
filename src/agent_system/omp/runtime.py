@@ -1391,7 +1391,7 @@ def _agent_home_env(
     agent_home: Path,
     generation: Path,
     real_home: Path,
-    shared_auth: Mapping[str, str],
+    shared_auth: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     env = base_env.copy()
     for name in AMBIENT_CONFIG_ENV:
@@ -1418,7 +1418,7 @@ def _agent_home_env(
             "PI_PROFILE": "default",
         }
     )
-    env.update(shared_auth)
+    env.update(shared_auth or {})
     return env
 
 def _write_receipt(
