@@ -2,7 +2,7 @@
 
 > 非权威研发记录。结论只描述实测行为，不产生产品决定或授权。
 > 相关规划：`openspec/changes/enable-windows-cap-assembly` 的任务 5.3。
-> 待提交上游的报告正文见同目录 [`upstream-issue.md`](./upstream-issue.md)。
+> 上游 issue：[can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)；提交正文见同目录 [`upstream-issue.md`](./upstream-issue.md)。
 
 ## 更正说明
 
@@ -46,7 +46,7 @@ A2 与 A3 相同，说明 profile 变量不是触发条件。E 与 F 的对比�
 
 另一种绕法是改传相对路径：它避开翻倍，但相对 **cwd** 解析，而 cap 把 cwd 设为项目根，会把运行时状态写进项目。实测确认过并已回退。
 
-结论是等待上游修复。
+结论是等待上游修复，跟踪于 [can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)。
 
 ## 对本仓的影响
 

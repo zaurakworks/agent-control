@@ -145,4 +145,4 @@ receipt 采用"先 `O_EXCL` 预留占位、运行结束再提交"。旧实现持
 
 **不做绕过**：`PI_CONFIG_DIR` 正是 cap 隔离客户端配置的手段——实测中不设它，omp 就会读取用户目录下的 `~/.omp` 配置并据此选模型，这恰是本仓"业务能力不得从用户目录隐式补齐"要防的事；`--config` 是叠加式覆盖，不提供隔离。改传相对路径可以避开翻倍，但相对 cwd 解析，而 cap 把 cwd 设为项目根，会把运行时状态写进项目，已实测并回退。
 
-**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。待提交上游的报告见 [`upstream-issue.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/upstream-issue.md)。
+**后果**：`render` 与 `show --cli omp` 在 Windows 正常；`run`／`use` 的 omp 客户端无法启动，因此实际生效态保持 `unknown`，属于被上游阻塞而非验证未做完。上游跟踪于 [can1357/oh-my-pi#9067](https://github.com/can1357/oh-my-pi/issues/9067)，提交正文见 [`upstream-issue.md`](../../../work/records/2026-08-20-omp-windows-agent-dir/upstream-issue.md)。
