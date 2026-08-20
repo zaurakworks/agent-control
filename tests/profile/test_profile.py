@@ -2102,6 +2102,59 @@ class ObserverContractTests(ProfileTestCase):
         self.assertFalse((moved / "receipt.json").exists())
 
 
+class CanonicalModeTests(ProfileTestCase):
+    """Guard the portability of every mode recorded into lock and tree hashes."""
+
+    def test_canonical_mode_ignores_actual_permission_bits(self) -> None:
+        target = self.project / "AGENTS.md"
+        observed = set()
+        for bits in (0o644, 0o600, 0o755, 0o777):
+            try:
+                target.chmod(bits)
+            except (OSError, NotImplementedError):
+                continue
+            observed.add(profile._canonical_mode(target))
+        self.assertEqual(observed, {0o644})
+
+    def test_input_records_do_not_change_when_permissions_change(self) -> None:
+        project = profile.load_project(self.project)
+        before = profile._input_records(project)
+
+        changed = False
+        for relative, record in before.items():
+            if record.get("type") != "file":
+                continue
+            try:
+                (self.project / relative).chmod(0o777)
+                changed = True
+            except (OSError, NotImplementedError):
+                pass
+        if not changed:
+            self.skipTest("host does not support chmod")
+
+        self.assertEqual(profile._input_records(project), before)
+
+    def test_render_tree_mode_is_constant_across_permissions(self) -> None:
+        project = profile.load_project(self.project)
+        selected = profile._select_profile(project, "review")
+        before = profile._tree_hash(profile._render_tree(project, "omp", selected))
+
+        skills = self.project / ".cap" / "capabilities" / "skills"
+        changed = False
+        for source in skills.rglob("*"):
+            if source.is_file():
+                try:
+                    source.chmod(0o777)
+                    changed = True
+                except (OSError, NotImplementedError):
+                    pass
+        if not changed:
+            self.skipTest("host does not support chmod")
+
+        after = profile._tree_hash(profile._render_tree(project, "omp", selected))
+        self.assertEqual(after, before)
+
+
 class SingleEntryTests(unittest.TestCase):
     def test_profile_package_has_one_cli_and_observe_schema_is_removed(self) -> None:
         package_root = Path(profile.__file__).resolve().parent
