@@ -358,6 +358,165 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class ClaudeNativeProjectionTests(unittest.TestCase):
+    """The projection is the only place Claude's own key names may appear."""
+
+    def _config(self, **overrides: object) -> dict:
+        from agent_system.claude import runtime as claude_runtime
+
+        config = claude_runtime.effective_claude_config(
+            ("alpha", "beta"),
+            {"demo": {"type": "stdio", "command": "x", "args": [], "env": {}}},
+            {
+                "auth_mode": "subscription",
+                "permission_mode": "manual",
+                "enable_project_mcp": False,
+                "enable_user_assets": False,
+                "auto_memory": False,
+            },
+            {},
+            {},
+        )
+        config.update(overrides)
+        return config
+
+    def _project(self, config: dict) -> dict:
+        from agent_system.claude import native
+
+        return native.project_claude_native(
+            config, profile="general", adapter_version=1
+        )
+
+    def test_emits_exactly_the_verified_native_files(self) -> None:
+        from agent_system.claude import native
+
+        files = self._project(self._config())
+        self.assertEqual(
+            sorted(files),
+            [
+                native.MCP_PATH,
+                native.PLUGIN_MANIFEST_PATH,
+                native.SETTINGS_PATH,
+            ],
+        )
+
+    def test_plugin_manifest_uses_the_verified_shape(self) -> None:
+        from agent_system.claude import native
+
+        files = self._project(self._config())
+        manifest = json.loads(files[native.PLUGIN_MANIFEST_PATH])
+        self.assertEqual(manifest["name"], "cap-general")
+        self.assertEqual(manifest["skills"], "./skills/")
+        self.assertIn("version", manifest)
+        self.assertIn("description", manifest)
+        self.assertEqual(manifest["author"], {"name": "cap"})
+
+    def test_mcp_file_uses_mcp_servers(self) -> None:
+        from agent_system.claude import native
+
+        files = self._project(self._config())
+        payload = json.loads(files[native.MCP_PATH])
+        self.assertEqual(sorted(payload), ["mcpServers"])
+        self.assertEqual(sorted(payload["mcpServers"]), ["demo"])
+
+    def test_settings_is_empty_because_no_key_is_verified(self) -> None:
+        from agent_system.claude import native
+
+        # Every control CAP needs is a verified command-line flag. Guessing a
+        # settings key would violate the adapter's evidence rule.
+        files = self._project(self._config())
+        self.assertEqual(json.loads(files[native.SETTINGS_PATH]), {})
+
+    def test_unmapped_configuration_field_fails_closed(self) -> None:
+        from agent_system.claude.runtime import ClaudeError
+
+        config = self._config()
+        config["future_section"] = {"something": 1}
+        with self.assertRaisesRegex(ClaudeError, "does not map configuration"):
+            self._project(config)
+
+    def test_wrong_version_or_client_fails_closed(self) -> None:
+        from agent_system.claude.runtime import ClaudeError
+
+        for key, value in (("version", 2), ("client", "omp")):
+            with self.subTest(key=key):
+                config = self._config()
+                config[key] = value
+                with self.assertRaisesRegex(ClaudeError, "version 1 claude"):
+                    self._project(config)
+
+    def test_projection_is_deterministic(self) -> None:
+        first = self._project(self._config())
+        second = self._project(self._config())
+        self.assertEqual(first, second)
+
+    def test_projection_does_not_touch_the_filesystem(self) -> None:
+        # Purity matters: these bytes enter the content digest, so the result
+        # must depend on the configuration alone.
+        with patch.object(Path, "open", side_effect=AssertionError("IO")):
+            self._project(self._config())
+
+    def test_projection_record_pins_the_evidence_digest(self) -> None:
+        from agent_system.claude import native
+
+        files = self._project(self._config())
+        record = native.native_projection_record(
+            files,
+            adapter_version=1,
+            unsupported=("hooks", "plugins"),
+            verified_surface_digest="sha256:abc",
+        )
+        self.assertEqual(record["adapter_version"], 1)
+        self.assertEqual(record["files"], sorted(files))
+        self.assertEqual(record["unsupported"], ["hooks", "plugins"])
+        self.assertEqual(record["verified_surface_digest"], "sha256:abc")
+
+
+class ClaudeNativeEvidenceTests(unittest.TestCase):
+    """Every native key in the projection must be backed by recorded evidence."""
+
+    def test_recorded_evidence_covers_the_projected_keys(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        evidence_root = (
+            repository / "openspec" / "changes" / "add-claude-cap-adapter" / "evidence"
+        )
+        surface = json.loads(
+            (evidence_root / "claude-native-surface.json").read_text(encoding="utf-8")
+        )
+        projection = json.loads(
+            (evidence_root / "native-projection-check.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        confirmed = {
+            fact["id"] for fact in surface["facts"] if fact["status"] == "confirmed"
+        }
+        for required in (
+            "plugin-dir-readonly-skill-delivery",
+            "mcp-flags",
+            "settings-flag",
+            "subagents-and-plugin-manifest",
+        ):
+            self.assertIn(required, confirmed)
+
+        observed = {
+            item["id"]
+            for item in projection["observations"]
+            if item["status"] == "confirmed"
+        }
+        for required in (
+            "projected-plugin-loads",
+            "projected-skills-load",
+            "ambient-skill-dirs-contribute-nothing",
+            "empty-settings-file-is-accepted",
+        ):
+            self.assertIn(required, observed)
+
+        # The uncontrollable surface must stay recorded, not quietly dropped.
+        self.assertIn("claudeai-connectors-still-load", observed)
+
+
 class ClaudeRuntimePolicyTests(unittest.TestCase):
     """The Claude policy is CAP semantics with non-negotiable system gates."""
 
