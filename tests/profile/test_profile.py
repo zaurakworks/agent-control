@@ -1034,7 +1034,11 @@ class LaunchTests(ProfileTestCase):
                         "OMP_AUTH_BROKER_URL": "http://127.0.0.1:43129",
                         "OMP_PROFILE": "default",
                         "PI_CODING_AGENT_DIR": str(runtime_root),
-                        "PI_CONFIG_DIR": str(runtime_root),
+                        # Joined with the home by the client, so it must be the
+                        # home-relative name rather than an absolute path.
+                        "PI_CONFIG_DIR": profile._home_relative_name(
+                            runtime_root, "omp runtime root"
+                        ),
                         "PI_CONFIG_FILES": str(runtime_root / "config.yml"),
                         "PI_PROFILE": "default",
                     }
@@ -1671,13 +1675,16 @@ class LaunchTests(ProfileTestCase):
             environment = kwargs["env"]
             self.assertEqual(environment["OMP_PROFILE"], "default")  # type: ignore[index]
             self.assertEqual(environment["PI_PROFILE"], "default")  # type: ignore[index]
+            agent_dir = Path(environment["PI_CODING_AGENT_DIR"])  # type: ignore[index]
             self.assertEqual(  # type: ignore[index]
                 environment["PI_CONFIG_FILES"],
-                str(Path(environment["PI_CONFIG_DIR"]) / "config.yml"),
+                str(agent_dir / "config.yml"),
             )
+            # PI_CONFIG_DIR names the same directory, but relative to the home:
+            # the client joins it with the home itself.
             self.assertEqual(
-                environment["PI_CONFIG_DIR"],  # type: ignore[index]
-                environment["PI_CODING_AGENT_DIR"],  # type: ignore[index]
+                Path.home().absolute() / environment["PI_CONFIG_DIR"],  # type: ignore[index]
+                agent_dir,
             )
             return SimpleNamespace(returncode=0)
 
@@ -2659,6 +2666,74 @@ class ClaudeRuntimePolicyIsLockedTests(unittest.TestCase):
         self.assertIn("claude", project.runtime_policies)
         inputs = profile._desired_lock(project)["inputs"]
         self.assertIn(".cap/runtime/claude.toml", inputs)
+
+
+class EphemeralRuntimeRootTests(ProfileTestCase):
+    """The one-shot runtime root must be expressible on both hosts.
+
+    Some clients define a configuration directory variable as a name relative to
+    the home and join it with the home themselves. Neither host's system
+    temporary directory is under the home, so a root there cannot be expressed
+    at all and the run fails before it starts.
+    """
+
+    def test_root_is_created_under_the_real_home(self) -> None:
+        with profile._ephemeral_runtime_root("omp", "review") as root:
+            self.assertTrue(
+                root.is_relative_to(Path.home().absolute()),
+                f"{root} is not under the home",
+            )
+            self.assertTrue(root.is_dir())
+
+    def test_root_is_removed_after_normal_use(self) -> None:
+        with profile._ephemeral_runtime_root("omp", "review") as root:
+            (root / "leftover.txt").write_text("x", encoding="utf-8")
+        self.assertFalse(root.exists())
+
+    def test_root_is_removed_after_a_failure(self) -> None:
+        class Boom(RuntimeError):
+            pass
+
+        captured = None
+        with self.assertRaises(Boom):
+            with profile._ephemeral_runtime_root("omp", "review") as root:
+                captured = root
+                (root / "partial.txt").write_text("x", encoding="utf-8")
+                raise Boom
+        self.assertIsNotNone(captured)
+        self.assertFalse(captured.exists())
+
+    def test_home_relative_name_round_trips(self) -> None:
+        with profile._ephemeral_runtime_root("omp", "review") as root:
+            name = profile._home_relative_name(root, "omp runtime root")
+            self.assertFalse(Path(name).is_absolute())
+            # What the client will compute must be the root itself, not a path
+            # that had the home joined onto an already-absolute value.
+            self.assertEqual(Path.home().absolute() / name, root)
+
+    def test_directory_outside_the_home_cannot_be_named(self) -> None:
+        outside = Path(tempfile.gettempdir()).absolute() / "cap-outside-home"
+        if outside.is_relative_to(Path.home().absolute()):
+            self.skipTest("system temporary directory is under the home here")
+        with self.assertRaisesRegex(profile.ProfileError, "under the real home"):
+            profile._home_relative_name(outside, "omp runtime root")
+
+    def test_root_is_accepted_by_the_directory_gate(self) -> None:
+        project = profile.load_project(self.project)
+        with profile._ephemeral_runtime_root("omp", "review") as root:
+            with profile._stable_directory(root, "runtime root") as directory:
+                # Only the home itself, the project, and native capability
+                # roots are rejected; locations under the home are fine.
+                profile._require_external_directory(
+                    project, directory, "runtime root"
+                )
+
+    def test_location_choice_has_no_platform_branch(self) -> None:
+        import inspect
+
+        source = inspect.getsource(profile._ephemeral_runtime_root)
+        for marker in ("os.name", "sys.platform", "platform.system"):
+            self.assertNotIn(marker, source)
 
 
 class SingleEntryTests(unittest.TestCase):
