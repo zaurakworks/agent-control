@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "captured_at": "2026-08-19",
+  "claude_cli_version": "2.1.236",
+  "claude_cli_commit": "82959839e940",
+  "platform": "win32-x64",
+  "method": "`claude --help` 枚举 + 受控实验（隔离 scratchpad，未修改用户真实 ~/.claude）；实验探针使用 --debug-file 的启动期加载日志，属确定性观察，不依赖模型自述。",
+  "facts": [
+    {
+      "id": "config-dir-env",
+      "claim": "CLAUDE_CONFIG_DIR 存在且被真实生效，重定位用户级配置面",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "设置 CLAUDE_CONFIG_DIR 后 `claude doctor` 报 'Config install method: not set'、'Last update attempt: none recorded'；重定向目录内被创建出 .claude.json、backups/。",
+      "notes": "user 级 settings 路径在日志中解析为 <CLAUDE_CONFIG_DIR>\\settings.json。"
+    },
+    {
+      "id": "claude-json-relocatable",
+      "claim": "~/.claude.json 跟随 CLAUDE_CONFIG_DIR，不是不可重定位的 ambient 面",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "重定向后目标目录内出现 .claude.json 与 backups/.claude.json.backup.*。",
+      "notes": "修正了设计初稿中『~/.claude.json 关不掉』的假设。"
+    },
+    {
+      "id": "auth-follows-config-dir",
+      "claim": "claude.ai 订阅认证（OAuth）随 CLAUDE_CONFIG_DIR 迁移，重定向后需重新登录",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "重定向后 `claude doctor` 报 'Not signed in to claude.ai'、'claude.ai subscription auth not active'；`claude -p` 返回 'Not logged in · Please run /login'。真实 ~/.claude.json 含 oauthAccount 键。",
+      "notes": "T-1 最高风险问题的答案：属设计预期的『中间情形』——用户在 CAP runtime 下登录一次，凭据此后留在 runtimes/claude/<id>/ 并跨项目共享，与 OMP 模型一致。"
+    },
+    {
+      "id": "skill-discovery-paths",
+      "claim": "Skill 发现路径为 managed、user(=CLAUDE_CONFIG_DIR)、project、plugin、bundled 五类",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "日志原文：'Loading skills from: managed=C:\\Program Files\\ClaudeCode\\.claude\\skills, user=C:\\Users\\Morni\\.claude\\skills, project=[]'；'getSkills returning: 0 skill dir commands, 1 plugin skills, 42 bundled skills, 0 builtin plugin skills'。",
+      "notes": "不存在『自定义 skills 目录』的设置项；但 plugin 是一条独立且可控的交付通道。"
+    },
+    {
+      "id": "plugin-dir-readonly-skill-delivery",
+      "claim": "--plugin-dir 可以 session 级、只读地交付 Skill，无需写入 config dir",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "日志原文：'Loaded 1 session-only plugins from --plugin-dir'；'Attempting to load skills from plugin cap-probe default skillsPath: <path>\\skills'；'Loaded 1 skills from plugin cap-probe default directory'；'Total plugin skills loaded: 1'。",
+      "notes": "决定性发现：使 generation 可以像 OMP 一样被只读引用，取消了设计初稿中的 skills 水合层。plugin 清单格式为 .claude-plugin/plugin.json 且 skills 字段指向 ./skills/，与本仓 plugins/ 既有布局一致。"
+    },
+    {
+      "id": "bundled-skills-uncontrollable",
+      "claim": "Claude Code 自带 42 个 bundled skills，不由本地配置控制",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "'42 bundled skills' 在 --bare 与非 --bare 下均出现；'Sending 13 skills via attachment (initial)'。",
+      "notes": "属 CAP 无法接管的能力底座。--disable-slash-commands 声称 'Disable all skills'，其对 bundled 的效果未实验验证。"
+    },
+    {
+      "id": "setting-sources-flag",
+      "claim": "--setting-sources <user,project,local> 存在；传空值可屏蔽用户级 settings",
+      "status": "confirmed",
+      "verified_by": "both",
+      "evidence": "--help 原文：'Comma-separated list of setting sources to load (user, project, local).'；传 --setting-sources \"\" 后日志不再出现对用户级 settings.json 的 watch。",
+      "notes": "managed-settings.json 仍被无条件探测。"
+    },
+    {
+      "id": "managed-settings-irreducible",
+      "claim": "管理层配置始终加载，CAP 无法接管",
+      "status": "confirmed",
+      "verified_by": "both",
+      "evidence": "每次启动均探测 C:\\Program Files\\ClaudeCode\\managed-settings.json 与 C:\\Program Files\\ClaudeCode\\.claude\\{skills,agents,commands,output-styles}；'MDM settings load completed'。--safe-mode 帮助原文亦称 'Admin-managed (policy) settings still apply.'",
+      "notes": "本机上述路径均不存在（ENOENT），因此当前观察为 absent 而非 active；在企业机器上必须记为 unknown。"
+    },
+    {
+      "id": "claudeai-remote-connectors",
+      "claim": "订阅认证下，claude.ai 账号级远程 MCP connector 会被拉取，且 --strict-mcp-config 压不住",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "即使传入 --strict-mcp-config --mcp-config <空 mcpServers>，日志仍有 '[claudeai-mcp] Fetching from https://api.anthropic.com/v1/mcp_servers?limit=1000'、'Fetched 2 servers'、'MCP server \"claude.ai Google Drive\": Connection established'。",
+      "notes": "设计初稿完全没有预见到这条 ambient 面。它不来自任何本地文件，绑定在 claude.ai 账号上，是订阅模式下 MCP 闭包不可控的根源。"
+    },
+    {
+      "id": "bare-mode-tradeoff",
+      "claim": "--bare 可消除 claude.ai connectors，但代价是完全不读 OAuth/keychain，只接受 ANTHROPIC_API_KEY 或 apiKeyHelper",
+      "status": "confirmed",
+      "verified_by": "both",
+      "evidence": "--help 原文：'skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and CLAUDE.md auto-discovery. Sets CLAUDE_CODE_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read).'；实验：在 OAuth 有效的情况下 `claude --bare -p` 返回 'Not logged in · Please run /login'；--bare 日志中无任何 claudeai-mcp 行；--plugin-dir 在 --bare 下仍正常加载 skill。",
+      "notes": "这是需要负责人决定的产品取舍，见 proposal 的『认证模式抉择』。"
+    },
+    {
+      "id": "mcp-flags",
+      "claim": "--mcp-config <files|json...> 与 --strict-mcp-config 存在",
+      "status": "confirmed",
+      "verified_by": "both",
+      "evidence": "--help 原文：'--strict-mcp-config  Only use MCP servers from --mcp-config, ignoring all other MCP configurations'；日志 '[MCP] --mcp-config servers running fully async'。",
+      "notes": "『ignoring all other MCP configurations』的实测范围不含 claude.ai 账号级 connector，见 claudeai-remote-connectors。"
+    },
+    {
+      "id": "settings-flag",
+      "claim": "--settings 接受文件路径或 JSON 字符串",
+      "status": "confirmed",
+      "verified_by": "doc",
+      "evidence": "--help 原文：'--settings <file-or-json>  Path to a settings JSON file or a JSON string to load additional settings from'。",
+      "notes": "与其他层的精确合并/覆盖语义未单独实验验证。"
+    },
+    {
+      "id": "settings-layer-paths",
+      "claim": "Windows 上的 settings 层级路径已确认",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "日志按序探测：C:\\Program Files\\ClaudeCode\\managed-settings.json（managed）、<CLAUDE_CONFIG_DIR>\\settings.json（user）、<cwd>\\.claude\\settings.json（project）、<cwd>\\.claude\\settings.local.json（local）。",
+      "notes": "另有独立的 MDM settings 加载阶段。"
+    },
+    {
+      "id": "prompt-injection-flags",
+      "claim": "--append-system-prompt 与 --system-prompt 均存在",
+      "status": "confirmed",
+      "verified_by": "doc",
+      "evidence": "--help 原文：'--append-system-prompt <prompt>  Append a system prompt to the default system prompt'；'--system-prompt <prompt>  System prompt to use for the session'。",
+      "notes": "--bare 帮助中提及 --system-prompt-file / --append-system-prompt-file，但它们未出现在 --help 主列表，存在性待核。"
+    },
+    {
+      "id": "permission-mode-values",
+      "claim": "--permission-mode 的合法取值集合",
+      "status": "confirmed",
+      "verified_by": "doc",
+      "evidence": "--help 原文 choices: 'acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'。",
+      "notes": "不存在 'default' 取值；设计初稿中的 permission_mode = \"default\" 是错误的，须改用 'manual' 或 'auto'。"
+    },
+    {
+      "id": "forbidden-flags-exist",
+      "claim": "拟拒绝的客户端参数确实存在于 CLI 面",
+      "status": "confirmed",
+      "verified_by": "doc",
+      "evidence": "--help 中确认存在：--settings、--setting-sources、--mcp-config、--strict-mcp-config、--plugin-dir、--plugin-url、--agents、--agent、--add-dir、--permission-mode、--dangerously-skip-permissions、--allow-dangerously-skip-permissions、--system-prompt、--append-system-prompt、--tools、--allowedTools、--disallowedTools、--bare、--safe-mode、--disable-slash-commands、--session-id、--no-session-persistence、--debug-file。",
+      "notes": "FORBIDDEN_CLIENT_ARGUMENTS[\"claude\"] 应覆盖以上全部会改变配置来源、能力来源或提示词来源的项。"
+    },
+    {
+      "id": "subagents-and-plugin-manifest",
+      "claim": "subagent 与 plugin 的目录/清单结构",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "日志探测 <managed>\\.claude\\agents 与 <managed>\\.claude\\commands；--agents 接受 JSON 对象；plugin 清单为 .claude-plugin/plugin.json，skills 字段指向 ./skills/。",
+      "notes": "本仓 plugins/*/.claude-plugin/plugin.json 已是该格式。"
+    },
+    {
+      "id": "windows-paths",
+      "claim": "Windows 上的配置与管理路径",
+      "status": "confirmed",
+      "verified_by": "experiment",
+      "evidence": "用户级 C:\\Users\\<user>\\.claude 与 C:\\Users\\<user>\\.claude.json；管理层 C:\\Program Files\\ClaudeCode\\。可执行文件 C:\\Users\\Morni\\.local\\bin\\claude.exe。",
+      "notes": "长路径与 symlink 限制未单独实验验证，仍按保守设计处理。"
+    },
+    {
+      "id": "hooks-shape",
+      "claim": "hooks 的配置位置与事件名",
+      "status": "unknown",
+      "verified_by": "none",
+      "evidence": "日志出现事件名 SessionStart、UserPromptSubmit、Stop，以及 'Registered 0 hooks from 1 plugins'、'Hooks: Found 0 total hooks in registry'。",
+      "notes": "本变更不实现 hooks 投影，因此该项保持 unknown 不构成阻断；若将来实现必须补齐核对。"
+    }
+  ],
+  "blocking_items_resolved": [
+    "config-dir-env",
+    "auth-follows-config-dir",
+    "skill-discovery-paths"
+  ],
+  "open_product_decision": {
+    "id": "auth-mode-choice",
+    "summary": "CAP 管理下的 Claude 必须在两种认证模式间二选一，二者的能力闭包可控性不同。",
+    "options": [
+      {
+        "mode": "订阅 OAuth（在 CAP runtime 内登录一次）",
+        "pros": "沿用负责人现有订阅；无需管理 API key",
+        "cons": "claude.ai 账号级远程 MCP connector 不可由 CAP 关闭，MCP 闭包生效态只能记为 reported_client_limited"
+      },
+      {
+        "mode": "--bare + ANTHROPIC_API_KEY / apiKeyHelper",
+        "pros": "无 claude.ai connector；hooks、auto-memory、CLAUDE.md 自动发现、keychain 读取全部关闭；闭包可控性最接近 OMP",
+        "cons": "需要单独的 API key 与计费；放弃订阅额度；bundled skills 仍不可控"
+      }
+    ]
+  }
+}
