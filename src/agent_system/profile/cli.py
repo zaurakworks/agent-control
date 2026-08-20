@@ -1179,6 +1179,11 @@ def _read_private_file(
                 raise ProfileError(f"{context} exceeds {max_bytes} bytes")
             after = os.fstat(descriptor)
             live = os.lstat(target)
+            # The descriptor-to-descriptor comparison below keeps st_ctime_ns,
+            # but the name-to-descriptor one must not: on Windows st_ctime is
+            # the creation time and fstat and lstat report it from different
+            # sources, so the same untouched file differs by a fraction of a
+            # millisecond and every read would be reported as unstable.
             stable_identity = _same_file_identity(
                 after, before.st_dev, before.st_ino
             ) and _same_file_identity(live, before.st_dev, before.st_ino)
@@ -1193,11 +1198,9 @@ def _read_private_file(
             ) and (
                 live.st_size,
                 live.st_mtime_ns,
-                live.st_ctime_ns,
             ) == (
                 before.st_size,
                 before.st_mtime_ns,
-                before.st_ctime_ns,
             )
             if stable_identity and stable_generation:
                 return bytes(content)
@@ -5199,12 +5202,10 @@ def _reserve_receipt(
             inode=info.st_ino,
         )
     except BaseException:
-        try:
-            if descriptor is not None:
-                _unlink_reserved_receipt(path, descriptor)
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
+        if descriptor is not None:
+            recorded = os.fstat(descriptor)
+            os.close(descriptor)
+            _unlink_reserved_receipt(path, recorded.st_dev, recorded.st_ino)
         raise
 
 
@@ -5261,25 +5262,28 @@ def _commit_receipt(reservation: ReceiptReservation, content: bytes) -> None:
     _validate_receipt_reservation(reservation)
 
 
-def _unlink_reserved_receipt(path: Path, descriptor: int) -> None:
+def _unlink_reserved_receipt(path: Path, device: int, inode: int) -> None:
+    """Remove a reserved receipt only when the name still holds that object.
+
+    The descriptor must already be closed: Windows refuses to unlink a file
+    that is still open, so identity is confirmed against the values recorded
+    at reservation time rather than against a live fstat.
+    """
+
     try:
         target_info = os.lstat(path)
-        descriptor_info = os.fstat(descriptor)
-        if (target_info.st_dev, target_info.st_ino) == (
-            descriptor_info.st_dev,
-            descriptor_info.st_ino,
-        ):
+        if _same_file_identity(target_info, device, inode):
             os.unlink(path)
     except (FileNotFoundError, NotImplementedError):
         return
 
 
 def _release_receipt(reservation: ReceiptReservation, *, remove: bool) -> None:
-    try:
-        if remove:
-            _unlink_reserved_receipt(reservation.path, reservation.descriptor)
-    finally:
-        os.close(reservation.descriptor)
+    os.close(reservation.descriptor)
+    if remove:
+        _unlink_reserved_receipt(
+            reservation.path, reservation.device, reservation.inode
+        )
 
 
 def _atomic_write(path: Path, content: bytes, *, mode: int) -> None:
