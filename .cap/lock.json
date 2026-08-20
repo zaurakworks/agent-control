@@ -146,17 +146,17 @@
     },
     ".cap/manifest.toml": {
       "mode": "0644",
-      "sha256": "b82ccb655092ff8e3266b9c1be62c5e6ea88a106436f1b2285145efe48173df6",
+      "sha256": "2df3263eb7475140b6a392f39fe56ed008b555ec2bc849cfe8d394f931572b54",
       "type": "file"
     },
     ".cap/profiles/agent-assembler.toml": {
       "mode": "0644",
-      "sha256": "e1fdfb3802e22717b484aaaf371c69e646379e23ffe7d9546ed08f412dd8dc38",
+      "sha256": "3c6d3d752ef7f7a886a2d9558a27b191abedb9ac00af13e7b6cb4799f09778d8",
       "type": "file"
     },
     ".cap/profiles/general.toml": {
       "mode": "0644",
-      "sha256": "0db2e1afcb854ef9ce40496453c02dd56175bf0ec3700c1c0c2b8779547a3c96",
+      "sha256": "4ecaafccda385b64be606d85ce64647ae47fc0da0de4c5e9db3679471352c982",
       "type": "file"
     },
     ".cap/project-defaults.toml": {
@@ -172,6 +172,11 @@
     ".cap/prompts/general.md": {
       "mode": "0644",
       "sha256": "379eed5fe34a52a73b0eefb7d1d1dac5ce66cf67d59d57dd6f221c09864973e9",
+      "type": "file"
+    },
+    ".cap/runtime/claude.toml": {
+      "mode": "0644",
+      "sha256": "56e00c8b97f4a4ece39940bd80a3227bafc39f254049a92a966e3044d820d213",
       "type": "file"
     },
     ".cap/runtime/omp.toml": {
@@ -248,7 +253,7 @@
           "spec-change-pack"
         ]
       },
-      "layer_digest": "sha256:2aaadc845ab03cfbad37ebaaa77e142e905d6e26e3a5a2f588397c62682ded65",
+      "layer_digest": "sha256:fc60ba3a07dc1fce261e628ccf58a27a6e0b7e9737967575c8e98fa3e24958d2",
       "operations": {
         "hooks": {
           "allow": [],
@@ -281,6 +286,7 @@
         }
       },
       "runtime": {
+        "claude": "default",
         "omp": "default"
       }
     },
@@ -317,7 +323,7 @@
           "openspec-update-change"
         ]
       },
-      "layer_digest": "sha256:c9eb670fd9b9fcc5ec77a2a38f104c1913c871f78922ea5c9217eef233a62693",
+      "layer_digest": "sha256:283b08df33794931b6e9c5065787aa587d80496ec6bb052e4d583bfaf64b7ea6",
       "operations": {
         "hooks": {
           "allow": [],
@@ -341,6 +347,7 @@
         }
       },
       "runtime": {
+        "claude": "default",
         "omp": "default"
       }
     }

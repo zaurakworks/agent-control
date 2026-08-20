@@ -358,6 +358,149 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class ClaudeRuntimePolicyTests(unittest.TestCase):
+    """The Claude policy is CAP semantics with non-negotiable system gates."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        (self.root / ".cap" / "runtime").mkdir(parents=True)
+
+    def _write(self, body: str, *, version: int = 1, client: str = "claude") -> None:
+        path = self.root / ".cap" / "runtime" / "claude.toml"
+        header = [f"version = {version}", f'client = "{client}"', "", "[policy]"]
+        path.write_text("\n".join([*header, body, ""]), encoding="utf-8")
+
+    def _read(self) -> dict:
+        from agent_system.claude import runtime as claude_runtime
+
+        return claude_runtime.read_claude_runtime_policy(
+            cap.argparse.Namespace(project=str(self.root))
+        )
+
+    def test_defaults_are_conservative(self) -> None:
+        self._write("")
+        policy = self._read()
+        self.assertEqual(policy["auth_mode"], "subscription")
+        self.assertEqual(policy["permission_mode"], "manual")
+        self.assertFalse(policy["enable_project_mcp"])
+        self.assertFalse(policy["enable_user_assets"])
+        self.assertFalse(policy["auto_memory"])
+
+    def test_unknown_fields_are_preserved_but_not_projected(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write('future_field = "untouched"')
+        policy = self._read()
+        self.assertEqual(policy["future_field"], "untouched")
+
+        config = claude_runtime.effective_claude_config(
+            ("alpha",), {}, policy, {}, {}
+        )
+        self.assertNotIn("future_field", json.dumps(config))
+
+    def test_enable_user_assets_cannot_be_widened(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write("enable_user_assets = true")
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "fixed system gate"):
+            self._read()
+
+    def test_bypass_permissions_is_a_fixed_gate(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write('permission_mode = "bypassPermissions"')
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "fixed system gate"):
+            self._read()
+
+    def test_permission_mode_must_be_a_real_claude_mode(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        # "default" does not exist in Claude Code 2.1.236.
+        self._write('permission_mode = "default"')
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "permission_mode"):
+            self._read()
+
+    def test_auth_mode_is_restricted(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write('auth_mode = "whatever"')
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "auth_mode"):
+            self._read()
+
+    def test_wrong_client_or_version_fails_closed(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write("", client="omp")
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "client claude"):
+            self._read()
+        self._write("", version=2)
+        with self.assertRaisesRegex(claude_runtime.ClaudeError, "version 1"):
+            self._read()
+
+    def test_global_preference_reads_only_the_allowlist(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        runtime_root = self.root / "runtime"
+        runtime_root.mkdir()
+        (runtime_root / "settings.json").write_text(
+            json.dumps(
+                {
+                    "permission_mode": "plan",
+                    "apiKeyHelper": "should-never-be-read",
+                    "mcpServers": {"ambient": {}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        preference = claude_runtime.read_global_claude_preference(runtime_root)
+        self.assertEqual(preference, {"permission_mode": "plan"})
+
+    def test_missing_global_preference_is_not_an_error(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self.assertEqual(
+            claude_runtime.read_global_claude_preference(self.root / "absent"), {}
+        )
+
+    def test_project_policy_beats_user_preference(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write('permission_mode = "acceptEdits"')
+        config = claude_runtime.effective_claude_config(
+            (), {}, self._read(), {"permission_mode": "plan"}, {}
+        )
+        self.assertEqual(config["permissions"]["default_mode"], "acceptEdits")
+
+    def test_ambient_discovery_is_off_in_the_effective_config(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write("")
+        config = claude_runtime.effective_claude_config(
+            ("alpha", "beta"), {}, self._read(), {}, {}
+        )
+        self.assertEqual(config["skills"]["include"], ["alpha", "beta"])
+        self.assertFalse(config["skills"]["enable_user"])
+        self.assertFalse(config["skills"]["enable_project"])
+        self.assertFalse(config["skills"]["enable_installed_plugins"])
+        self.assertFalse(config["memory"]["load_user_claude_md"])
+
+    def test_declared_unsupported_capability_fails_closed(self) -> None:
+        from agent_system.claude import runtime as claude_runtime
+
+        self._write("")
+        policy = self._read()
+        for kind in ("hooks", "plugins"):
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(
+                    claude_runtime.ClaudeError, "does not project"
+                ):
+                    claude_runtime.effective_claude_config(
+                        (), {}, policy, {}, {kind: ("something",)}
+                    )
+
+
 class SharedAdapterPrimitiveTests(unittest.TestCase):
     """The client-agnostic primitives must be shared, not duplicated per adapter.
 
