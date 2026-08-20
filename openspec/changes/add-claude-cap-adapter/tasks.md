@@ -14,6 +14,8 @@
 
 ## 0. 阻断前置（本变更范围外，但必须先解决）
 
+> 状态：0.1 已修（#84）、0.2 已确认（订阅 OAuth）、**0.3 未解决且阻断全部启动类验收**。
+
 ### 0.1 lock 的 mode 字段跨平台不稳定
 
 - [x] 0.1 规范化 `.cap/lock.json` 中 `inputs.*.mode` 的跨平台取值 —— **已实施**（2026-08-19）
@@ -56,6 +58,35 @@
 **依赖**：1.1
 **工作量**：0（决策项）
 **验收**：已达成。负责人选定 **订阅 OAuth** 为默认；`bare` 保留为可选值。实现须确保 `subscription` 模式下 MCP 生效态恒为 `reported_client_limited`，不提供提升路径。
+
+### 0.3 CAP 在 Windows 上无法 render 或启动任何客户端
+
+- [ ] 0.3 解决 CAP 的执行环境边界（[#87](https://github.com/zaurakworks/agent-system/issues/87)）
+
+**描述**：`_open_stable_directory` 在 Windows 上无条件失败（`anchor` 恒为 `C:\`，永不等于 `os.sep`），而 `materialize_profile` 是所有 render 的唯一入口。`os.supports_dir_fd` 在 Windows 上是空集，`dir_fd` 在 `profile/cli.py` 中有 17 处使用，贯穿 render 物化、receipt 预约与认证 vault，原生移植是数周的安全关键工作。
+
+**实测结论**：WSL2 下端到端可用，包括直接操作 `/mnt/c` 的仓库；渲染出的 `tree_hash` 与 Linux 侧提交进 lock 的值逐字节一致。因此不需要移植，只需明确执行环境边界。
+
+**对本变更的影响**：本规划包的多数验收标准依赖 render 与 launch：
+
+| 环境 | render | launch |
+| --- | --- | --- |
+| 原生 Windows | ❌ | 客户端在，但 launch 必须先 render |
+| WSL | ✅ | ❌ 当前未安装 `claude` / `omp` |
+
+两步必须在同一环境完成，因此**目前没有任何环境能执行本包的启动类验收**。
+
+**依赖**：无
+**工作量**：环境动作 + 约 0.5 天代码（可操作的错误信息、TUI 前置检查、文档）
+**验收**：
+
+- WSL 中安装 `claude` 与 `omp`，`cap use general --cli omp` 在 WSL 中跑通。
+- 原生 Windows 上执行 `cap render` 得到指向 WSL 的可操作错误，而非 `requires POSIX component-safe directory handles`。
+- `docs/cap-guide.zh-CN.md` 写明执行环境前置条件。
+
+> 本任务**不属于本变更**，但阻断本包 3.x／4.x／5.x 的全部验收。1.x 与 2.x（基础设施解耦与 portable 渲染）可在其之前进行，因为它们只依赖 `cap lock` 与单元测试，二者在原生 Windows 上可用。
+
+---
 
 ---
 
