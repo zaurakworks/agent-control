@@ -358,6 +358,236 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class ClaudeGenerationTest(unittest.TestCase):
+    """The three hashes, the content-addressed store and its drift gates."""
+
+    SKILLS = ("alpha", "beta")
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.bindings = self.root / "bindings"
+        self.bindings.mkdir()
+        (self.bindings / "general.binding.json").write_text(
+            json.dumps(
+                {
+                    "layer_digest": "sha256:layer-general",
+                    "effective_digest": "sha256:effective-general",
+                }
+            ),
+            encoding="utf-8",
+        )
+        cap_dir = self.root / "project" / ".cap"
+        (cap_dir / "runtime").mkdir(parents=True)
+        (cap_dir / "runtime" / "claude.toml").write_text(
+            "\n".join(
+                [
+                    "version = 1",
+                    'client = "claude"',
+                    "",
+                    "[policy]",
+                    'auth_mode = "subscription"',
+                    'permission_mode = "manual"',
+                    "enable_project_mcp = false",
+                    "enable_user_assets = false",
+                    "auto_memory = false",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (cap_dir / "lock.json").write_text(
+            json.dumps({"clients": {"claude": {"adapter_version": 1}}}),
+            encoding="utf-8",
+        )
+
+    def args(self) -> object:
+        return cap.argparse.Namespace(
+            profile="general",
+            cli="claude",
+            home=str(self.home),
+            _real_home=str(self.home),
+            agent_home_root=str(self.home / ".agent-system-state"),
+            profile_tool=str(self.root / "profile.py"),
+            project=str(self.root / "project"),
+            base_manifest=str(self.root / "base.json"),
+            base_pin=str(self.root / "pin.json"),
+            binding_dir=str(self.bindings),
+            private_overlay=None,
+            claude_runtime_id="default",
+        )
+
+    def _fake_render(self, command, **_):
+        """Stand in for the profile engine's materialize step."""
+
+        output = Path(command[command.index("--output") + 1])
+        (output / "claude-config.yaml").write_text("{}\n", encoding="utf-8")
+        (output / "mcp.json").write_text(
+            json.dumps({"mcpServers": {}}), encoding="utf-8"
+        )
+        (output / "system-prompt.md").write_text("prompt\n", encoding="utf-8")
+        for name in self.SKILLS:
+            skill = output / "skills" / name
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"tree_hash": "sha256:portable-fixture"}),
+            stderr="",
+        )
+
+    def materialize(self):
+        from agent_system.adapter import common
+        from agent_system.claude import generation
+
+        with patch.object(common.subprocess, "run", side_effect=self._fake_render):
+            return generation.materialize_claude_generation(self.args(), {})
+
+    def test_generation_is_named_by_its_effective_hash(self) -> None:
+        gen, portable, effective, skills = self.materialize()
+        self.assertEqual(portable, "sha256:portable-fixture")
+        self.assertEqual(gen.name, effective.removeprefix("sha256:"))
+        self.assertEqual(skills, self.SKILLS)
+
+    def test_three_hashes_have_distinct_roles(self) -> None:
+        gen, portable, effective, _ = self.materialize()
+        manifest = json.loads(
+            (gen / ".cap-generation.json").read_text(encoding="utf-8")
+        )
+        # Declaration, machine-bound render, and bytes on disk are three
+        # different questions and must not collapse into one value.
+        self.assertEqual(manifest["portable_tree_hash"], portable)
+        self.assertEqual(manifest["effective_render_hash"], effective)
+        self.assertNotIn(
+            manifest["content_digest"], {portable, effective}
+        )
+
+    def test_generation_layout_matches_the_projection(self) -> None:
+        from agent_system.claude import native
+
+        gen, _, _, _ = self.materialize()
+        for relative in (
+            "claude-config.yaml",
+            "system-prompt.md",
+            native.SETTINGS_PATH,
+            native.MCP_PATH,
+            native.PLUGIN_MANIFEST_PATH,
+        ):
+            with self.subTest(relative=relative):
+                self.assertTrue((gen / relative).is_file(), relative)
+        delivered = sorted(
+            path.name
+            for path in (gen / native.PLUGIN_SKILLS_ROOT).iterdir()
+            if path.is_dir()
+        )
+        self.assertEqual(tuple(delivered), self.SKILLS)
+
+    def test_skill_allowlist_agrees_in_all_three_places(self) -> None:
+        from agent_system.claude import native
+
+        gen, _, _, skills = self.materialize()
+        manifest = json.loads(
+            (gen / ".cap-generation.json").read_text(encoding="utf-8")
+        )
+        config = cap.yaml.safe_load(
+            (gen / "claude-config.yaml").read_text(encoding="utf-8")
+        )
+        delivered = tuple(
+            sorted(
+                path.name
+                for path in (gen / native.PLUGIN_SKILLS_ROOT).iterdir()
+                if path.is_dir()
+            )
+        )
+        self.assertEqual(tuple(manifest["skills"]), skills)
+        self.assertEqual(tuple(config["skills"]["include"]), skills)
+        self.assertEqual(delivered, skills)
+
+    def test_identical_inputs_reuse_the_same_generation(self) -> None:
+        first, _, first_hash, _ = self.materialize()
+        second, _, second_hash, _ = self.materialize()
+        self.assertEqual(first, second)
+        self.assertEqual(first_hash, second_hash)
+
+    def test_policy_change_produces_a_different_generation(self) -> None:
+        _, _, before, _ = self.materialize()
+        policy = self.root / "project" / ".cap" / "runtime" / "claude.toml"
+        policy.write_text(
+            policy.read_text(encoding="utf-8").replace(
+                'permission_mode = "manual"', 'permission_mode = "plan"'
+            ),
+            encoding="utf-8",
+        )
+        _, _, after, _ = self.materialize()
+        self.assertNotEqual(before, after)
+
+    def test_content_drift_is_rejected(self) -> None:
+        from agent_system.adapter.common import AdapterError
+
+        gen, _, _, _ = self.materialize()
+        (gen / "native" / "settings.json").write_text("{}\n\n", encoding="utf-8")
+        with self.assertRaisesRegex(AdapterError, "content drifted"):
+            self.materialize()
+
+    def test_metadata_drift_is_rejected(self) -> None:
+        from agent_system.adapter.common import AdapterError
+
+        gen, _, _, _ = self.materialize()
+        manifest = gen / ".cap-generation.json"
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        payload["auth_mode"] = "bare"
+        manifest.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(AdapterError, "metadata drifted"):
+            self.materialize()
+
+    def test_manifest_records_the_uncontrollable_surface_decision(self) -> None:
+        gen, _, _, _ = self.materialize()
+        manifest = json.loads(
+            (gen / ".cap-generation.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["client"], "claude")
+        self.assertEqual(manifest["auth_mode"], "subscription")
+        self.assertEqual(
+            manifest["native_projection"]["unsupported"], ["hooks", "plugins"]
+        )
+
+
+class ClaudeGenerationEvidencePinTests(unittest.TestCase):
+    def test_verified_surface_digest_matches_the_evidence_file(self) -> None:
+        from agent_system.adapter.common import _digest_bytes
+        from agent_system.claude import generation
+
+        repository = Path(__file__).resolve().parents[2]
+        evidence = (
+            repository
+            / "openspec"
+            / "changes"
+            / "add-claude-cap-adapter"
+            / "evidence"
+            / "claude-native-surface.json"
+        )
+        # The generation manifest pins this digest, so revising the recorded
+        # observations must invalidate cached renders rather than let a stale
+        # assumption keep serving them.
+        self.assertEqual(
+            generation.VERIFIED_SURFACE_DIGEST, _digest_bytes(evidence.read_bytes())
+        )
+
+    def test_client_field_prevents_cross_client_cas_collision(self) -> None:
+        from agent_system.adapter.common import _digest_json
+
+        payload = {"source_digest": "sha256:x", "config": {}, "launch": {}}
+        omp_like = _digest_json({"version": 1, **payload})
+        claude_like = _digest_json({"version": 1, "client": "claude", **payload})
+        self.assertNotEqual(omp_like, claude_like)
+
+
 class ClaudeNativeProjectionTests(unittest.TestCase):
     """The projection is the only place Claude's own key names may appear."""
 

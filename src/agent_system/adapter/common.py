@@ -9,13 +9,15 @@ stays in that client's module.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 import hashlib
 import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -193,3 +195,190 @@ def _replace_generation_placeholder(
             for key, item in value.items()
         }
     return value
+
+
+def render_portable_tree(
+    *,
+    command: Sequence[str],
+    env: Mapping[str, str],
+    output: Path,
+    client: str,
+) -> tuple[str, tuple[str, ...]]:
+    """Run the profile engine's materialize step and read its portable result.
+
+    Returns the portable tree hash and the rendered skill names. The skill names
+    come from the tree rather than from the declaration on purpose: they must
+    describe what was actually rendered, because that is what the client will be
+    handed.
+    """
+
+    completed = subprocess.run(
+        list(command),
+        capture_output=True,
+        check=False,
+        env=dict(env),
+        text=True,
+    )
+    if completed.returncode != 0:
+        print(
+            completed.stderr.strip() or completed.stdout.strip(),
+            file=sys.stderr,
+        )
+        raise SystemExit(completed.returncode)
+    try:
+        portable_hash = json.loads(completed.stdout)["tree_hash"]
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise AdapterError(
+            f"{client} materialize output has no tree_hash"
+        ) from error
+    if not isinstance(portable_hash, str):
+        raise AdapterError(f"{client} materialize tree_hash must be a string")
+
+    skills_root = output / "skills"
+    skill_names = (
+        tuple(
+            sorted(
+                path.name
+                for path in skills_root.iterdir()
+                if path.is_dir() and not path.is_symlink()
+            )
+        )
+        if skills_root.is_dir()
+        else ()
+    )
+    return portable_hash, skill_names
+
+
+def generation_source_context(
+    *,
+    profile: str,
+    client: str,
+    project: Path,
+    binding_dir: Path,
+    portable_hash: str,
+) -> tuple[dict[str, object], str]:
+    """Bind one generation to the project lock and the approved machine context.
+
+    `adapter_version` is read per client, so bumping one adapter cannot quietly
+    invalidate another client's cached generations.
+    """
+
+    binding_path = binding_dir.expanduser() / f"{profile}.binding.json"
+    lock_path = project.expanduser() / ".cap" / "lock.json"
+    try:
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        adapter_version = lock["clients"][client]["adapter_version"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise AdapterError(
+            "current project binding/lock context is invalid"
+        ) from error
+    context = {
+        "profile": profile,
+        "layer_digest": binding.get("layer_digest"),
+        "effective_digest": binding.get("effective_digest"),
+        "portable_tree_hash": portable_hash,
+        "adapter_version": adapter_version,
+    }
+    if not all(
+        isinstance(context[key], (str, int))
+        for key in (
+            "layer_digest",
+            "effective_digest",
+            "portable_tree_hash",
+            "adapter_version",
+        )
+    ):
+        raise AdapterError(
+            "current project binding/adapter context is incomplete"
+        )
+    return context, _digest_json(context)
+
+
+GENERATION_MANIFEST_NAME = ".cap-generation.json"
+
+
+def verify_generation(
+    generation: Path, expected: Mapping[str, object]
+) -> dict[str, object]:
+    """Re-check one cached generation before it is used.
+
+    Two separate failures are distinguished on purpose. Metadata drift means the
+    generation was built for different inputs than the ones in hand; content
+    drift means the directory was edited after it was built. Both are fatal, but
+    only the second implies tampering with an already-verified render.
+    """
+
+    manifest = generation / GENERATION_MANIFEST_NAME
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AdapterError("profile generation manifest is invalid") from error
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise AdapterError("profile generation metadata drifted")
+    content_digest = _tree_digest(
+        generation, exclude={GENERATION_MANIFEST_NAME}
+    )
+    if payload.get("content_digest") != content_digest:
+        raise AdapterError("profile generation content drifted")
+    return payload
+
+
+def materialize_generation(
+    *,
+    parent: Path,
+    generation: Path,
+    source_tree: Path,
+    state_root: Path,
+    private_root: Path,
+    write_payload: Callable[[Path], None],
+    manifest_base: Mapping[str, object],
+    verify: Callable[[Path], object],
+) -> Path:
+    """Place one content-addressed generation, or reuse an identical one.
+
+    The write is staged and promoted with a single rename so a crash can never
+    leave a half-built generation that later looks cached. A losing race is not
+    an error: the winner's directory is verified instead, which is the same
+    check the cache-hit path performs.
+    """
+
+    if generation.exists():
+        verify(generation)
+        return generation
+
+    for private in (state_root, parent):
+        private.mkdir(parents=True, exist_ok=True, mode=0o700)
+        private.chmod(0o700)
+        _validate_private_runtime(
+            private,
+            "global CAP render directory",
+            private_root=private_root,
+        )
+    _assert_managed_path(private_root, parent, "global render CAS")
+
+    stage = parent / f".stage-{os.getpid()}-{time.time_ns()}"
+    try:
+        shutil.copytree(source_tree, stage)
+        write_payload(stage)
+        # Computed before the manifest exists, which is why the verifier
+        # excludes the manifest rather than including it.
+        content_digest = _tree_digest(stage)
+        manifest = {**dict(manifest_base), "content_digest": content_digest}
+        (stage / GENERATION_MANIFEST_NAME).write_text(
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        try:
+            os.rename(stage, generation)
+        except OSError:
+            if not generation.exists():
+                raise
+            shutil.rmtree(stage)
+            verify(generation)
+    except BaseException:
+        if stage.exists():
+            shutil.rmtree(stage)
+        raise
+    return generation
