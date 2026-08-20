@@ -151,7 +151,7 @@ def _assert_managed_path(
     return candidate
 
 def _validate_private_runtime(
-    root: Path, label: str, *, private_root: Path | None = None
+    root: Path, label: str, *, private_root: Path
 ) -> None:
     info = root.stat()
     if not stat.S_ISDIR(info.st_mode):
@@ -176,7 +176,7 @@ def _validate_private_runtime(
     # This is a weaker guarantee than the POSIX branch -- it does not read
     # ACLs, so a managed root that grants other principals write access
     # still passes. Tracked in zaurakworks/agent-system#83.
-    managed = (private_root or Path.home()).expanduser().absolute()
+    managed = private_root.expanduser().absolute()
     candidate = root.expanduser().absolute()
     try:
         relative = candidate.relative_to(managed)
@@ -370,7 +370,7 @@ def _session_inventory(root: Path, label: str) -> dict[str, str]:
     return inventory
 
 def _runtime_summary(
-    label: str, root: Path, *, private_root: Path | None = None
+    label: str, root: Path, *, private_root: Path
 ) -> _RuntimeSummary:
     if not root.exists():
         return _RuntimeSummary(

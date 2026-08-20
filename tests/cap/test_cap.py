@@ -322,6 +322,63 @@ class CapPreviewTest(unittest.TestCase):
         self.assertTrue(all(not os.path.exists(path) for path in created))
 
 
+class PrivateRuntimeValidationTest(unittest.TestCase):
+    """Cover both branches of _validate_private_runtime on either host."""
+
+    def _run_non_posix(self, root: Path, private_root: Path) -> None:
+        """Exercise the branch taken when os.geteuid is unavailable."""
+
+        from agent_system.omp import runtime
+
+        with _HiddenAttr(runtime.os, "geteuid"):
+            runtime._validate_private_runtime(
+                root, "test runtime", private_root=private_root
+            )
+
+    def test_windows_branch_rejects_directory_outside_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / "managed"
+            outside = root / "outside"
+            managed.mkdir()
+            outside.mkdir()
+            with self.assertRaisesRegex(Exception, "CAP-managed root"):
+                self._run_non_posix(outside, managed)
+
+    def test_windows_branch_accepts_directory_inside_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / "managed"
+            inside = managed / "renders" / "omp"
+            inside.mkdir(parents=True)
+            self._run_non_posix(inside, managed)
+
+    def test_private_root_is_required(self) -> None:
+        from agent_system.omp import runtime
+
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(TypeError):
+                runtime._validate_private_runtime(Path(temporary), "test runtime")
+
+
+class _HiddenAttr:
+    """Temporarily remove one attribute so hasattr() reports it missing."""
+
+    def __init__(self, target: object, name: str) -> None:
+        self._target = target
+        self._name = name
+        self._missing = object()
+        self._original = getattr(target, name, self._missing)
+
+    def __enter__(self) -> None:
+        if self._original is not self._missing:
+            delattr(self._target, self._name)
+
+    def __exit__(self, *exc: object) -> None:
+        if self._original is not self._missing:
+            setattr(self._target, self._name, self._original)
+
+
 class SharedRuntimeTest(unittest.TestCase):
     def test_profiles_share_runtime_and_clear_broker_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
