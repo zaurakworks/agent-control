@@ -3394,6 +3394,32 @@ def _redact_secret_values(value: Any, parent_key: str = "") -> Any:
     return value
 
 
+def _canonical_mode(path: Path) -> int:
+    """Return a platform-independent permission value for one lock or render input.
+
+    The raw `stat.S_IMODE` value is not comparable across platforms: POSIX
+    reports 0o644/0o755, while Windows exposes only a read-only flag and Python
+    reports 0o666 for any writable file. Recording it verbatim made
+    `.cap/lock.json` and every `tree_hash` platform-dependent, so a lock written
+    on one platform always failed verification on the other.
+
+    Git preserves exactly one permission distinction for tracked files -- the
+    owner executable bit -- so that is the only distinction worth recording.
+    Git for Windows additionally defaults to `core.fileMode=false` and checks
+    every file out as non-executable, so Windows cannot observe that bit at all
+    and always canonicalizes to the non-executable value.
+
+    Consequence: a file committed as executable renders as 0755 on POSIX and
+    0644 on Windows. No lock input is currently executable, so this does not
+    apply today; capability trees that need executable files must be verified on
+    POSIX. See zaurakworks/agent-system#82.
+    """
+
+    if os.name == "nt":
+        return 0o644
+    return 0o755 if stat.S_IMODE(path.stat().st_mode) & 0o111 else 0o644
+
+
 def _redacted_file_bytes(path: Path) -> bytes:
     """Read one bounded capability file and redact recognizable secret assignments."""
 
@@ -4224,7 +4250,7 @@ def _input_records(project: Project) -> dict[str, Any]:
             elif path.is_file():
                 records[relative] = {
                     "type": "file",
-                    "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                    "mode": f"{_canonical_mode(path):04o}",
                     "sha256": _sha256(path.read_bytes()),
                 }
             else:
@@ -4280,7 +4306,7 @@ def _input_records(project: Project) -> dict[str, Any]:
         elif path.is_file():
             records[relative] = {
                 "type": "file",
-                "mode": f"{stat.S_IMODE(path.stat().st_mode):04o}",
+                "mode": f"{_canonical_mode(path):04o}",
                 "sha256": _sha256(_redacted_file_bytes(path)),
             }
         else:
@@ -4351,7 +4377,7 @@ def _render_tree(
                 put(
                     f"skills/{skill}/{relative}",
                     RenderedFile(
-                        _redacted_file_bytes(source), stat.S_IMODE(source.stat().st_mode)
+                        _redacted_file_bytes(source), _canonical_mode(source)
                     ),
                     f"skill {skill}",
                 )
@@ -4375,7 +4401,7 @@ def _render_tree(
                         relative,
                         RenderedFile(
                             _redacted_file_bytes(source),
-                            stat.S_IMODE(source.stat().st_mode),
+                            _canonical_mode(source),
                         ),
                         f"{kind[:-1]} {name}",
                     )
@@ -4527,7 +4553,7 @@ def _materialize_evidence(project: Project, desired: Mapping[str, Any]) -> None:
         source = _evidence_source_path(project, relative)
         content = _redacted_file_bytes(source)
         target = source_root / "tree" / relative
-        _atomic_write(target, content, mode=stat.S_IMODE(source.stat().st_mode))
+        _atomic_write(target, content, mode=_canonical_mode(source))
         source_entries.append(
             {
                 "path": relative,
