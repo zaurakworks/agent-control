@@ -14,3 +14,9 @@ node_modules/
 *.runs/
 *.log
 .DS_Store
+WATCHDOG.yml
+
+# OpenSpec CLI-generated client projections; canonical contracts live in .cap.
+.agents/skills/.openspec-target
+.agents/skills/openspec-*/
+.claude/skills/openspec-*/
