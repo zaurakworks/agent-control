@@ -17,6 +17,7 @@ import type {
   ScalarFieldComparison,
   StableConfigRevision,
 } from '../domain/config';
+import type { LaunchPlan, LaunchStatus } from '../domain/activation';
 import type { CompareConfigRevisionsResult, ConfigQueryError } from '../application/queries';
 
 const CAPABILITY_GROUP_LABELS: Record<CapabilityKind, string> = {
@@ -172,4 +173,110 @@ export function renderCompareResult(result: CompareConfigRevisionsResult): strin
   }
 
   return sections.join('\n');
+}
+
+/**
+ * MVP-FR5: the one-time confirmation summary shown before a launch plan is
+ * confirmed. Shows configuration name/revision, the client, the client's
+ * OMP version (a `Fact` -- may be `Unknown`), the Instructions/Skills/MCP
+ * that will be enabled, any known differences/degradations, and any
+ * `-- <args>` that will be forwarded verbatim to the real `omp` invocation
+ * -- so the user sees exactly what will be appended *before* they confirm,
+ * not just after. Forwarded args are echoed opaquely (never parsed or
+ * classified, per Boundaries & Constraints) -- nothing about tasks/
+ * prompts/conversation content is shown beyond the raw tokens themselves.
+ */
+export function renderConfirmationSummary(
+  plan: LaunchPlan,
+  revision: StableConfigRevision,
+  clientVersion: Fact<string>,
+  knownDifferences: readonly string[],
+  forwardedArgs: readonly string[],
+): string {
+  const lines = [
+    `About to launch OMP with configuration "${revision.configName}" (revision ${revision.revisionId}).`,
+    `Client: ${plan.client}  version: ${formatFact(clientVersion)}`,
+    '',
+    formatCapabilityGroup('instruction', revision.instructions),
+    formatCapabilityGroup('skill', revision.skills),
+    formatCapabilityGroup('mcp', revision.mcp),
+  ];
+  if (knownDifferences.length > 0) {
+    lines.push('', 'Known differences (will not be fully applied in this MVP):');
+    for (const reason of knownDifferences) {
+      lines.push(`  - ${reason}`);
+    }
+  }
+  if (forwardedArgs.length > 0) {
+    lines.push('', 'Forwarded to `omp` verbatim after `--`:', `  ${forwardedArgs.join(' ')}`);
+  }
+  lines.push('', 'This is a one-time confirmation for this launch plan -- nothing else will ask again.');
+  return lines.join('\n');
+}
+
+/**
+ * MVP-FR6: launch status view. Only revision/client/version/phase/apply
+ * result/known differences -- never task goals, conversation, tool calls,
+ * task progress or results (Boundaries & Constraints).
+ */
+export function renderLaunchStatus(status: LaunchStatus): string {
+  const lines = [
+    `Revision: ${status.revisionId}`,
+    `Client: ${status.client}`,
+    `Client version: ${formatFact(status.clientVersion)}`,
+    `Phase: ${status.phase}`,
+    `Apply result: ${formatFact(status.applyResult)}`,
+  ];
+  if (status.knownDifferences.length > 0) {
+    lines.push('Known differences:');
+    for (const reason of status.knownDifferences) {
+      lines.push(`  - ${reason}`);
+    }
+  } else {
+    lines.push('Known differences: (none)');
+  }
+  return lines.join('\n');
+}
+
+/** MVP-FR10: immediate, typed "not supported yet" response -- no placeholder, translation or shim. */
+export function renderUnsupportedClient(clientId: string, reason: string): string {
+  return `Client "${clientId}" is not supported yet: ${reason}`;
+}
+
+/**
+ * Shared failure/terminal-with-reason rendering for a launch plan --
+ * covers both `cancelled` (user rejected the confirmation) and any other
+ * failure phase (`failed`/`incomplete`). Never fabricates success and
+ * never hides which phase the plan stopped in.
+ */
+export function renderLaunchFailure(plan: LaunchPlan): string {
+  const reason = isKnown(plan.failureReason) ? plan.failureReason.value : formatFact(plan.failureReason);
+
+  if (plan.phase === 'cancelled') {
+    return [`Launch plan ${plan.planId} was cancelled: ${reason}.`, 'OMP was not started.'].join('\n');
+  }
+
+  // `incomplete` is a domain-distinct terminal state from `failed`
+  // (`deriveOutcome` in `application/launch.ts`: the OMP process ended
+  // without a determinable exit code, e.g. killed by a signal) -- it must
+  // not be reported with the same "failed" wording as an actual non-zero
+  // exit.
+  const leadingSentence =
+    plan.phase === 'incomplete' ? `Launch plan ${plan.planId} did not complete.` : `Launch plan ${plan.planId} failed.`;
+
+  return [
+    leadingSentence,
+    `Phase: ${plan.phase}`,
+    `Reason: ${reason}`,
+    `Recovery: inspect the reason above; run \`configs show ${plan.revisionId}\` to re-check the configuration, then \`configs use ${plan.revisionId}\` to retry once resolved.`,
+  ].join('\n');
+}
+
+/** MVP-FR8: switching never hot-reloads the current process -- it requires a restart and a fresh confirmation. */
+export function renderSwitchAccepted(previousPlan: LaunchPlan, newPlan: LaunchPlan): string {
+  return [
+    `Current OMP process (plan ${previousPlan.planId}) now requires a restart to use a new configuration.`,
+    `A new launch plan (${newPlan.planId}) was created for revision ${newPlan.revisionId} and awaits a fresh confirmation.`,
+    'The current process is not modified in place and will not auto-resume.',
+  ].join('\n');
 }
