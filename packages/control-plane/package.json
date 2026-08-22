@@ -1,0 +1,18 @@
+{
+  "name": "@agent-system/control-plane",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "configs": "src/cli/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "seed": "bun scripts/seed-from-cap.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.6",
+    "typescript": "^5.6.0"
+  }
+}
